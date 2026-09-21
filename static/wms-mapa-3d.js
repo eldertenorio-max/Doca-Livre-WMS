@@ -253,8 +253,8 @@
             side: THREE.FrontSide,
             depthWrite: false
         });
-        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.52), mat);
-        mesh.renderOrder = 5;
+        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.28, 0.40), mat);
+        mesh.renderOrder = 12;
         mesh.visible = false;
         return mesh;
     }
@@ -274,75 +274,112 @@
     function _poseCameraViewSlot(dest, aisleX) {
         var THREE = T();
         var faceX = _slotFaceX(dest, aisleX);
+        var toAisle = dest.x < aisleX ? 1 : -1;
+        var camX = faceX + toAisle * 2.25;
+        if ((camX - aisleX) * (faceX - aisleX) < 0) camX = aisleX;
+        var camY = Math.max(1.58, dest.y + 0.38);
         return {
-            pos: new THREE.Vector3(aisleX, dest.y + 1.85, dest.z + 3.1),
-            tgt: new THREE.Vector3(faceX, dest.y + 0.22, dest.z)
+            pos: new THREE.Vector3(camX, camY, dest.z + 1.55),
+            tgt: new THREE.Vector3(faceX, dest.y + 0.32, dest.z)
         };
     }
 
     function _makeNavDestMarkers(THREE, dest, aisleX) {
         var group = new THREE.Group();
         group.name = 'nav-dest-markers';
-        var faceX = dest.x + _faceOffsetTowardAisle(dest.x, aisleX);
-
-        var box = new THREE.Mesh(
-            new THREE.BoxGeometry(SLOT_D * 0.9, SHELF_TH * 3.6, SLOT_D * 0.42),
-            new THREE.MeshPhongMaterial({
-                color: 0xff1744,
-                emissive: 0x880022,
-                shininess: 60,
-                transparent: true,
-                opacity: 0.94,
-                depthWrite: false
-            })
-        );
-        box.position.set(faceX, dest.y, dest.z);
-        box.renderOrder = 9;
-
-        var ringShelf = new THREE.Mesh(
-            new THREE.RingGeometry(SLOT_D * 0.18, SLOT_D * 0.5, 32),
+        var faceX = _slotFaceX(dest, aisleX);
+        var toAisle = dest.x < aisleX ? 1 : -1;
+        var x = faceX + toAisle * 0.07;
+        var y0 = dest.y - 0.03;
+        var y1 = dest.y + Math.max(0.76, LEVEL_H * 0.56);
+        var zh = (SLOT_D + GAP_POS) * 0.34;
+        var t = 0.05;
+        var mat = new THREE.MeshPhongMaterial({
+            color: 0xff1744,
+            emissive: 0xaa0011,
+            shininess: 50,
+            transparent: true,
+            opacity: 0.97,
+            depthWrite: false
+        });
+        function bar(w, h, d, px, py, pz) {
+            var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            m.position.set(px, py, pz);
+            m.renderOrder = 10;
+            group.add(m);
+            return m;
+        }
+        bar(t, y1 - y0, t, x, (y0 + y1) / 2, dest.z - zh);
+        bar(t, y1 - y0, t, x, (y0 + y1) / 2, dest.z + zh);
+        bar(t, t, zh * 2 + t, x, y0, dest.z);
+        bar(t, t, zh * 2 + t, x, y1, dest.z);
+        var plate = new THREE.Mesh(
+            new THREE.PlaneGeometry(zh * 2 * 0.9, Math.max(0.2, y1 - y0 - 0.1)),
             new THREE.MeshBasicMaterial({
                 color: 0xff1744,
-                side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.95,
+                opacity: 0.2,
+                side: THREE.DoubleSide,
                 depthWrite: false
             })
         );
-        ringShelf.rotation.x = -Math.PI / 2;
-        ringShelf.position.set(dest.x, dest.y + SHELF_TH * 0.55, dest.z);
-        ringShelf.renderOrder = 8;
+        plate.position.set(x + toAisle * 0.012, (y0 + y1) / 2, dest.z);
+        plate.rotation.y = Math.PI / 2;
+        plate.renderOrder = 9;
+        group.add(plate);
 
         var ringFloor = new THREE.Mesh(
-            new THREE.RingGeometry(SLOT_D * 0.32, SLOT_D * 0.62, 32),
+            new THREE.RingGeometry(0.22, 0.42, 28),
             new THREE.MeshBasicMaterial({
                 color: 0xff5252,
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.82,
+                opacity: 0.88,
                 depthWrite: false
             })
         );
         ringFloor.rotation.x = -Math.PI / 2;
-        ringFloor.position.set(dest.x, _navArrowFloorY() + 0.005, dest.z);
+        ringFloor.position.set(x + toAisle * 1.05, _navArrowFloorY() + 0.006, dest.z);
         ringFloor.renderOrder = 7;
+        group.add(ringFloor);
+        group.userData.frameTopY = y1;
+        group.visible = false;
+        return group;
+    }
 
-        var beamH = Math.max(0.2, dest.y - _navArrowFloorY() - 0.02);
-        var beam = new THREE.Mesh(
-            new THREE.BoxGeometry(0.1, beamH, 0.1),
+    function _makeNavPathRibbon(THREE, waypoints) {
+        if (!waypoints || waypoints.length < 2) return null;
+        var pts = [];
+        for (var i = 0; i < waypoints.length; i++) {
+            pts.push(new THREE.Vector3(waypoints[i].x, 0.045, waypoints[i].z));
+        }
+        if (!THREE.CatmullRomCurve3 || !THREE.TubeGeometry) {
+            var lineGeo = new THREE.BufferGeometry();
+            if (lineGeo.setFromPoints) lineGeo.setFromPoints(pts);
+            else {
+                var arr = [];
+                pts.forEach(function (p) { arr.push(p.x, p.y, p.z); });
+                lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+            }
+            return new THREE.Line(lineGeo, new THREE.LineBasicMaterial({
+                color: 0xff1744,
+                transparent: true,
+                opacity: 0.85
+            }));
+        }
+        var curve = new THREE.CatmullRomCurve3(pts);
+        var segs = Math.max(32, pts.length * 16);
+        var tube = new THREE.Mesh(
+            new THREE.TubeGeometry(curve, segs, 0.15, 8, false),
             new THREE.MeshBasicMaterial({
                 color: 0xff1744,
                 transparent: true,
-                opacity: 0.72,
+                opacity: 0.46,
                 depthWrite: false
             })
         );
-        beam.position.set(dest.x, _navArrowFloorY() + beamH / 2 + 0.01, dest.z);
-        beam.renderOrder = 6;
-
-        group.add(box, ringShelf, ringFloor, beam);
-        group.visible = false;
-        return group;
+        tube.renderOrder = 3;
+        return tube;
     }
 
     function _makeNavArrowMesh(THREE) {
@@ -402,7 +439,7 @@
     }
 
     function _smoothNavEase(u) {
-        return u * u * u * (u * (u * 6 - 15) + 10);
+        return u * u * (3 - 2 * u);
     }
 
     function _lerpAngle(a, b, t) {
@@ -412,20 +449,45 @@
         return a + d * t;
     }
 
+    function _navOverviewPose(waypoints) {
+        var THREE = T();
+        var a = waypoints[0];
+        var b = waypoints[Math.min(2, waypoints.length - 1)];
+        return {
+            pos: new THREE.Vector3(a.x, 13.5, a.z + 7.5),
+            tgt: new THREE.Vector3(b.x, 0.15, b.z)
+        };
+    }
+
     function _navIdealCameraPose(pt, tangent, curve, u) {
         var back = tangent.clone().multiplyScalar(-1);
-        var camPos = new THREE.Vector3(
-            pt.x + back.x * 3.4 - tangent.z * 0.8,
-            Math.max(pt.y, 0.28) + 2.55,
-            pt.z + back.z * 3.4 + tangent.x * 0.8
+        var followPos = new THREE.Vector3(
+            pt.x + back.x * 4.2 - tangent.z * 0.7,
+            Math.max(pt.y, 0.28) + 3.4,
+            pt.z + back.z * 4.2 + tangent.x * 0.7
         );
-        var lookAhead = curve.getPoint(Math.min(u + 0.04, 1));
-        var camTgt = new THREE.Vector3(
+        var lookAhead = curve.getPoint(Math.min(u + 0.05, 1));
+        var followTgt = new THREE.Vector3(
             lookAhead.x,
-            Math.max(lookAhead.y, 0.32) + 0.45,
+            Math.max(lookAhead.y, 0.32) + 0.4,
             lookAhead.z
         );
-        return { pos: camPos, tgt: camTgt };
+        var overviewPos = new THREE.Vector3(
+            pt.x - tangent.x * 9,
+            12.2,
+            pt.z - tangent.z * 9
+        );
+        var overviewTgt = new THREE.Vector3(
+            pt.x + tangent.x * 7,
+            0.25,
+            pt.z + tangent.z * 7
+        );
+        var k = Math.min(1, Math.max(0, (u - 0.12) / 0.28));
+        k = k * k * (3 - 2 * k);
+        return {
+            pos: overviewPos.lerp(followPos, k),
+            tgt: overviewTgt.lerp(followTgt, k)
+        };
     }
 
     function _syncOrbitSpherical() {
@@ -455,6 +517,7 @@
     }
 
     function _animateCameraTo(fromPos, fromTgt, toPos, toTgt, duration, onDone) {
+        _cancelCamIntro();
         var t0 = null;
         function step(ts) {
             if (!state.camera || !state.controls) return;
@@ -466,13 +529,13 @@
             state.controls.update();
             renderFrame();
             if (u < 1) {
-                state._navAnimId = requestAnimationFrame(step);
+                state._camIntroId = requestAnimationFrame(step);
             } else {
-                state._navAnimId = null;
+                state._camIntroId = null;
                 if (onDone) onDone();
             }
         }
-        state._navAnimId = requestAnimationFrame(step);
+        state._camIntroId = requestAnimationFrame(step);
     }
 
     function _beamLipAisleX(xF, xB, towardAisle) {
@@ -2411,6 +2474,21 @@
         return null;
     }
 
+    function _slotWorldFromMesh(camCod, rua, posicao, nivel) {
+        var THREE = T();
+        var rec = _findSlotRecord(camCod, rua, posicao, nivel);
+        if (!rec || !rec.mesh || typeof rec.mesh.getMatrixAt !== 'function') return null;
+        rec.mesh.updateWorldMatrix(true, false);
+        var local = new THREE.Matrix4();
+        rec.mesh.getMatrixAt(rec.instanceId, local);
+        var world = new THREE.Matrix4().multiplyMatrices(rec.mesh.matrixWorld, local);
+        return new THREE.Vector3().setFromMatrixPosition(world);
+    }
+
+    function _resolveSlotDest(camCod, rua, posicao, nivel) {
+        return _slotWorldFromMesh(camCod, rua, posicao, nivel) || _worldSlotPos(camCod, rua, posicao, nivel);
+    }
+
     function _worldSlotPos(camCod, rua, posicao, nivel) {
         var THREE = T();
         var meta = state.layoutMeta || {};
@@ -2507,13 +2585,9 @@
         return dest.x + toAisle * RACK_HALF_DEPTH;
     }
 
-    /** Ponto no corredor interno, à frente da posição, para a seta apontar o palete. */
+    /** Centro do corredor interno da câmara — a seta não cola no pé do rack. */
     function _standInFrontOfSlot(dest, aisleX) {
-        var faceX = _slotFaceX(dest, aisleX);
-        var toAisle = dest.x < aisleX ? 1 : -1;
-        var standX = faceX + toAisle * 1.35;
-        if ((standX - aisleX) * (faceX - aisleX) < 0) standX = aisleX;
-        return standX;
+        return aisleX;
     }
 
     function _navWp(x, z, yFloor) {
@@ -2584,7 +2658,7 @@
     function _buildNavWaypoints(camCod, rua, posicao, nivel) {
         var meta = state.layoutMeta || {};
         var camPos = meta.positions[camCod];
-        var dest = _worldSlotPos(camCod, rua, posicao, nivel);
+        var dest = _resolveSlotDest(camCod, rua, posicao, nivel);
         if (!camPos || !dest) return [];
 
         var cam = parseInt(camCod, 10);
@@ -2594,10 +2668,9 @@
         var slotZ = dest.z;
         var mainZ = _mainCorridorZ();
         var doorZ = _chamberDoorZ(camCod);
-        var hubX = 0;
-        if (Math.abs(hubX - aisleX) < 2.8) {
-            hubX = aisleX + (aisleX >= 0 ? -10 : 10);
-        }
+        var leftSpan = meta.leftSpan || 24;
+        var hubX = -Math.max(8, leftSpan * 0.36);
+        if (Math.abs(hubX - aisleX) < 5) hubX = aisleX - 12;
         var pts = [];
 
         if (cam === 21) {
@@ -2607,11 +2680,11 @@
             _pushNavWp(pts, passX, doorZ - 0.9, yFloor);
             _pushNavWp(pts, aisleX, doorZ + 1.6, yFloor);
         } else {
-            /* Corredor principal (centro) → frente da câmara → entra → corredor interno. */
+            /* Corredor principal → frente da câmara → entra pelo vão → corredor interno. */
             _pushNavWp(pts, hubX, mainZ, yFloor);
             _pushNavWp(pts, aisleX, mainZ, yFloor);
-            _pushNavWp(pts, aisleX, doorZ + 1.8, yFloor);
-            _pushNavWp(pts, aisleX, doorZ - 2.4, yFloor);
+            _pushNavWp(pts, aisleX, doorZ + 2.2, yFloor);
+            _pushNavWp(pts, aisleX, doorZ - 2.8, yFloor);
         }
 
         if (Math.abs((pts.length ? pts[pts.length - 1].z : slotZ) - slotZ) > 1.2) {
@@ -2701,6 +2774,7 @@
 
         var leader = _makeNavArrowMesh(THREE);
         var destMarkers = _makeNavDestMarkers(THREE, dest, aisleX);
+        var ribbon = _makeNavPathRibbon(THREE, waypoints);
 
         var addrLabel = _makeNavAddrLabel(THREE, slotInfo);
         var labelPos = new THREE.Vector3();
@@ -2708,11 +2782,12 @@
         state._navGroup = new THREE.Group();
         state._navGroup.name = 'nav-path';
         if (addrLabel) state._navGroup.add(addrLabel);
+        if (ribbon) state._navGroup.add(ribbon);
         state._navGroup.add(leader, destMarkers);
         state.rackGroup.add(state._navGroup);
 
         var pathLen = curve.getLength();
-        var duration = Math.min(16000, Math.max(6500, pathLen * 300));
+        var duration = Math.min(18000, Math.max(9000, pathLen * 240));
         var t0 = null;
         var lastTs = null;
         var arrowYaw = null;
@@ -2727,17 +2802,20 @@
         var startTan = curve.getTangent(0).normalize();
         _orientNavArrow(leader, waypoints[0].x, waypoints[0].z, startTan.x, startTan.z);
         arrowYaw = leader.rotation.y;
+        _applyNavCameraPose(_navOverviewPose(waypoints), 1);
+        renderFrame();
 
         function _finishNav() {
             state._navAnimId = null;
-            var standX = _standInFrontOfSlot(dest, aisleX);
             var faceX = _slotFaceX(dest, aisleX);
-            var labelY = dest.y + 1.05;
-            labelPos.set(faceX, labelY, dest.z);
+            var toAisle = dest.x < aisleX ? 1 : -1;
+            var standX = faceX + toAisle * 1.15;
+            var frameTop = dest.y + Math.max(0.76, LEVEL_H * 0.56);
+            labelPos.set(faceX + toAisle * 0.42, frameTop + 0.36, dest.z);
             _orientNavArrowToward(leader, standX, _navArrowFloorY(), dest.z, faceX, dest.y, dest.z);
             if (!state._navUserFlying && state.camera && state.controls) {
                 var pose = _poseCameraViewSlot(dest, aisleX);
-                _applyNavCameraPose(pose, 0.48);
+                _applyNavCameraPose(pose, 1);
             }
             if (state.controls) {
                 state.controls.enableDamping = state._navSavedDamping !== false;
@@ -2796,7 +2874,7 @@
         if (!camCod || !rua || !posicao) return;
         if (!state.rackGroup || !state.layoutMeta) return;
 
-        var dest = _worldSlotPos(camCod, rua, posicao, nivel);
+        var dest = _resolveSlotDest(camCod, rua, posicao, nivel);
         if (!dest) return;
 
         _restoreHighlight();
