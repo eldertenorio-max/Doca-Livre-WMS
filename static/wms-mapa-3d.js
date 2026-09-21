@@ -253,16 +253,19 @@
             side: THREE.FrontSide,
             depthWrite: false
         });
-        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.28, 0.40), mat);
+        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.02, 0.32), mat);
         mesh.renderOrder = 12;
         mesh.visible = false;
         return mesh;
     }
 
-    function _navLabelFaceCamera(label, labelPos, camPos) {
-        if (!label || !labelPos || !camPos) return;
-        label.position.copy(labelPos);
-        label.lookAt(camPos.x, camPos.y, camPos.z);
+    function _navLabelOnBayFace(label, dest, aisleX, topY) {
+        if (!label || !dest) return;
+        var faceX = _slotFaceX(dest, aisleX);
+        var toAisle = dest.x < aisleX ? 1 : -1;
+        label.position.set(faceX + toAisle * 0.05, topY + 0.22, dest.z);
+        label.rotation.set(0, toAisle > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+        label.visible = true;
     }
 
     function _faceOffsetTowardAisle(destX, aisleX, amount) {
@@ -275,12 +278,13 @@
         var THREE = T();
         var faceX = _slotFaceX(dest, aisleX);
         var toAisle = dest.x < aisleX ? 1 : -1;
-        var camX = faceX + toAisle * 2.25;
+        var openingH = Math.max(0.82, LEVEL_H * 0.72);
+        var midY = dest.y + openingH * 0.48;
+        var camX = faceX + toAisle * 2.55;
         if ((camX - aisleX) * (faceX - aisleX) < 0) camX = aisleX;
-        var camY = Math.max(1.58, dest.y + 0.38);
         return {
-            pos: new THREE.Vector3(camX, camY, dest.z + 1.55),
-            tgt: new THREE.Vector3(faceX, dest.y + 0.32, dest.z)
+            pos: new THREE.Vector3(camX, Math.max(1.55, midY + 0.12), dest.z + 0.22),
+            tgt: new THREE.Vector3(faceX, midY, dest.z)
         };
     }
 
@@ -289,10 +293,10 @@
         group.name = 'nav-dest-markers';
         var faceX = _slotFaceX(dest, aisleX);
         var toAisle = dest.x < aisleX ? 1 : -1;
-        var x = faceX + toAisle * 0.07;
-        var y0 = dest.y - 0.03;
-        var y1 = dest.y + Math.max(0.76, LEVEL_H * 0.56);
-        var zh = (SLOT_D + GAP_POS) * 0.34;
+        var x = faceX + toAisle * 0.04;
+        var y0 = dest.y + 0.01;
+        var y1 = dest.y + Math.max(0.82, LEVEL_H * 0.72);
+        var zh = SLOT_D * 0.46;
         var t = 0.05;
         var mat = new THREE.MeshPhongMaterial({
             color: 0xff1744,
@@ -2777,7 +2781,6 @@
         var ribbon = _makeNavPathRibbon(THREE, waypoints);
 
         var addrLabel = _makeNavAddrLabel(THREE, slotInfo);
-        var labelPos = new THREE.Vector3();
 
         state._navGroup = new THREE.Group();
         state._navGroup.name = 'nav-path';
@@ -2810,9 +2813,8 @@
             var faceX = _slotFaceX(dest, aisleX);
             var toAisle = dest.x < aisleX ? 1 : -1;
             var standX = faceX + toAisle * 1.15;
-            var frameTop = dest.y + Math.max(0.76, LEVEL_H * 0.56);
-            labelPos.set(faceX + toAisle * 0.42, frameTop + 0.36, dest.z);
-            _orientNavArrowToward(leader, standX, _navArrowFloorY(), dest.z, faceX, dest.y, dest.z);
+            var frameTop = destMarkers.userData.frameTopY || (dest.y + Math.max(0.82, LEVEL_H * 0.72));
+            _orientNavArrowToward(leader, standX, _navArrowFloorY(), dest.z, faceX, dest.y + 0.2, dest.z);
             if (!state._navUserFlying && state.camera && state.controls) {
                 var pose = _poseCameraViewSlot(dest, aisleX);
                 _applyNavCameraPose(pose, 1);
@@ -2820,9 +2822,8 @@
             if (state.controls) {
                 state.controls.enableDamping = state._navSavedDamping !== false;
             }
-            if (addrLabel && state.camera) {
-                _navLabelFaceCamera(addrLabel, labelPos, state.camera.position);
-                addrLabel.visible = true;
+            if (addrLabel) {
+                _navLabelOnBayFace(addrLabel, dest, aisleX, frameTop);
             }
             destMarkers.visible = true;
             if (slotInfo) {
