@@ -1,0 +1,429 @@
+/* Identidade visual Ultrafrio — preto #000000 + amarelo #F9DB00 (modelo Doca Livre) */
+
+/* —— Barra superior —— */
+.app-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+}
+
+[data-theme='dark'] .app-topbar {
+  background: #111111;
+  border-bottom-color: #2a2a2a;
+}
+
+.app-topbar-menu {
+  color: #000000;
+}
+
+[data-theme='dark'] .app-topbar-menu {
+  color: #ffffff;
+}
+
+.app-topbar-mark {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.app-topbar-mark svg {
+  display: none;
+}
+
+.app-topbar-wms-main {
+  color: #000000;
+}
+
+.app-topbar-wms-light {
+  color: #5c6670;
+  background: #f3f4f6;
+  border-color: #d0d7de;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.9);
+}
+
+[data-theme='dark'] .app-topbar-wms-main {
+  color: #ffffff;
+}
+
+[data-theme='dark'] .app-topbar-wms-light {
+  color: #b0b0b0;
+  background: color-mix(in srgb, #fff 8%, #1a1a1a);
+  border-color: color-mix(in srgb, #fff 18%, #333);
+  box-shadow: none;
+}
+
+.app-topbar-brand-main {
+  color: #000000;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.app-topbar-brand-sub {
+  color: #000000;
+  letter-spacing: 0.28em;
+  opacity: 0.72;
+}
+
+[data-theme='dark'] .app-topbar-brand-main,
+[data-theme='dark'] .app-topbar-brand-sub {
+  color: #ffffff;
+}
+
+.app-topbar-meta {
+  border-right-color: #e5e7eb;
+}
+
+.app-topbar-meta-time {
+  color: #000000;
+}
+
+[data-theme='dark'] .app-topbar-meta-time {
+  color: #ffffff;
+}
+
+.app-topbar-avatar {
+  border-color: var(--brand-yellow);
+  background: #fff;
+}
+
+/* —— Menu lateral preto —— */
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+}
+
+.sidebar h3,
+.sidebar h4 {
+  color: var(--sidebar-text);
+}
+
+.sidebar-section {
+  border-top-color: var(--sidebar-border);
+}
+
+.sidebar-section-trigger {
+  color: var(--sidebar-text);
+  border-radius: 0;
+  border-left: 3px solid transparent;
+}
+
+.sidebar.sidebar--wide .sidebar-section-trigger {
+  padding-left: 12px;
+}
+
+.sidebar-section-trigger:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+
+.sidebar-section--open .sidebar-section-trigger {
+  background: var(--brand-yellow-soft);
+  border-left-color: var(--brand-yellow);
+}
+
+.sidebar-section-icon {
+  background: transparent;
+  border: none;
+  color: var(--sidebar-text-muted);
+}
+
+.sidebar-section--open .sidebar-section-icon,
+.sidebar-section-trigger:hover .sidebar-section-icon {
+  color: var(--brand-yellow);
+}
+
+.sidebar-section-title {
+  color: var(--sidebar-text);
+  font-weight: 600;
+}
+
+.sidebar-section-chevron {
+  color: var(--sidebar-text-muted);
+}
+
+.sidebar-section-chevron--open {
+  color: var(--brand-yellow);
+}
+
+.sidebar:not(.sidebar--wide) .sidebar-section--open .sidebar-section-trigger {
+  background: var(--brand-yellow-soft);
+}
+
+/* Ícones das seções — amarelo quando ativo */
+.sidebar-section--entrada .sidebar-section-icon,
+.sidebar-section--saida .sidebar-section-icon,
+.sidebar-section--editar .sidebar-section-icon,
+.sidebar-section--consulta .sidebar-section-icon,
+.sidebar-section--historico .sidebar-section-icon,
+.sidebar-section--relatorio .sidebar-section-icon,
+.sidebar-section--painel .sidebar-section-icon,
+.sidebar-section--canceladas .sidebar-section-icon,
+.sidebar-section--imprimir .sidebar-section-icon,
+.sidebar-section--cadastroVoz .sidebar-section-icon {
+  color: var(--sidebar-text-muted);
+}
+
+.sidebar-section--open .sidebar-section-icon {
+  color: var(--brand-yellow);
+}
+
+/* Painel de conteúdo aberto no menu — cartão branco */
+.sidebar.sidebar--wide .sidebar-section--open .sidebar-section-inner {
+  background: #ffffff;
+  color: #000000;
+  border-radius: 10px;
+  margin: 4px 10px 14px;
+  padding: 14px 14px 16px !important;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.18);
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .muted {
+  color: #5c6670;
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .error {
+  color: var(--danger);
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner h3,
+.sidebar.sidebar--wide .sidebar-section-inner h4 {
+  color: #000000;
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .input-nf,
+.sidebar.sidebar--wide .sidebar-section-inner input,
+.sidebar.sidebar--wide .sidebar-section-inner select,
+.sidebar.sidebar--wide .sidebar-section-inner textarea {
+  background: #ffffff;
+  border-color: #dde1e6;
+  color: #000000;
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .btn {
+  background: #f3f4f6;
+  border-color: #dde1e6;
+  color: #000000;
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .btn-ghost {
+  background: transparent;
+  color: #5c6670;
+}
+
+/* —— Área principal —— */
+.main-panel {
+  background: var(--content-bg);
+  position: relative;
+}
+
+.main-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    url('/logo-doca-livre.png') center 42% / min(420px, 70%) no-repeat,
+    radial-gradient(circle at center, rgb(249 219 0 / 0.04) 0%, transparent 55%);
+  opacity: 0.07;
+  z-index: 0;
+}
+
+.main-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.layout-legend {
+  background: var(--content-bg);
+  border-bottom-color: #dde1e6;
+}
+
+.app-topbar-legend.layout-legend {
+  background: transparent;
+  border-bottom: none;
+  color: #5c6670;
+}
+
+[data-theme='dark'] .app-topbar-legend.layout-legend {
+  color: #b0b0b0;
+}
+
+[data-theme='dark'] .layout-legend {
+  background: var(--bg);
+  border-bottom-color: var(--border);
+}
+
+[data-theme='dark'] .main-panel {
+  background: var(--bg);
+}
+
+[data-theme='dark'] .main-panel::before {
+  opacity: 0.04;
+}
+
+/* —— Botões primários —— */
+.btn.primary,
+.upload-btn {
+  background: var(--btn-surface-bg);
+  border-color: var(--btn-surface-border);
+  color: var(--btn-surface-fg);
+  font-weight: 700;
+}
+
+.btn.primary:hover:not(:disabled),
+.upload-btn:hover {
+  background: var(--btn-surface-hover-bg);
+  border-color: var(--btn-surface-border);
+  filter: none;
+}
+
+.btn.primary:active:not(:disabled),
+.upload-btn:active {
+  background: var(--btn-surface-active-bg);
+  border-color: var(--btn-surface-active-border);
+  color: var(--btn-surface-active-fg);
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .btn.primary,
+.sidebar.sidebar--wide .sidebar-section-inner .upload-btn {
+  background: var(--btn-surface-bg);
+  border-color: var(--btn-surface-border);
+  color: var(--btn-surface-fg);
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .btn.primary:hover:not(:disabled),
+.sidebar.sidebar--wide .sidebar-section-inner .upload-btn:hover {
+  background: var(--btn-surface-hover-bg);
+  border-color: var(--btn-surface-border);
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .btn.primary:active:not(:disabled),
+.sidebar.sidebar--wide .sidebar-section-inner .upload-btn:active {
+  background: var(--btn-surface-active-bg);
+  border-color: var(--btn-surface-active-border);
+  color: var(--btn-surface-active-fg);
+}
+
+.upload-btn.upload-btn--muted,
+.sidebar.sidebar--wide .sidebar-section-inner .upload-btn.upload-btn--muted {
+  background: var(--upload-muted-bg);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.upload-btn.upload-btn--muted:hover,
+.sidebar.sidebar--wide .sidebar-section-inner .upload-btn.upload-btn--muted:hover {
+  background: var(--upload-muted-hover);
+  border-color: var(--border);
+}
+
+.btn.primary:disabled {
+  opacity: 0.5;
+}
+
+.sidebar-layout-btn--active {
+  background: var(--btn-surface-active-bg) !important;
+  color: var(--btn-surface-active-fg) !important;
+  border-color: var(--btn-surface-active-border) !important;
+}
+
+[data-theme='dark'] .sidebar-layout-btn--active {
+  color: var(--btn-surface-active-fg) !important;
+}
+
+.app-topbar .theme-toggle:hover,
+.sidebar-layout-btn:hover {
+  border-color: var(--btn-surface-border);
+  background: var(--btn-surface-hover-bg);
+}
+
+/* —— Abas e chips ativos —— */
+.consulta-modo-tab.is-active,
+.saida-modo-btn--active,
+.painel-periodo-btn--active,
+.hist-filter--active,
+.consulta-inventario-vista-btn.is-active {
+  background: var(--btn-surface-active-bg) !important;
+  border-color: var(--btn-surface-active-border) !important;
+  color: var(--btn-surface-active-fg) !important;
+  box-shadow: none;
+}
+
+.consulta-modo-tab.is-active {
+  font-weight: 700;
+}
+
+.nf-chip--active,
+.nf-chip--active.nf-chip--em_andamento {
+  background: var(--btn-surface-active-bg) !important;
+  border-color: var(--btn-surface-active-border) !important;
+  color: var(--btn-surface-active-fg) !important;
+  box-shadow: none;
+}
+
+.nf-chip--active {
+  outline: 2px solid var(--btn-surface-active-border);
+  outline-offset: -1px;
+}
+
+/* —— Cards e painéis no conteúdo —— */
+.sidebar.sidebar--wide .sidebar-section-inner .painel-hero,
+.sidebar.sidebar--wide .sidebar-section-inner .painel-kpi,
+.sidebar.sidebar--wide .sidebar-section-inner .painel-grafico-card,
+.sidebar.sidebar--wide .sidebar-section-inner .nf-detail,
+.sidebar.sidebar--wide .sidebar-section-inner .consulta-filtros {
+  border-color: #e5e7eb;
+}
+
+.sidebar.sidebar--wide .sidebar-section-inner .painel-periodo-btn--active {
+  color: var(--btn-surface-active-fg);
+}
+
+/* —— Splash —— */
+.intro-splash {
+  background: #ffffff;
+}
+
+.intro-glow {
+  display: none;
+}
+
+.intro-progress-bar {
+  background: #6e7681;
+}
+
+.intro-logo {
+  filter: drop-shadow(0 8px 24px rgb(0 0 0 / 0.08));
+}
+
+[data-theme='light'] .intro-splash,
+[data-theme='dark'] .intro-splash {
+  background: #ffffff;
+}
+
+/* —— HUD voz —— */
+.voice-assistant-hud-inner {
+  border-color: rgb(249 219 0 / 0.45);
+}
+
+.voice-assistant-hud-dot--ouvindo {
+  background: var(--brand-yellow);
+  box-shadow: 0 0 8px var(--brand-yellow);
+}
+
+/* —— Toast busca —— */
+.busca-encontrada-toast {
+  border-color: rgb(249 219 0 / 0.5);
+  background: linear-gradient(135deg, rgb(249 219 0 / 0.18), #ffffff);
+}
+
+.busca-encontrada-icon {
+  color: #000000;
+  background: var(--brand-yellow);
+}
+
+/* accent-color em inputs dentro do sidebar claro */
+.sidebar.sidebar--wide .sidebar-section-inner input[type='checkbox'],
+.sidebar.sidebar--wide .sidebar-section-inner input[type='radio'] {
+  accent-color: var(--brand-black);
+}

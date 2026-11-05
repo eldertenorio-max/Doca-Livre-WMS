@@ -1,0 +1,37 @@
+.acesso-pendente {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.acesso-pendente__card {
+  max-width: 480px;
+  width: 100%;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border, #374151);
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.acesso-pendente__title {
+  margin: 0 0 12px;
+  font-size: 1.35rem;
+  color: var(--text-h, #f3f4f6);
+}
+
+.acesso-pendente__text {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text, #cbd5e1);
+}
+
+.acesso-pendente__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}

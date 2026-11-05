@@ -1,17 +1,7 @@
-# Blueprint Render — Doca Livre WMS PRO (portal único Light / Plus / Pro)
+# Blueprint Render — Doca Livre WMS PRO UNIFICADO (Pro + Plus + Light em um único site e banco)
 #
 # Produção:    branch main    → https://doca-livre-wms-pro.onrender.com
 # Homologação: branch homolog → https://doca-livre-wms-pro-homologacao.onrender.com
-#
-# Link único do usuário = https://wms.docalivre.com.br/ (Plus).
-# Outros links (Pro/Light) redirecionam para esse portal.
-#
-# Obrigatório no Dashboard Render (Environment) nos 2 serviços:
-#   SSO_SECRET = mesma chave longa nos dois + no Supabase Light (Edge Function sso-entrar)
-# Cadastro/trocar senha por e-mail no Pro (prod e homolog):
-# Preferência no Render: RESEND_API_KEY (HTTPS — estável).
-# Alternativa: SMTP_* (Gmail; muitas vezes bloqueado no Render free).
-# Sem e-mail configurado o portal mostra erro — não use PORTAL_OTP_DEBUG em produção.
 
 services:
   # ── Produção ──────────────────────────────────────────────────────────────
@@ -32,14 +22,18 @@ services:
         generateValue: true
       - key: SSO_SECRET
         sync: false
+      - key: SUPABASE_URL
+        value: https://wbqyufalamdsgurejvyz.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK
       - key: PORTAL_PUBLIC_URL
         value: https://wms.docalivre.com.br/
       - key: SYSTEM_URL_LIGHT
-        value: https://doca-livre-wms-light.onrender.com/
+        value: https://wms.docalivre.com.br/contagem
       - key: SYSTEM_URL_PLUS
-        value: https://wms.docalivre.com.br/
+        value: https://wms.docalivre.com.br/camaras
       - key: SYSTEM_URL_PRO
-        value: https://doca-livre-wms-pro.onrender.com/
+        value: https://wms.docalivre.com.br/painel
       - key: PGSSLMODE
         value: require
       - key: DATABASE_URL
@@ -69,14 +63,18 @@ services:
         generateValue: true
       - key: SSO_SECRET
         sync: false
+      - key: SUPABASE_URL
+        value: https://wbqyufalamdsgurejvyz.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK
       - key: PORTAL_PUBLIC_URL
-        value: https://ultrafrio-homologacao.onrender.com/
-      - key: SYSTEM_URL_LIGHT
-        value: https://doca-livre-wms-light-homolog.onrender.com/
-      - key: SYSTEM_URL_PLUS
-        value: https://ultrafrio-homologacao.onrender.com/
-      - key: SYSTEM_URL_PRO
         value: https://doca-livre-wms-pro-homologacao.onrender.com/
+      - key: SYSTEM_URL_LIGHT
+        value: https://doca-livre-wms-pro-homologacao.onrender.com/contagem
+      - key: SYSTEM_URL_PLUS
+        value: https://doca-livre-wms-pro-homologacao.onrender.com/camaras
+      - key: SYSTEM_URL_PRO
+        value: https://doca-livre-wms-pro-homologacao.onrender.com/painel
       - key: PGSSLMODE
         value: require
       - key: DATABASE_URL

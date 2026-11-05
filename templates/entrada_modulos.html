@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WMS DOCA LIVRE PRO — Módulos</title>
+    <title>WMS DOCA LIVRE PRO — Hub Unificado</title>
     {% from '_app_head_icons.html' import app_head_icons %}
     {{ app_head_icons() }}
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='stock-system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20260719c">
-    <link rel="stylesheet" href="{{ url_for('static', filename='entrada-modulos.css') }}?v=20260705k">
+    <link rel="stylesheet" href="{{ url_for('static', filename='entrada-modulos.css') }}?v=20261105a">
     <script src="{{ url_for('static', filename='stock-system-reload-login.js') }}"></script>
 </head>
 <body class="ss-hub-body doca-livre-pro ss-hub-sidebar-wide{% if is_homologacao %} app-env-homologacao{% endif %}" data-usuario="{{ usuario or '' }}">
@@ -24,10 +24,6 @@
                 <button type="button" class="app-topbar-menu ss-hub-topbar-menu" id="btn-hub-sidebar-toggle" aria-label="Recolher menu lateral" aria-pressed="true" title="Recolher menu lateral">
                     <span class="app-topbar-menu-icon" aria-hidden="true"></span>
                 </button>
-                <a href="{{ portal_public_url }}" id="link-voltar-sistemas" class="app-topbar-back app-topbar-back-systems ss-hub-topbar-back header-link-sistemas" title="Voltar aos sistemas Light, Plus e Pro" aria-label="Voltar aos sistemas">
-                    <span class="app-topbar-back-icon" aria-hidden="true">←</span>
-                    <span class="app-topbar-back-label">Sistemas</span>
-                </a>
                 <div class="app-topbar-brand-row">
                     <div class="app-topbar-brand">
                         {{ doca_livre_logo(class='app-topbar-logo') }}
@@ -39,12 +35,9 @@
                 </div>
             </div>
             <div class="app-topbar-right ss-hub-topbar-right">
-                <span class="ss-hub-topbar-icon" title="Notificações" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
-                </span>
-                <span class="ss-hub-topbar-icon" title="Relatórios" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
-                </span>
+                {% if is_superuser %}
+                <a href="/config-portal" class="ss-hub-topbar-sair" style="margin-right:8px;" title="Hierarquia e Permissões">⚙ Hierarquia &amp; Permissões</a>
+                {% endif %}
                 <span class="ss-hub-topbar-user">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
                     {{ usuario or 'Usuário' }}
@@ -63,14 +56,14 @@
                 <ul class="ss-hub-sidebar-list" id="sidebar-fav"></ul>
 
                 <button type="button" class="ss-hub-sidebar-more" id="btn-menu-completo" aria-expanded="false">
-                    Menu completo <span class="ss-hub-sidebar-more-arrow">›</span>
+                    Todos os módulos <span class="ss-hub-sidebar-more-arrow">›</span>
                 </button>
                 <ul class="ss-hub-sidebar-list ss-hub-sidebar-list--all" id="sidebar-all" hidden></ul>
             </nav>
 
             <footer class="ss-hub-sidebar-foot">
                 <span class="ss-hub-sidebar-time" id="ss-hub-clock"></span>
-                <span>Versão: WMS DOCA LIVRE PRO</span>
+                <span>Versão: WMS DOCA LIVRE PRO UNIFICADO</span>
             </footer>
         </aside>
 
@@ -80,7 +73,7 @@
                 </div>
 
                 <div class="ss-hub-search-wrap">
-                    <input type="search" class="ss-hub-search" id="hub-search" placeholder="Pesquisar no menu" autocomplete="off" aria-label="Pesquisar módulos">
+                    <input type="search" class="ss-hub-search" id="hub-search" placeholder="Pesquisar módulo (ex.: Expedição, Câmaras, Contagem, Inventário, Temperatura, Financeiro…)" autocomplete="off" aria-label="Pesquisar módulos">
                     <span class="ss-hub-search-caret" aria-hidden="true">▾</span>
                 </div>
 
@@ -90,31 +83,78 @@
                     <p class="ss-hub-empty" id="empty-recentes" hidden>Nenhum módulo acessado recentemente.</p>
                 </section>
 
-                <section class="ss-hub-section" data-section="mais">
-                    <h2 class="ss-hub-section-title">Mais acessados</h2>
-                    <div class="ss-hub-grid" id="grid-mais"></div>
-                </section>
-
                 <section class="ss-hub-section" data-section="favoritos">
                     <h2 class="ss-hub-section-title">Favoritos</h2>
                     <div class="ss-hub-grid" id="grid-favoritos"></div>
                     <p class="ss-hub-empty" id="empty-favoritos" hidden>Clique na estrela de um módulo para favoritar.</p>
                 </section>
+
+                <section class="ss-hub-section" data-section="operacao-doca">
+                    <h2 class="ss-hub-section-title">Operação, Doca &amp; Armazém 2D/3D</h2>
+                    <div class="ss-hub-grid" id="grid-pro"></div>
+                </section>
+
+                <section class="ss-hub-section" data-section="camaras-nfe">
+                    <h2 class="ss-hub-section-title">Câmaras Refrigeradas, NF-e &amp; Financeiro 3PL</h2>
+                    <div class="ss-hub-grid" id="grid-plus"></div>
+                </section>
+
+                <section class="ss-hub-section" data-section="contagem-inventario">
+                    <h2 class="ss-hub-section-title">Contagem Diária, Inventário, Temperatura &amp; Catálogo</h2>
+                    <div class="ss-hub-grid" id="grid-light"></div>
+                </section>
+
+                {% if is_superuser %}
+                <section class="ss-hub-section" data-section="admin">
+                    <h2 class="ss-hub-section-title">Administração &amp; Governança</h2>
+                    <div class="ss-hub-grid" id="grid-admin"></div>
+                </section>
+                {% endif %}
             </main>
         </div>
     </div>
 
     <script>
     window.SS_HUB_MODULOS = [
-        { id: 'carregamento', label: 'Carga/Expedição', href: {{ url_for('painel')|tojson }} + '?modulo=carregamento', icon: 'truck' },
-        { id: 'devolucoes', label: 'Retorno', href: {{ url_for('painel')|tojson }} + '?modulo=devolucoes', icon: 'return' },
-        { id: 'terceiros', label: 'Descarga/Recebimento', href: {{ url_for('painel')|tojson }} + '?modulo=terceiros&aba=pendencia-recebimento', icon: 'inbound' },
-        { id: 'estoque-sp', label: 'Estoque', href: {{ url_for('painel')|tojson }} + '?modulo=estoque-sp', icon: 'stock' },
-        { id: 'enderecamento-wms', label: 'Endereçamento WMS', href: {{ url_for('painel')|tojson }} + '?modulo=enderecamento-wms', icon: 'wms' }
+        /* Operação, Doca & Armazém (Pro) */
+        { id: 'carregamento', group: 'pro', label: 'Carga / Expedição', href: '/painel?modulo=carregamento', icon: 'truck' },
+        { id: 'devolucoes', group: 'pro', label: 'Retorno / Devoluções', href: '/painel?modulo=devolucoes', icon: 'return' },
+        { id: 'terceiros', group: 'pro', label: 'Descarga / Recebimento', href: '/painel?modulo=terceiros&aba=pendencia-recebimento', icon: 'inbound' },
+        { id: 'estoque-sp', group: 'pro', label: 'Estoque Geral', href: '/painel?modulo=estoque-sp', icon: 'stock' },
+        { id: 'enderecamento-wms', group: 'pro', label: 'Endereçamento WMS 2D/3D', href: '/painel?modulo=enderecamento-wms', icon: 'wms' },
+
+        /* Câmaras Refrigeradas, NF-e & 3PL (Plus) */
+        { id: 'camaras-consulta', group: 'plus', label: 'Mapa de Câmaras & Consulta', href: '/camaras?secao=consulta', icon: 'search' },
+        { id: 'camaras-entrada', group: 'plus', label: 'Entrada NF-e (Câmaras)', href: '/camaras?secao=entrada', icon: 'inbound' },
+        { id: 'camaras-saida', group: 'plus', label: 'Saída NF-e (Câmaras)', href: '/camaras?secao=saida', icon: 'outbound' },
+        { id: 'camaras-editar', group: 'plus', label: 'Movimentar Posição / Voz', href: '/camaras?secao=editar', icon: 'move' },
+        { id: 'camaras-agendamentos', group: 'plus', label: 'Agendamentos Hub (Câmaras)', href: '/camaras?secao=agendamentosHub', icon: 'calendar' },
+        { id: 'camaras-painel', group: 'plus', label: 'KPIs & Painel de Câmaras', href: '/camaras?secao=painel', icon: 'chart' },
+        { id: 'camaras-financeiro', group: 'plus', label: 'Financeiro 3PL', href: '/camaras?secao=financeiro', icon: 'finance' },
+        { id: 'camaras-historico', group: 'plus', label: 'Histórico de Câmaras', href: '/camaras?secao=historico', icon: 'history' },
+        { id: 'camaras-relatorio', group: 'plus', label: 'Relatórios de Câmaras', href: '/camaras?secao=relatorio', icon: 'report' },
+        { id: 'camaras-canceladas', group: 'plus', label: 'NF-e Canceladas', href: '/camaras?secao=canceladas', icon: 'cancel' },
+        { id: 'camaras-voz', group: 'plus', label: 'IA Doca Livre & Voz', href: '/camaras?secao=cadastroVoz', icon: 'ai' },
+        { id: 'camaras-imprimir', group: 'plus', label: 'Imprimir Mapa de Câmaras', href: '/camaras?secao=imprimir', icon: 'print' },
+
+        /* Contagem, Inventário, Temperatura & Catálogo (Light) */
+        { id: 'light-contagem', group: 'light', label: 'Contagem Diária', href: '/contagem?view=contagem', icon: 'checklist' },
+        { id: 'light-inventarios', group: 'light', label: 'Inventários', href: '/contagem?view=inventarios', icon: 'inventory' },
+        { id: 'light-temperatura', group: 'light', label: 'Temperatura das Câmaras', href: '/contagem?view=temperatura', icon: 'thermo' },
+        { id: 'light-ocupacao', group: 'light', label: 'Ocupação & Avarias', href: '/contagem?view=ocupacao', icon: 'chart' },
+        { id: 'light-seguranca', group: 'light', label: 'Estoque de Segurança', href: '/contagem?view=seguranca', icon: 'shield' },
+        { id: 'light-estoque', group: 'light', label: 'Estoque x Shelf-Life', href: '/contagem?view=estoque', icon: 'stock' },
+        { id: 'light-produtos', group: 'light', label: 'Catálogo de Produtos', href: '/contagem?view=produtos', icon: 'catalog' },
+        { id: 'light-enderecamento', group: 'light', label: 'Cadastro de Endereços', href: '/contagem?view=enderecamento', icon: 'wms' },
+        { id: 'light-agendamentos', group: 'light', label: 'Agendamentos (Contagem)', href: '/contagem?view=agendamentos', icon: 'calendar' },
+        { id: 'light-painel', group: 'light', label: 'Painel de Contagem', href: '/contagem?view=painel', icon: 'report' }
+        {% if is_superuser %},
+        { id: 'config-portal', group: 'admin', label: 'Hierarquia & Permissões', href: '/config-portal', icon: 'settings' }
+        {% endif %}
     ];
     </script>
     <script src="{{ url_for('static', filename='doca-livre-pro.js') }}?v=20260705d"></script>
-    <script src="{{ url_for('static', filename='entrada-modulos.js') }}?v=20260705d"></script>
+    <script src="{{ url_for('static', filename='entrada-modulos.js') }}?v=20261105a"></script>
     {% include '_pwa_install.html' %}
 </body>
 </html>

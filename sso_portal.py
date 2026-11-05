@@ -15,18 +15,20 @@ from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
 SSO_SYSTEMS = ('light', 'plus', 'pro')
 SSO_TOKEN_TTL_SEC = 60
 HUB_TOKEN_TTL_SEC = 8 * 60 * 60
+# Sistema unificado: Light / Plus / Pro rodam no mesmo serviço (WMS Pro).
+# Produção no domínio próprio https://wms.docalivre.com.br/
 _DEFAULT_URLS_PROD = {
-    'light': 'https://doca-livre-wms-light.onrender.com/',
-    'plus': 'https://wms.docalivre.com.br/',
-    'pro': 'https://doca-livre-wms-pro.onrender.com/',
+    'light': 'https://wms.docalivre.com.br/contagem',
+    'plus': 'https://wms.docalivre.com.br/camaras',
+    'pro': 'https://wms.docalivre.com.br/painel',
 }
 _DEFAULT_URLS_HML = {
-    'light': 'https://doca-livre-wms-light-homolog.onrender.com/',
-    'plus': 'https://ultrafrio-homologacao.onrender.com/',
-    'pro': 'https://doca-livre-wms-pro-homologacao.onrender.com/',
+    'light': 'https://doca-livre-wms-pro-homologacao.onrender.com/contagem',
+    'plus': 'https://doca-livre-wms-pro-homologacao.onrender.com/camaras',
+    'pro': 'https://doca-livre-wms-pro-homologacao.onrender.com/painel',
 }
 _DEFAULT_PORTAL_PROD = 'https://wms.docalivre.com.br/'
-_DEFAULT_PORTAL_HML = 'https://ultrafrio-homologacao.onrender.com/'
+_DEFAULT_PORTAL_HML = 'https://doca-livre-wms-pro-homologacao.onrender.com/'
 
 
 def _is_homolog_env() -> bool:

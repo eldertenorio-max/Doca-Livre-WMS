@@ -1,0 +1,60 @@
+.portal-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(238 241 244 / 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.portal-loading__card {
+  width: min(320px, 100%);
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 16px 40px rgb(15 23 42 / 0.12);
+  text-align: center;
+}
+
+.portal-loading__text {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.02em;
+}
+
+.portal-loading__track {
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.portal-loading__bar {
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f9db00, #f0c000);
+  animation: portal-loading-bar 1.1s ease-in-out infinite;
+}
+
+@keyframes portal-loading-bar {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-loading__bar {
+    animation: none;
+    width: 100%;
+  }
+}

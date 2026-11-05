@@ -1,0 +1,2 @@
+# Deploy stamp Light
+DEPLOY_STAMP=2026-07-16-22-16-sem-acesso-pendente

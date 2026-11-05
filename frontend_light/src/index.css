@@ -1,0 +1,354 @@
+:root {
+  --brand-black: #000000;
+  --brand-yellow: #f9db00;
+  --brand-yellow-hover: #e0c500;
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: var(--brand-yellow);
+  --accent-bg: rgb(249 219 0 / 0.14);
+  --accent-border: rgb(249 219 0 / 0.5);
+  --social-bg: rgba(244, 243, 236, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 18px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  @media (max-width: 1024px) {
+    font-size: 16px;
+  }
+}
+
+/* Tema manual */
+:root[data-theme='light'] {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --code-bg: #f4f3ec;
+  --accent: var(--brand-yellow);
+  --accent-bg: rgb(249 219 0 / 0.14);
+  --accent-border: rgb(249 219 0 / 0.5);
+  --social-bg: rgba(244, 243, 236, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  color-scheme: light;
+
+  /* Gráficos (temperatura / ocupação — ContagemDiariaAmbiental) */
+  --chart-card-bg: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 100%);
+  --chart-card-border: rgba(15, 23, 42, 0.12);
+  --chart-card-shadow: 0 8px 28px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --chart-plot-area: rgba(15, 23, 42, 0.045);
+  --chart-grid-vertical: rgba(15, 23, 42, 0.07);
+  --chart-grid-vertical-dense: rgba(15, 23, 42, 0.09);
+  --chart-grid-horizontal: rgba(15, 23, 42, 0.13);
+  --chart-axis-line: rgba(15, 23, 42, 0.25);
+  --chart-svg-y-tick: #475569;
+  --chart-svg-x-label: #64748b;
+  --chart-svg-x-label-muted: #94a3b8;
+  --chart-caption: #64748b;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-title: #0f172a;
+  --chart-tooltip-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --chart-tooltip-border-cyan: rgba(8, 145, 178, 0.45);
+  --chart-stat-box-bg: rgba(15, 23, 42, 0.05);
+  --chart-stat-box-border: rgba(15, 23, 42, 0.11);
+  --chart-stat-label: #64748b;
+  --chart-stat-value: #0f172a;
+  --chart-insight-bg: rgba(15, 23, 42, 0.04);
+  --chart-insight-border: rgba(15, 23, 42, 0.1);
+  --chart-insight-title: #334155;
+  --chart-insight-text: #64748b;
+  --chart-insight-strong: #0f172a;
+  --chart-expand-bg: rgba(15, 23, 42, 0.06);
+  --chart-expand-disabled-bg: rgba(15, 23, 42, 0.08);
+  --chart-btn-fechar-bg: #f1f5f9;
+  --chart-btn-fechar-color: #0f172a;
+  --chart-btn-fechar-border: rgba(15, 23, 42, 0.18);
+  --chart-modal-overlay: rgba(15, 23, 42, 0.42);
+  --chart-modal-shadow: 0 22px 70px rgba(15, 23, 42, 0.14);
+  --chart-modal-border-accent-green: rgba(34, 197, 94, 0.4);
+  --chart-modal-border-accent-cyan: rgba(14, 165, 233, 0.45);
+  --chart-legend-bar-bg: rgba(15, 23, 42, 0.04);
+  --chart-legend-bar-border: rgba(15, 23, 42, 0.1);
+  --chart-legend-pill-text: #0f172a;
+  --chart-divider: rgba(15, 23, 42, 0.1);
+  --chart-point-ring: #ffffff;
+  --chart-value-dropshadow: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.95))
+    drop-shadow(0 1px 2px rgba(15, 23, 42, 0.22));
+  --chart-comparativo-gradient: linear-gradient(90deg, #047857, #16a34a);
+  --chart-comparativo-ocup-gradient: linear-gradient(90deg, #0369a1, #0284c7, #0ea5e9);
+  --chart-footer-muted: #64748b;
+  --chart-footer-strong: #0f172a;
+  --chart-cursor-line: rgba(14, 165, 233, 0.35);
+  --chart-cursor-line-strong: rgba(8, 145, 178, 0.45);
+  --chart-crosshair-muted: rgba(15, 23, 42, 0.22);
+  --chart-modal-grid-faint: rgba(15, 23, 42, 0.12);
+  --chart-modal-grid-medium: rgba(15, 23, 42, 0.2);
+
+  /* Painel «Histórico visual» ocupação */
+  --ambient-ocup-historico-bg: linear-gradient(152deg, #e0f2fe 0%, #f8fafc 42%, #f1f5f9 100%);
+  --ambient-ocup-historico-border: 1px solid rgba(14, 165, 233, 0.28);
+  --ambient-ocup-historico-shadow: 0 14px 40px rgba(14, 165, 233, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --ambient-ocup-historico-kicker: #0369a1;
+  --ambient-ocup-historico-title: #0f172a;
+  --ambient-ocup-historico-p: #64748b;
+  --ambient-ocup-historico-strong: #0f172a;
+
+  /* Tema ocupação câmaras (TEMA_OCP) — claro */
+  --ocup-resumo-gradient: linear-gradient(
+    145deg,
+    rgba(224, 242, 254, 0.98) 0%,
+    #f8fafc 42%,
+    rgba(186, 230, 253, 0.85) 100%
+  );
+  --ocup-resumo-border: 1px solid rgba(14, 165, 233, 0.35);
+  --ocup-resumo-shadow: 0 8px 24px rgba(14, 165, 233, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --ocup-titulo-resumo: #0369a1;
+  --ocup-kpi-ocup-border: 1px solid rgba(14, 165, 233, 0.28);
+  --ocup-kpi-ocup-titulo: #0c4a6e;
+  --ocup-kpi-ocup-valor: #0284c7;
+  --ocup-cam-titulo: #0369a1;
+  --ocup-cam-borda: 1px solid rgba(14, 165, 233, 0.22);
+  --ocup-bar-fill: linear-gradient(90deg, #0ea5e9, #38bdf8);
+  --ocup-ocup-span: #0369a1;
+  --ocup-empty-border: 1px dashed rgba(14, 165, 233, 0.4);
+  --ocup-empty-strong: #0c4a6e;
+  --ocup-form-titulo: #0284c7;
+  --ocup-btn-border: 1px solid #0284c7;
+  --ocup-btn-bg: #0ea5e9;
+  --ocup-btn-color: #ffffff;
+  --ocup-tabela-livre: #059669;
+  --ocup-avaria-destaque: #c2410c;
+  --ocup-resumo-label: #64748b;
+  --ocup-resumo-numero: #0f172a;
+  --ocup-empty-panel-bg: rgba(241, 245, 249, 0.95);
+  --ocup-nested-weak: rgba(15, 23, 42, 0.06);
+  --ocup-nested-strong: rgba(15, 23, 42, 0.08);
+  --ocup-nested-border: rgba(15, 23, 42, 0.1);
+  --ocup-resumo-meta-bg: rgba(15, 23, 42, 0.05);
+  --ocup-resumo-meta-border: rgba(15, 23, 42, 0.1);
+  --ocup-resumo-hora: #0c4a6e;
+  --ocup-resumo-nome: #0369a1;
+  --ocup-kpi-inner-border: rgba(14, 165, 233, 0.22);
+  --ocup-cam-cap-bg: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%);
+  --ocup-cam-cap-border: rgba(14, 165, 233, 0.28);
+  --ocup-cam-cap-numero: #0c4a6e;
+  --ocup-kpi-card-shadow: 0 2px 14px rgba(15, 23, 42, 0.08);
+  --ocup-kpi-card-shadow-sm: 0 2px 12px rgba(15, 23, 42, 0.07);
+}
+
+:root[data-theme='dark'] {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #16171d;
+  --border: #2e303a;
+  --code-bg: #1f2028;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --social-bg: rgba(47, 48, 58, 0.5);
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  color-scheme: dark;
+
+  --chart-card-bg: linear-gradient(165deg, rgba(36, 38, 48, 0.95) 0%, rgba(24, 25, 32, 0.98) 100%);
+  --chart-card-border: rgba(255, 255, 255, 0.07);
+  --chart-card-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --chart-plot-area: rgba(0, 0, 0, 0.18);
+  --chart-grid-vertical: rgba(148, 163, 184, 0.08);
+  --chart-grid-vertical-dense: rgba(148, 163, 184, 0.1);
+  --chart-grid-horizontal: rgba(148, 163, 184, 0.2);
+  --chart-axis-line: rgba(148, 163, 184, 0.45);
+  --chart-svg-y-tick: #cbd5e1;
+  --chart-svg-x-label: #94a3b8;
+  --chart-svg-x-label-muted: #64748b;
+  --chart-caption: #64748b;
+  --chart-tooltip-bg: rgba(15, 23, 42, 0.96);
+  --chart-tooltip-title: #e0f2fe;
+  --chart-tooltip-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  --chart-tooltip-border-cyan: rgba(56, 189, 248, 0.4);
+  --chart-stat-box-bg: rgba(0, 0, 0, 0.2);
+  --chart-stat-box-border: rgba(255, 255, 255, 0.07);
+  --chart-stat-label: #64748b;
+  --chart-stat-value: #e2e8f0;
+  --chart-insight-bg: rgba(0, 0, 0, 0.22);
+  --chart-insight-border: rgba(255, 255, 255, 0.06);
+  --chart-insight-title: #cbd5e1;
+  --chart-insight-text: #94a3b8;
+  --chart-insight-strong: #f1f5f9;
+  --chart-expand-bg: rgba(15, 23, 42, 0.55);
+  --chart-expand-disabled-bg: rgba(15, 23, 42, 0.4);
+  --chart-btn-fechar-bg: rgba(15, 23, 42, 0.7);
+  --chart-btn-fechar-color: #e2e8f0;
+  --chart-btn-fechar-border: rgba(148, 163, 184, 0.45);
+  --chart-modal-overlay: rgba(2, 6, 23, 0.72);
+  --chart-modal-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+  --chart-modal-border-accent-green: rgba(52, 211, 153, 0.35);
+  --chart-modal-border-accent-cyan: rgba(56, 189, 248, 0.4);
+  --chart-legend-bar-bg: rgba(0, 0, 0, 0.2);
+  --chart-legend-bar-border: rgba(255, 255, 255, 0.06);
+  --chart-legend-pill-text: #e2e8f0;
+  --chart-divider: rgba(255, 255, 255, 0.08);
+  --chart-point-ring: rgba(15, 23, 42, 0.92);
+  --chart-value-dropshadow: drop-shadow(0 1px 2px rgba(2, 6, 23, 0.85));
+  --chart-comparativo-gradient: linear-gradient(90deg, #a7f3d0, #6ee7b7);
+  --chart-comparativo-ocup-gradient: linear-gradient(90deg, #bae6fd, #38bdf8, #7dd3fc);
+  --chart-footer-muted: #94a3b8;
+  --chart-footer-strong: #e2e8f0;
+  --chart-cursor-line: rgba(56, 189, 248, 0.35);
+  --chart-cursor-line-strong: rgba(56, 189, 248, 0.45);
+  --chart-crosshair-muted: rgba(148, 163, 184, 0.35);
+  --chart-modal-grid-faint: rgba(148, 163, 184, 0.22);
+  --chart-modal-grid-medium: rgba(148, 163, 184, 0.4);
+
+  --ambient-ocup-historico-bg: linear-gradient(
+    152deg,
+    rgba(8, 47, 72, 0.42) 0%,
+    rgba(15, 23, 42, 0.94) 40%,
+    rgba(17, 24, 39, 0.98) 100%
+  );
+  --ambient-ocup-historico-border: 1px solid rgba(56, 189, 248, 0.32);
+  --ambient-ocup-historico-shadow: 0 18px 56px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --ambient-ocup-historico-kicker: #7dd3fc;
+  --ambient-ocup-historico-title: #f8fafc;
+  --ambient-ocup-historico-p: #94a3b8;
+  --ambient-ocup-historico-strong: #e2e8f0;
+
+  --ocup-resumo-gradient: linear-gradient(
+    145deg,
+    rgba(14, 165, 233, 0.2) 0%,
+    rgba(15, 23, 42, 0.96) 42%,
+    rgba(8, 47, 72, 0.45) 100%
+  );
+  --ocup-resumo-border: 1px solid rgba(56, 189, 248, 0.45);
+  --ocup-resumo-shadow: 0 8px 28px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --ocup-titulo-resumo: #7dd3fc;
+  --ocup-kpi-ocup-border: 1px solid rgba(56, 189, 248, 0.28);
+  --ocup-kpi-ocup-titulo: #7dd3fc;
+  --ocup-kpi-ocup-valor: #38bdf8;
+  --ocup-cam-titulo: #7dd3fc;
+  --ocup-cam-borda: 1px solid rgba(56, 189, 248, 0.15);
+  --ocup-bar-fill: linear-gradient(90deg, #38bdf8, #0ea5e9);
+  --ocup-ocup-span: #38bdf8;
+  --ocup-empty-border: 1px dashed rgba(56, 189, 248, 0.35);
+  --ocup-empty-strong: #7dd3fc;
+  --ocup-form-titulo: #38bdf8;
+  --ocup-btn-border: 1px solid #0ea5e9;
+  --ocup-btn-bg: #38bdf8;
+  --ocup-btn-color: #082f49;
+  --ocup-tabela-livre: #6ee7b7;
+  --ocup-avaria-destaque: #fdba74;
+  --ocup-resumo-label: #94a3b8;
+  --ocup-resumo-numero: #f8fafc;
+  --ocup-empty-panel-bg: rgba(15, 23, 42, 0.65);
+  --ocup-nested-weak: rgba(0, 0, 0, 0.22);
+  --ocup-nested-strong: rgba(0, 0, 0, 0.28);
+  --ocup-nested-border: rgba(255, 255, 255, 0.06);
+  --ocup-resumo-meta-bg: rgba(0, 0, 0, 0.22);
+  --ocup-resumo-meta-border: rgba(255, 255, 255, 0.06);
+  --ocup-resumo-hora: #e0f2fe;
+  --ocup-resumo-nome: #bae6fd;
+  --ocup-kpi-inner-border: rgba(56, 189, 248, 0.2);
+  --ocup-cam-cap-bg: linear-gradient(135deg, rgba(125, 211, 252, 0.14) 0%, rgba(56, 189, 248, 0.08) 100%);
+  --ocup-cam-cap-border: rgba(125, 211, 252, 0.35);
+  --ocup-cam-cap-numero: #f0f9ff;
+  --ocup-kpi-card-shadow: 0 2px 14px rgba(0, 0, 0, 0.2);
+  --ocup-kpi-card-shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #16171d;
+    --border: #2e303a;
+    --code-bg: #1f2028;
+    --accent: #c084fc;
+    --accent-bg: rgba(192, 132, 252, 0.15);
+    --accent-border: rgba(192, 132, 252, 0.5);
+    --social-bg: rgba(47, 48, 58, 0.5);
+    --shadow:
+      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  }
+
+  #social .button-icon {
+    filter: invert(1) brightness(2);
+  }
+}
+
+#root {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  text-align: left;
+  border-inline: none;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+h1 {
+  font-size: 56px;
+  letter-spacing: -1.68px;
+  margin: 32px 0;
+  @media (max-width: 1024px) {
+    font-size: 36px;
+    margin: 20px 0;
+  }
+}
+h2 {
+  font-size: 24px;
+  line-height: 118%;
+  letter-spacing: -0.24px;
+  margin: 0 0 8px;
+  @media (max-width: 1024px) {
+    font-size: 20px;
+  }
+}
+p {
+  margin: 0;
+}
+
+code,
+.counter {
+  font-family: var(--mono);
+  display: inline-flex;
+  border-radius: 4px;
+  color: var(--text-h);
+}
+
+code {
+  font-size: 15px;
+  line-height: 135%;
+  padding: 4px 8px;
+  background: var(--code-bg);
+}

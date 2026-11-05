@@ -60,3 +60,9 @@ desktop.ini
 *.spec
 dist/
 build/
+
+# Node / Frontends integrados
+node_modules/
+**/node_modules/
+frontend_light/dist/
+frontend_plus/dist/

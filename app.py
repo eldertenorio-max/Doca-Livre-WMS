@@ -2380,52 +2380,36 @@ def proteger_rotas():
 
 @app.route('/login', methods=['GET'])
 def login():
-    """Login legado — redireciona ao portal único (Plus / domínio custom)."""
+    """Login único do sistema WMS unificado."""
     sair = request.args.get('sair') == '1'
     if sair:
         session.pop('usuario', None)
         session.pop('usuario_id', None)
         session.pop('_auth_ok_user', None)
         session.pop('_auth_ok_ts', None)
-    if callable(portal_public_url) and request.args.get('local') != '1':
-        dest = portal_public_url().rstrip('/') + '/'
-        return redirect(dest + ('?sair=1' if sair else ''))
-    return redirect(url_for('raiz', **({'sair': 1} if sair else {})))
+    elif session.get('usuario'):
+        return redirect(url_for('entrada_modulos'))
+    resp = make_response(render_template(
+        'login.html',
+        usuario=session.get('usuario') or '',
+    ))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 
 @app.route('/')
 def raiz():
-    """Raiz do Pro — visitantes vão ao link único https://wms.docalivre.com.br/"""
+    """Raiz unificada do WMS Doca Livre Pro — redireciona ao Hub (/entrada) ou ao /login."""
     if request.args.get('sair') == '1':
         session.pop('usuario', None)
         session.pop('usuario_id', None)
         session.pop('_auth_ok_user', None)
         session.pop('_auth_ok_ts', None)
-    # Manter /?local=1 só para debug interno do portal legado.
-    if request.args.get('local') == '1':
-        urls = portal_system_urls() if callable(portal_system_urls) else {}
-        resp = make_response(render_template(
-            'portal.html',
-            usuario=session.get('usuario') or '',
-            portal_system_urls=urls,
-        ))
-        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        resp.headers['Pragma'] = 'no-cache'
-        return resp
-    if callable(portal_public_url):
-        dest = portal_public_url().rstrip('/') + '/'
-        if request.args.get('sair') == '1':
-            return redirect(dest + '?sair=1')
-        return redirect(dest)
-    urls = portal_system_urls() if callable(portal_system_urls) else {}
-    resp = make_response(render_template(
-        'portal.html',
-        usuario=session.get('usuario') or '',
-        portal_system_urls=urls,
-    ))
-    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    resp.headers['Pragma'] = 'no-cache'
-    return resp
+        return redirect(url_for('login', sair=1))
+    if session.get('usuario'):
+        return redirect(url_for('entrada_modulos'))
+    return redirect(url_for('login'))
 
 
 def _ident_login_normalizado(usuario_in):
@@ -2549,12 +2533,14 @@ def api_login():
             hub_token = sso_issue_hub_token(usuario)
         except Exception:
             hub_token = None
+    superuser = bool(callable(is_portal_superuser) and is_portal_superuser(usuario))
     return jsonify({
         'ok': True,
         'usuario': usuario,
-        'hub': True,
+        'is_superuser': superuser,
+        'hub': False,
         'hub_token': hub_token,
-        'redirect': url_for('raiz'),
+        'redirect': url_for('entrada_modulos'),
     })
 
 
@@ -2633,21 +2619,25 @@ def _portal_auth_indisponivel():
 def _portal_auth_usuario_detalhe(data=None):
     """Retorna (usuario, None) ou (None, mensagem_erro)."""
     data = data or {}
+    u_sess = (session.get('usuario') or '').strip()
     if not callable(sso_verify_hub_token):
-        u = session.get('usuario')
-        if u:
-            return u, None
+        if u_sess:
+            return u_sess, None
         return None, 'Autenticação do portal indisponível neste servidor.'
     hub = (data.get('hub_token') or data.get('hubToken') or '').strip()
     if not hub:
         auth = (request.headers.get('Authorization') or '').strip()
         if auth.lower().startswith('bearer '):
             hub = auth[7:].strip()
-    if not hub:
+    if not hub or hub == 'session-cookie':
+        if u_sess:
+            return u_sess, None
         return None, 'Sessão do portal ausente. Faça login de novo.'
     try:
         return sso_verify_hub_token(hub)['usuario'], None
     except ValueError as exc:
+        if u_sess:
+            return u_sess, None
         msg = str(exc).strip() or 'Sessão do portal inválida.'
         return None, msg
 
@@ -3487,21 +3477,22 @@ def api_portal_senha_redefinir():
 
 
 def _usuario_from_hub_or_session(data=None):
-    """Resolve usuário pelo hub_token do portal (preferência) ou sessão Pro."""
+    """Resolve usuário pelo hub_token do portal ou sessão unificada Pro."""
     data = data or {}
+    u_sess = (session.get('usuario') or '').strip()
     if not callable(sso_verify_hub_token):
-        return session.get('usuario')
+        return u_sess or None
     hub = (data.get('hub_token') or data.get('hubToken') or '').strip()
     if not hub:
         auth = (request.headers.get('Authorization') or '').strip()
         if auth.lower().startswith('bearer '):
             hub = auth[7:].strip()
-    if hub:
+    if hub and hub != 'session-cookie':
         try:
             return sso_verify_hub_token(hub)['usuario']
         except ValueError:
-            return None
-    return session.get('usuario')
+            return u_sess or None
+    return u_sess or None
 
 
 @app.route('/api/sso/issue', methods=['POST', 'OPTIONS'])
@@ -3733,35 +3724,102 @@ def manifest_app():
     }), 200, {'Content-Type': 'application/manifest+json; charset=utf-8'}
 
 
+@app.route('/supabase-config.json')
+def supabase_config_json():
+    """Configuração pública do Supabase unificado para os módulos Light e Plus."""
+    return jsonify({
+        'url': (os.environ.get('SUPABASE_URL') or 'https://wbqyufalamdsgurejvyz.supabase.co').strip(),
+        'anonKey': (os.environ.get('SUPABASE_ANON_KEY') or 'sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK').strip(),
+    })
+
+
+def _serve_unified_spa(dist_subfolder: str):
+    """Serve as SPAs integradas (wms-light / wms-plus) com a sessão unificada injetada."""
+    usuario = (session.get('usuario') or '').strip()
+    if not usuario:
+        return redirect(url_for('login'))
+    superuser = bool(callable(is_portal_superuser) and is_portal_superuser(usuario))
+    hub_token = 'session-cookie'
+    if callable(sso_issue_hub_token):
+        try:
+            hub_token = sso_issue_hub_token(usuario)
+        except Exception:
+            hub_token = 'session-cookie'
+    supabase_url = (os.environ.get('SUPABASE_URL') or 'https://wbqyufalamdsgurejvyz.supabase.co').strip()
+    supabase_anon_key = (os.environ.get('SUPABASE_ANON_KEY') or 'sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK').strip()
+    index_path = os.path.join(app.static_folder, dist_subfolder, 'index.html')
+    with open(index_path, 'r', encoding='utf-8') as f:
+        html = f.read()
+    bootstrap_payload = json.dumps({
+        'usuario': usuario,
+        'isSuperuser': superuser,
+        'hubToken': hub_token,
+        'supabaseUrl': supabase_url,
+        'supabaseAnonKey': supabase_anon_key,
+        'apiBase': '/',
+        'hubHref': url_for('entrada_modulos'),
+        'logoutHref': '/login?sair=1',
+    })
+    bootstrap_script = (
+        f"<script>"
+        f"window.__WMS_UNIFIED__ = {bootstrap_payload};"
+        f"try {{"
+        f"  sessionStorage.setItem('doca_hub_user_v1', window.__WMS_UNIFIED__.usuario);"
+        f"  sessionStorage.setItem('doca_hub_token_v1', window.__WMS_UNIFIED__.hubToken);"
+        f"  sessionStorage.setItem('doca_portal_entry_v1', '1');"
+        f"}} catch (e) {{}}"
+        f"</script>"
+    )
+    if '</head>' in html:
+        html = html.replace('</head>', bootstrap_script + '\n</head>', 1)
+    else:
+        html = bootstrap_script + html
+    resp = make_response(html)
+    resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return resp
+
+
+@app.route('/contagem')
+@app.route('/contagem/<path:subpath>')
+def wms_light_spa(subpath=None):
+    """Módulos de Contagem Diária, Inventário, Temperatura, Ocupação e Catálogo (ex-Light)."""
+    return _serve_unified_spa('wms-light')
+
+
+@app.route('/camaras')
+@app.route('/camaras/<path:subpath>')
+def wms_plus_spa(subpath=None):
+    """Módulos de Câmaras Refrigeradas, NF-e, Voz e Financeiro 3PL (ex-Plus)."""
+    return _serve_unified_spa('wms-plus')
+
+
+@app.route('/config-portal')
+def config_portal_redirect():
+    """Tela de Hierarquia e Permissões do Sistema Unificado."""
+    return redirect('/camaras?secao=config')
+
+
 @app.route('/entrada')
 def entrada_modulos():
-    """Tela inicial pós-login: escolha do módulo (três botões)."""
-    portal_url = ''
-    if callable(portal_public_url):
-        try:
-            portal_url = portal_public_url().rstrip('/') + '/'
-        except Exception:
-            portal_url = ''
+    """Hub central unificado com todos os módulos do WMS (Pro + Plus + Light)."""
+    usuario = session.get('usuario', '')
+    superuser = bool(callable(is_portal_superuser) and is_portal_superuser(usuario))
     return render_template(
         'entrada_modulos.html',
-        usuario=session.get('usuario', ''),
-        portal_public_url=(portal_url or 'https://wms.docalivre.com.br/').rstrip('/') + '/?hub=1',
+        usuario=usuario,
+        is_superuser=superuser,
+        portal_public_url=url_for('entrada_modulos'),
     )
 
 
 @app.route('/painel')
 def painel():
-    """Página principal - Painel (requer login)."""
-    portal_url = ''
-    if callable(portal_public_url):
-        try:
-            portal_url = portal_public_url().rstrip('/') + '/'
-        except Exception:
-            portal_url = ''
+    """Página principal - Operação e Doca (requer login)."""
     return render_template(
         'index.html',
         usuario=session.get('usuario', ''),
-        portal_public_url=(portal_url or 'https://wms.docalivre.com.br/').rstrip('/') + '/?hub=1',
+        portal_public_url=url_for('entrada_modulos'),
         hub_api_url=(os.environ.get('HUB_API_URL') or 'https://dockhub-api.onrender.com').strip(),
     )
 

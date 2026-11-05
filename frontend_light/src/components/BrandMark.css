@@ -1,0 +1,67 @@
+.brand-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.brand-mark__logo {
+  width: min(360px, 88vw);
+  height: auto;
+  filter: drop-shadow(0 8px 24px rgb(0 0 0 / 0.08));
+}
+
+.brand-mark__name {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  line-height: 1;
+}
+
+.brand-mark__wms {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #1a1a1a;
+}
+
+.brand-mark__variant {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #1a1a1a;
+  background: #f9db00;
+  border: 1px solid #c9a800;
+}
+
+.brand-mark--compact .brand-mark__logo {
+  width: min(220px, 72vw);
+}
+
+.brand-mark--sidebar .brand-mark__logo {
+  width: 100%;
+  max-width: 168px;
+}
+
+.brand-mark--sidebar .brand-mark__name {
+  gap: 6px;
+}
+
+.brand-mark--sidebar .brand-mark__wms {
+  font-size: 0.95rem;
+}
+
+.brand-mark--sidebar .brand-mark__variant {
+  font-size: 0.52rem;
+  padding: 3px 8px;
+}

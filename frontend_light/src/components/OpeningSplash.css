@@ -1,0 +1,146 @@
+.intro-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  animation: intro-fade-in 0.5s ease-out;
+}
+
+.intro-splash--exit {
+  animation: intro-fade-out 0.65s ease-in forwards;
+}
+
+.intro-splash--exit .intro-logo {
+  animation: intro-logo-exit 0.65s ease-in forwards;
+}
+
+.intro-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: min(480px, 92vw);
+}
+
+.intro-brand {
+  animation: intro-brand-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.intro-brand .brand-mark__name {
+  animation: intro-progress-in 0.8s ease-out 0.2s both;
+}
+
+.intro-logo {
+  animation: intro-logo-in 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.intro-progress-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: intro-progress-in 0.8s ease-out 0.35s both;
+}
+
+.intro-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #eef1f4;
+  border: 1px solid #dde1e6;
+  overflow: hidden;
+}
+
+.intro-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: #6e7681;
+  transition: width 0.12s linear;
+}
+
+.intro-progress-label {
+  font-size: 0.8rem;
+  color: #5c6670;
+  letter-spacing: 0.04em;
+}
+
+.intro-ambiente {
+  margin: -12px 0 0;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.intro-ambiente--homolog {
+  color: #1a1200;
+  background: #f9db00;
+  border: 1px solid #c9a800;
+}
+
+@keyframes intro-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes intro-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes intro-brand-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes intro-logo-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes intro-logo-exit {
+  to {
+    opacity: 0;
+    transform: scale(1.06) translateY(-12px);
+  }
+}
+
+@keyframes intro-progress-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-splash,
+  .intro-brand,
+  .intro-logo,
+  .intro-progress-wrap {
+    animation: none !important;
+  }
+}
