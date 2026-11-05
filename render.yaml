@@ -1,4 +1,4 @@
-# Blueprint Render — Doca Livre WMS PRO UNIFICADO (Pro + Plus + Light em um único site e banco)
+# Blueprint Render — Doca Livre WMS PRO UNIFICADO (100% nativo no Render, sem depender de domínio externo)
 #
 # Produção:    branch main    → https://doca-livre-wms-pro.onrender.com
 # Homologação: branch homolog → https://doca-livre-wms-pro-homologacao.onrender.com
@@ -27,13 +27,13 @@ services:
       - key: SUPABASE_ANON_KEY
         value: sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK
       - key: PORTAL_PUBLIC_URL
-        value: https://wms.docalivre.com.br/
+        value: https://doca-livre-wms-pro.onrender.com/
       - key: SYSTEM_URL_LIGHT
-        value: https://wms.docalivre.com.br/contagem
+        value: https://doca-livre-wms-pro.onrender.com/contagem
       - key: SYSTEM_URL_PLUS
-        value: https://wms.docalivre.com.br/camaras
+        value: https://doca-livre-wms-pro.onrender.com/camaras
       - key: SYSTEM_URL_PRO
-        value: https://wms.docalivre.com.br/painel
+        value: https://doca-livre-wms-pro.onrender.com/painel
       - key: PGSSLMODE
         value: require
       - key: DATABASE_URL

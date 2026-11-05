@@ -16,18 +16,18 @@ SSO_SYSTEMS = ('light', 'plus', 'pro')
 SSO_TOKEN_TTL_SEC = 60
 HUB_TOKEN_TTL_SEC = 8 * 60 * 60
 # Sistema unificado: Light / Plus / Pro rodam no mesmo serviço (WMS Pro).
-# Produção no domínio próprio https://wms.docalivre.com.br/
+# Produção no domínio próprio https://doca-livre-wms-pro.onrender.com/
 _DEFAULT_URLS_PROD = {
-    'light': 'https://wms.docalivre.com.br/contagem',
-    'plus': 'https://wms.docalivre.com.br/camaras',
-    'pro': 'https://wms.docalivre.com.br/painel',
+    'light': 'https://doca-livre-wms-pro.onrender.com/contagem',
+    'plus': 'https://doca-livre-wms-pro.onrender.com/camaras',
+    'pro': 'https://doca-livre-wms-pro.onrender.com/painel',
 }
 _DEFAULT_URLS_HML = {
     'light': 'https://doca-livre-wms-pro-homologacao.onrender.com/contagem',
     'plus': 'https://doca-livre-wms-pro-homologacao.onrender.com/camaras',
     'pro': 'https://doca-livre-wms-pro-homologacao.onrender.com/painel',
 }
-_DEFAULT_PORTAL_PROD = 'https://wms.docalivre.com.br/'
+_DEFAULT_PORTAL_PROD = 'https://doca-livre-wms-pro.onrender.com/'
 _DEFAULT_PORTAL_HML = 'https://doca-livre-wms-pro-homologacao.onrender.com/'
 
 
