@@ -33,7 +33,8 @@ services:
       - key: PGSSLMODE
         value: require
       - key: DATABASE_URL
-        value: postgresql://ofertacargaadmin:P44oEgrDjcRDmxdxsWA0IJN9AEvKduOEaA1@psql-ofertacarga-prod.postgres.database.azure.com:5432/wmspro?sslmode=require
+        # NUNCA coloque a URL/senha aqui (repositório público). Defina no painel do Render.
+        sync: false
       - key: HUB_API_URL
         sync: false
       - key: RAVEX_USER
@@ -70,7 +71,8 @@ services:
       - key: PGSSLMODE
         value: require
       - key: DATABASE_URL
-        value: postgresql://ofertacargaadmin:P44oEgrDjcRDmxdxsWA0IJN9AEvKduOEaA1@psql-ofertacarga-prod.postgres.database.azure.com:5432/wmspro?sslmode=require
+        # NUNCA coloque a URL/senha aqui (repositório público). Defina no painel do Render.
+        sync: false
       - key: HUB_API_URL
         sync: false
       - key: RAVEX_USER

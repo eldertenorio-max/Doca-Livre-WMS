@@ -16,6 +16,13 @@ PORTAL_SUPERUSERS = {
     if n.strip()
 }
 
+# Logins em formato de e-mail só contam como Super Usuário nestes domínios.
+PORTAL_SUPERUSER_DOMINIOS = {
+    d.strip().lower()
+    for d in (os.environ.get('PORTAL_SUPERUSER_DOMINIOS') or 'docalivre.com.br').split(',')
+    if d.strip()
+}
+
 SISTEMAS = ('light', 'plus', 'pro')
 
 PORTAL_MODULOS_CATALOGO: dict[str, list[dict[str, str]]] = {
@@ -92,27 +99,19 @@ def is_portal_superuser(usuario: str) -> bool:
     )
     if u_ascii in PORTAL_SUPERUSERS:
         return True
-    local = u.split('@', 1)[0]
-    local_ascii = u_ascii.split('@', 1)[0]
-    if local in PORTAL_SUPERUSERS or local_ascii in PORTAL_SUPERUSERS:
-        return True
-    for su in PORTAL_SUPERUSERS:
-        if u.startswith(su + '.') or u.startswith(su + '@'):
+    # Somente correspondência EXATA. Não usar prefixo (startswith): antes qualquer login
+    # iniciado por "diego"/"elder" (ex.: "diegoqualquer") virava Super Usuário.
+    if '@' in u_ascii:
+        # Login em formato de e-mail: só vale o domínio da empresa (diego@qualquer.com NÃO é super).
+        local_ascii, dominio = u_ascii.split('@', 1)
+        if dominio not in PORTAL_SUPERUSER_DOMINIOS:
+            return False
+        if local_ascii in PORTAL_SUPERUSERS:
             return True
-        if local.startswith(su) and su in ('diego', 'elder'):
-            return True
-        if local_ascii.startswith(su) and su in ('diego', 'elder'):
-            return True
+    else:
+        local_ascii = u_ascii
     compact = local_ascii.replace('.', '').replace(' ', '')
-    if compact in {'diegoisidoro', 'eldertenorio'} or u_ascii.replace('.', '').replace(' ', '') in {
-        'diegoisidoro',
-        'eldertenorio',
-    }:
-        return True
-    # "elder tenorio" / "diego isidoro"
-    if local_ascii.startswith('elder ') or local_ascii.startswith('diego '):
-        return True
-    return False
+    return compact in {'diegoisidoro', 'eldertenorio'}
 
 
 def ensure_portal_permissoes_schema(conn) -> None:

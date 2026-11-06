@@ -29,6 +29,7 @@
         shield: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 40s14-7 14-18V11L24 6 10 11v11c0 11 14 18 14 18z" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
         catalog: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M38 25L23 40a3 3 0 01-4 0L8 29V10h19l11 11a3 3 0 010 4z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="18" r="2.5" fill="currentColor"/></svg>',
         settings: '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M24 8v5M24 35v5M8 24h5M35 24h5M12.7 12.7l3.5 3.5M31.8 31.8l3.5 3.5M35.3 12.7l-3.5 3.5M16.2 31.8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+        users: '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="19" cy="17" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 38c0-6 5-10 11-10s11 4 11 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M36 16v10M31 21h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
         menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>'
     };
 

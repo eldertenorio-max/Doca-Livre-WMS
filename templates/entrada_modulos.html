@@ -36,6 +36,7 @@
             </div>
             <div class="app-topbar-right ss-hub-topbar-right">
                 {% if is_superuser %}
+                <a href="/usuarios/novo" class="ss-hub-topbar-sair" style="margin-right:8px;" title="Cadastrar usuários">+ Usuários</a>
                 <a href="/config-portal" class="ss-hub-topbar-sair" style="margin-right:8px;" title="Hierarquia e Permissões">⚙ Hierarquia &amp; Permissões</a>
                 {% endif %}
                 <span class="ss-hub-topbar-user">
@@ -149,12 +150,13 @@
         { id: 'light-agendamentos', group: 'light', label: 'Agendamentos (Contagem)', href: '/contagem?view=agendamentos', icon: 'calendar' },
         { id: 'light-painel', group: 'light', label: 'Painel de Contagem', href: '/contagem?view=painel', icon: 'report' }
         {% if is_superuser %},
-        { id: 'config-portal', group: 'admin', label: 'Hierarquia & Permissões', href: '/config-portal', icon: 'settings' }
+        { id: 'config-portal', group: 'admin', label: 'Hierarquia & Permissões', href: '/config-portal', icon: 'settings' },
+        { id: 'usuarios-novo', group: 'admin', label: 'Cadastrar Usuários', href: '/usuarios/novo', icon: 'users' }
         {% endif %}
     ];
     </script>
     <script src="{{ url_for('static', filename='doca-livre-pro.js') }}?v=20260705d"></script>
-    <script src="{{ url_for('static', filename='entrada-modulos.js') }}?v=20261105a"></script>
+    <script src="{{ url_for('static', filename='entrada-modulos.js') }}?v=20261106a"></script>
     {% include '_pwa_install.html' %}
 </body>
 </html>

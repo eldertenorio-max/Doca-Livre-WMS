@@ -85,52 +85,6 @@
                     <div id="msg-erro-login" class="msg-erro" role="alert" hidden></div>
                     <button type="submit" class="btn btn-primary btn-entrar" id="btn-entrar">Entrar</button>
                 </form>
-                <p class="login-footer">
-                    Não tem conta? <button type="button" class="link-btn" id="mostrar-cadastro">Cadastrar-se</button>
-                </p>
-            </div>
-        </div>
-
-        <div class="login-card cadastro-card login-card-hidden" id="card-cadastro" aria-hidden="true">
-            <div class="login-card-inner">
-                <div class="login-header">
-                    <div class="login-logo-wrap login-brand-wrap">
-                        {{ doca_livre_brand(logo_class='login-logo-img', size='login', theme='light') }}
-                    </div>
-                    <h1>Criar conta</h1>
-                    <p>Preencha os dados para se cadastrar no WMS DOCA LIVRE PRO</p>
-                </div>
-                <form id="form-cadastro" class="login-form" autocomplete="on">
-                    <div class="form-group form-group-anim">
-                        <label for="cad-usuario">Usuário</label>
-                        <input type="text" id="cad-usuario" name="usuario" placeholder="Escolha um usuário" autocomplete="username" required minlength="2">
-                    </div>
-                    <div class="form-group form-group-anim">
-                        <label for="cad-senha">Senha</label>
-                        <div class="input-senha-wrap">
-                            <input type="password" id="cad-senha" name="senha" placeholder="Mínimo 4 caracteres" autocomplete="new-password" required minlength="4">
-                            <button type="button" class="btn-toggle-senha" id="toggle-cad-senha" aria-label="Mostrar senha" title="Mostrar senha">
-                                <svg class="icon-eye icon-eye-open" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                <svg class="icon-eye icon-eye-closed" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="form-group form-group-anim">
-                        <label for="cad-confirmar">Confirmar senha</label>
-                        <div class="input-senha-wrap">
-                            <input type="password" id="cad-confirmar" name="confirmar_senha" placeholder="Repita a senha" autocomplete="new-password" required minlength="4">
-                            <button type="button" class="btn-toggle-senha" id="toggle-cad-confirmar" aria-label="Mostrar senha" title="Mostrar senha">
-                                <svg class="icon-eye icon-eye-open" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                <svg class="icon-eye icon-eye-closed" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div id="msg-erro-cadastro" class="msg-erro" role="alert" hidden></div>
-                    <button type="submit" class="btn btn-primary btn-entrar" id="btn-cadastrar">Cadastrar</button>
-                </form>
-                <p class="login-footer">
-                    Já tem conta? <button type="button" class="link-btn" id="mostrar-login">Fazer login</button>
-                </p>
             </div>
         </div>
     </div>
@@ -152,35 +106,15 @@
     }
 
     var cardLogin = document.getElementById('card-login');
-    var cardCadastro = document.getElementById('card-cadastro');
     var formLogin = document.getElementById('form-login');
-    var formCadastro = document.getElementById('form-cadastro');
     var msgErroLogin = document.getElementById('msg-erro-login');
-    var msgErroCadastro = document.getElementById('msg-erro-cadastro');
     var btnEntrar = document.getElementById('btn-entrar');
-    var btnCadastrar = document.getElementById('btn-cadastrar');
 
     function mostrarErro(el, texto) {
         el.textContent = texto || '';
         el.hidden = !texto;
     }
 
-    function showCard(show, hide) {
-        hide.setAttribute('aria-hidden', 'true');
-        hide.classList.remove('login-card-visible');
-        hide.classList.add('login-card-hidden');
-        show.setAttribute('aria-hidden', 'false');
-        show.classList.remove('login-card-hidden');
-        show.classList.add('login-card-visible');
-    }
-    document.getElementById('mostrar-cadastro').addEventListener('click', function () {
-        mostrarErro(msgErroCadastro);
-        showCard(cardCadastro, cardLogin);
-    });
-    document.getElementById('mostrar-login').addEventListener('click', function () {
-        mostrarErro(msgErroLogin);
-        showCard(cardLogin, cardCadastro);
-    });
 
     function toggleSenha(inputId, btnId) {
         var input = document.getElementById(inputId);
@@ -203,8 +137,6 @@
         }
     }
     document.getElementById('toggle-senha').addEventListener('click', function () { toggleSenha('senha', 'toggle-senha'); });
-    document.getElementById('toggle-cad-senha').addEventListener('click', function () { toggleSenha('cad-senha', 'toggle-cad-senha'); });
-    document.getElementById('toggle-cad-confirmar').addEventListener('click', function () { toggleSenha('cad-confirmar', 'toggle-cad-confirmar'); });
 
     formLogin.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -243,51 +175,6 @@
             clearTimeout(timer);
             btnEntrar.disabled = false;
             btnEntrar.textContent = labelAntes || 'Entrar';
-        });
-    });
-
-    formCadastro.addEventListener('submit', function (e) {
-        e.preventDefault();
-        mostrarErro(msgErroCadastro);
-        var senha = document.getElementById('cad-senha').value;
-        var confirmar = document.getElementById('cad-confirmar').value;
-        if (senha !== confirmar) {
-            mostrarErro(msgErroCadastro, 'As senhas não coincidem.');
-            return;
-        }
-        btnCadastrar.disabled = true;
-        fetch((window.API_BASE || '/api') + '/cadastrar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                usuario: document.getElementById('cad-usuario').value.trim(),
-                senha: senha,
-                confirmar_senha: confirmar
-            })
-        }).then(function (r) {
-            return r.json().catch(function () { return { ok: false, erro: 'Erro inesperado no cadastro.' }; }).then(function (data) {
-                if (!r.ok && !data.erro) data.erro = 'Erro ao cadastrar.';
-                return data;
-            });
-        }).then(function (data) {
-            if (data.ok) {
-                showCard(cardLogin, cardCadastro);
-                mostrarErro(msgErroLogin);
-                msgErroLogin.textContent = data.mensagem || 'Cadastro realizado. Faça login.';
-                msgErroLogin.hidden = false;
-                msgErroLogin.classList.remove('msg-erro');
-                msgErroLogin.classList.add('msg-sucesso');
-                setTimeout(function () {
-                    msgErroLogin.classList.add('msg-erro');
-                    msgErroLogin.classList.remove('msg-sucesso');
-                }, 5000);
-                return;
-            }
-            mostrarErro(msgErroCadastro, data.erro || 'Erro ao cadastrar.');
-        }).catch(function () {
-            mostrarErro(msgErroCadastro, 'Falha de conexão. Tente novamente.');
-        }).finally(function () {
-            btnCadastrar.disabled = false;
         });
     });
 })();

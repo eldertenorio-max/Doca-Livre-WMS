@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usuários — WMS DOCA LIVRE PRO</title>
+    {% from '_app_head_icons.html' import app_head_icons %}
+    {{ app_head_icons() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20260719c">
+    <style>
+        body.usr-page { margin: 0; background: var(--content-bg, #eef1f4); color: var(--text, #000); font-family: "Segoe UI", system-ui, sans-serif; }
+        .usr-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 54px; padding: 0 16px; background: var(--brand-black, #000); color: #fff; margin-top: var(--app-env-banner-h, 0px); }
+        .usr-top a { color: #fff; text-decoration: none; font-weight: 600; }
+        .usr-top a:hover { color: var(--brand-yellow, #f9db00); }
+        .usr-wrap { max-width: 920px; margin: 24px auto; padding: 0 16px; display: grid; gap: 20px; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); }
+        @media (max-width: 760px) { .usr-wrap { grid-template-columns: 1fr; } }
+        .usr-card { background: var(--bg-panel, #fff); border: 1px solid var(--border, #dde1e6); border-radius: 12px; padding: 20px; }
+        .usr-card h1, .usr-card h2 { margin: 0 0 4px; font-size: 1.15rem; }
+        .usr-card p.usr-sub { margin: 0 0 16px; color: var(--text-muted, #5c6670); font-size: .9rem; }
+        .usr-field { display: grid; gap: 6px; margin-bottom: 14px; }
+        .usr-field label { font-weight: 600; font-size: .9rem; }
+        .usr-field input { font: inherit; padding: 10px 12px; border: 1px solid var(--btn-surface-border, #d0d7de); border-radius: 8px; background: #fff; }
+        .usr-field input:focus { outline: 2px solid var(--brand-yellow, #f9db00); outline-offset: 1px; }
+        .usr-btn { width: 100%; font: inherit; font-weight: 700; padding: 11px; border: 0; border-radius: 8px; background: var(--brand-yellow, #f9db00); color: #000; cursor: pointer; }
+        .usr-btn:hover { background: var(--brand-yellow-hover, #e0c500); }
+        .usr-btn:disabled { opacity: .6; cursor: wait; }
+        .usr-msg { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; font-size: .9rem; }
+        .usr-msg.erro { background: #fdecec; color: #8a1c1c; }
+        .usr-msg.ok { background: #e8f6ec; color: #17602e; }
+        .usr-list { list-style: none; margin: 0; padding: 0; max-height: 460px; overflow: auto; }
+        .usr-list li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 2px; border-bottom: 1px solid var(--border, #dde1e6); font-size: .92rem; }
+        .usr-list li span:last-child { color: var(--text-muted, #5c6670); white-space: nowrap; }
+        .usr-filter { width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--btn-surface-border, #d0d7de); border-radius: 8px; }
+    </style>
+</head>
+<body class="usr-page doca-livre-pro{% if is_homologacao %} app-env-homologacao{% endif %}">
+    {% include '_app_env_banner.html' %}
+    <header class="usr-top">
+        <a href="{{ url_for('entrada_modulos') }}">‹ Voltar ao Hub</a>
+        <span>{{ usuario }}</span>
+    </header>
+
+    <main class="usr-wrap">
+        <section class="usr-card" aria-labelledby="usr-titulo">
+            <h1 id="usr-titulo">Cadastrar usuário</h1>
+            <p class="usr-sub">Somente Super Usuários podem criar contas. Depois defina as permissões em Hierarquia &amp; Permissões.</p>
+            <div id="usr-msg" class="usr-msg" role="alert" hidden></div>
+            <form id="usr-form" autocomplete="off">
+                <div class="usr-field">
+                    <label for="usr-usuario">Usuário</label>
+                    <input type="text" id="usr-usuario" required minlength="2" autocomplete="off">
+                </div>
+                <div class="usr-field">
+                    <label for="usr-senha">Senha inicial</label>
+                    <input type="password" id="usr-senha" required minlength="4" autocomplete="new-password">
+                </div>
+                <div class="usr-field">
+                    <label for="usr-confirmar">Confirmar senha</label>
+                    <input type="password" id="usr-confirmar" required minlength="4" autocomplete="new-password">
+                </div>
+                <button type="submit" class="usr-btn" id="usr-btn">Cadastrar</button>
+            </form>
+        </section>
+
+        <section class="usr-card" aria-labelledby="usr-lista-titulo">
+            <h2 id="usr-lista-titulo">Usuários cadastrados</h2>
+            <p class="usr-sub" id="usr-total">Carregando…</p>
+            <input type="search" class="usr-filter" id="usr-filtro" placeholder="Filtrar por nome" aria-label="Filtrar usuários">
+            <ul class="usr-list" id="usr-lista"></ul>
+        </section>
+    </main>
+
+    <script>
+    (function () {
+        var form = document.getElementById('usr-form');
+        var msg = document.getElementById('usr-msg');
+        var btn = document.getElementById('usr-btn');
+        var lista = document.getElementById('usr-lista');
+        var total = document.getElementById('usr-total');
+        var filtro = document.getElementById('usr-filtro');
+        var todos = [];
+
+        function aviso(texto, tipo) {
+            msg.textContent = texto || '';
+            msg.className = 'usr-msg ' + (tipo || 'erro');
+            msg.hidden = !texto;
+        }
+
+        function fmtData(v) {
+            if (!v) return '';
+            var d = new Date(v);
+            return isNaN(d) ? String(v).slice(0, 10) : d.toLocaleDateString('pt-BR');
+        }
+
+        function render() {
+            var q = (filtro.value || '').trim().toLowerCase();
+            var itens = todos.filter(function (u) { return !q || String(u.usuario || '').toLowerCase().indexOf(q) !== -1; });
+            lista.innerHTML = '';
+            itens.forEach(function (u) {
+                var li = document.createElement('li');
+                var a = document.createElement('span'); a.textContent = u.usuario || '';
+                var b = document.createElement('span'); b.textContent = fmtData(u.criado_em);
+                li.appendChild(a); li.appendChild(b);
+                lista.appendChild(li);
+            });
+            total.textContent = todos.length + ' usuário(s)' + (q ? ' — ' + itens.length + ' no filtro' : '');
+        }
+
+        function carregar() {
+            fetch('/api/usuarios', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    todos = Array.isArray(data) ? data : [];
+                    todos.sort(function (x, y) { return String(x.usuario || '').localeCompare(String(y.usuario || ''), 'pt-BR'); });
+                    render();
+                })
+                .catch(function () { total.textContent = 'Não foi possível carregar a lista.'; });
+        }
+
+        filtro.addEventListener('input', render);
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            aviso('');
+            var usuario = document.getElementById('usr-usuario').value.trim();
+            var senha = document.getElementById('usr-senha').value;
+            var confirmar = document.getElementById('usr-confirmar').value;
+            if (senha !== confirmar) { aviso('As senhas não coincidem.'); return; }
+            btn.disabled = true;
+            fetch('/api/cadastrar', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario: usuario, senha: senha, confirmar_senha: confirmar })
+            }).then(function (r) {
+                return r.json().catch(function () { return { ok: false, erro: 'Resposta inesperada do servidor.' }; });
+            }).then(function (data) {
+                if (data.ok) {
+                    aviso(data.mensagem || 'Usuário cadastrado.', 'ok');
+                    form.reset();
+                    carregar();
+                } else {
+                    aviso(data.erro || 'Erro ao cadastrar.');
+                }
+            }).catch(function () {
+                aviso('Falha de conexão. Tente novamente.');
+            }).finally(function () {
+                btn.disabled = false;
+            });
+        });
+
+        carregar();
+    })();
+    </script>
+</body>
+</html>

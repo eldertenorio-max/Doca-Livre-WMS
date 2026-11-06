@@ -877,25 +877,14 @@ def init_db():
 
 def sync_usuarios_from_config():
     """
-    Sincroniza a tabela 'usuarios' com o arquivo config_usuarios.py.
-    - Usuários listados no arquivo: inseridos ou atualizados (senha em hash).
-    - Usuários que não estão no arquivo: removidos do banco.
-    Se o arquivo não existir, é criado com o usuário admin/admin.
+    Importa usuários do arquivo config_usuarios.py (opcional, uso local/legado).
+    - Usuários listados no arquivo: inseridos (no SQLite local a senha também é atualizada).
+    - NÃO cria mais o arquivo nem o usuário padrão admin/admin quando o arquivo não existe
+      (no Render o arquivo não vai para o git e isso recriava admin/admin no banco a cada boot).
+    - NÃO apaga usuários que não estão no arquivo: contas criadas pelo Super Usuário
+      vivem apenas no banco (senha só em hash).
     """
     config_path = os.path.join(_EXE_DIR, 'config_usuarios.py')
-    default_content = '''# -*- coding: utf-8 -*-
-# Controle de usuários. Edite a lista USUARIOS e reinicie o app.
-# Formato: {"usuario": "nome", "senha": "senha_em_texto"}
-USUARIOS = [
-    {"usuario": "admin", "senha": "admin"},
-]
-'''
-    if not os.path.isfile(config_path):
-        try:
-            with open(config_path, 'w', encoding='utf-8') as f:
-                f.write(default_content)
-        except Exception:
-            pass
     lista = []
     if os.path.isfile(config_path):
         try:
@@ -907,11 +896,10 @@ USUARIOS = [
                 lista = []
         except Exception:
             lista = []
-    if not lista:
-        lista = [{'usuario': 'admin', 'senha': 'admin'}]
     conn = get_db()
     try:
-        if getattr(conn, 'kind', None) == 'pg':
+        is_pg = getattr(conn, 'kind', None) == 'pg'
+        if is_pg:
             try:
                 _ensure_pg_tabela_geral_dados(conn)
                 conn.commit()
@@ -920,16 +908,13 @@ USUARIOS = [
                     conn.rollback()
                 except Exception:
                     pass
-        usuarios_do_arquivo = set()
-        is_pg = getattr(conn, 'kind', None) == 'pg'
         for item in lista:
             if not isinstance(item, dict):
                 continue
             usuario = (item.get('usuario') or '').strip()
             senha = item.get('senha') or ''
-            if not usuario:
+            if not usuario or not senha:
                 continue
-            usuarios_do_arquivo.add(usuario)
             # Postgres (Render): NÃO rehash/atualiza senha a cada boot — pbkdf2 trava o
             # worker free e deixa o login lento (compete com /api/portal/login).
             if is_pg:
@@ -960,64 +945,8 @@ USUARIOS = [
                     (usuario, senha_hash, datetime.now().isoformat()),
                 )
         conn.commit()
-        # No Postgres (Render/portal): NÃO apagar usuários fora do arquivo.
-        # Contas criadas por Cadastro (com e-mail) vivem só no banco; se apagarmos,
-        # o e-mail de cadastro ainda funciona, mas Trocar senha/login somem.
-        # No SQLite local: mantém sync antigo (config = fonte da verdade).
-        if not is_pg:
-            remover = [
-                row['usuario']
-                for row in conn.execute('SELECT usuario FROM usuarios')
-                if row['usuario'] not in usuarios_do_arquivo
-            ]
-            for u in remover:
-                conn.execute('DELETE FROM usuarios WHERE usuario = ?', (u,))
-            conn.commit()
     finally:
         conn.close()
-
-
-def adicionar_usuario_ao_config(usuario, senha):
-    """
-    Adiciona um novo usuário/senha ao arquivo config_usuarios.py (atualiza o arquivo
-    quando alguém se cadastra pela tela de Cadastrar).
-    """
-    config_path = os.path.join(_EXE_DIR, 'config_usuarios.py')
-    if not os.path.isfile(config_path):
-        return
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        # Evitar duplicata: se o usuário já está no arquivo, não adicionar de novo
-        for line in lines:
-            if '"usuario"' in line and json.dumps(usuario) in line:
-                return
-        insert_at = -1
-        in_list = False
-        for i, line in enumerate(lines):
-            if 'USUARIOS' in line and '=' in line and '[' in line:
-                in_list = True
-                continue
-            if in_list and line.strip() == ']':
-                insert_at = i
-                break
-        if insert_at < 0:
-            return
-        # Garantir vírgula na linha anterior
-        prev = insert_at - 1
-        while prev >= 0 and not lines[prev].strip():
-            prev -= 1
-        if prev >= 0 and lines[prev].rstrip() and not lines[prev].rstrip().endswith(','):
-            lines[prev] = lines[prev].rstrip()
-            if not lines[prev].endswith('\n'):
-                lines[prev] += '\n'
-            lines[prev] = lines[prev].rstrip().rstrip(',') + ',\n'
-        nova_linha = '    {"usuario": %s, "senha": %s},\n' % (json.dumps(usuario), json.dumps(senha))
-        lines.insert(insert_at, nova_linha)
-        with open(config_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-    except Exception:
-        pass
 
 
 def get_db(connect_timeout=None):
@@ -1213,6 +1142,20 @@ def _ensure_produtos_bipados_disposicao(conn):
             conn.rollback()
         except Exception:
             pass
+
+
+def _row_dict(r):
+    """Converte uma linha (sqlite3.Row ou dict do psycopg) em dict; {} se vazia/incompatível."""
+    if r is None:
+        return {}
+    if isinstance(r, dict):
+        return r
+    if hasattr(r, 'keys'):
+        try:
+            return dict(r)
+        except Exception:
+            return {}
+    return {}
 
 
 def _normalizar_disposicao_estoque(val, fluxo=None, devolucao_nf_id=None, conn=None):
@@ -2260,7 +2203,7 @@ def _requer_login():
         'api_sso_verify', 'api_sso_issue', 'sso_entrar_pro', 'api_portal_login',
     ):
         return False
-    if request.path.startswith('/api/login') or request.path.startswith('/api/cadastrar'):
+    if request.path.startswith('/api/login'):
         return False
     # Portal Plus (CORS) + emissão/verificação SSO por hub_token — sem cookie de sessão Pro.
     if request.path.startswith('/api/sso/') or request.path.startswith('/api/portal/'):
@@ -2351,7 +2294,7 @@ def proteger_rotas():
         'api_sso_verify', 'api_sso_issue', 'sso_entrar_pro', 'api_portal_login',
     ):
         return None
-    if request.path.startswith('/api/login') or request.path.startswith('/api/cadastrar'):
+    if request.path.startswith('/api/login'):
         return None
     if request.path.startswith('/api/sso/') or request.path.startswith('/api/portal/'):
         return None
@@ -3093,9 +3036,12 @@ def _portal_resolver_email_usuario(conn, usuario_ou_email):
 
 @app.route('/api/portal/cadastro/enviar-codigo', methods=['POST', 'OPTIONS'])
 def api_portal_cadastro_enviar_codigo():
-    """Envia código de confirmação de e-mail para cadastro no portal."""
+    """Envia código de confirmação de e-mail para cadastro no portal (só Super Usuário)."""
     if request.method == 'OPTIONS':
         return _sso_cors(make_response(('', 204)))
+    _ator, err = _portal_require_superuser()
+    if err:
+        return err
     if not all(callable(x) for x in (
         portal_email_valido, portal_normalize_email, portal_gerar_codigo,
         portal_salvar_codigo, portal_enviar_codigo_email, portal_cooldown_ok,
@@ -3155,9 +3101,12 @@ def api_portal_cadastro_enviar_codigo():
 
 @app.route('/api/portal/cadastro/verificar-codigo', methods=['POST', 'OPTIONS'])
 def api_portal_cadastro_verificar_codigo():
-    """Confirma o código do e-mail e emite token para concluir cadastro."""
+    """Confirma o código do e-mail e emite token para concluir cadastro (só Super Usuário)."""
     if request.method == 'OPTIONS':
         return _sso_cors(make_response(('', 204)))
+    _ator, err = _portal_require_superuser()
+    if err:
+        return err
     if not all(callable(x) for x in (
         portal_email_valido, portal_normalize_email, portal_consumir_codigo,
         portal_issue_verify_token, ensure_portal_auth_schema,
@@ -3203,9 +3152,12 @@ def api_portal_cadastro_verificar_codigo():
 
 @app.route('/api/portal/cadastro/concluir', methods=['POST', 'OPTIONS'])
 def api_portal_cadastro_concluir():
-    """Conclui cadastro após e-mail confirmado (usuário + senha)."""
+    """Conclui cadastro após e-mail confirmado (usuário + senha) — só Super Usuário."""
     if request.method == 'OPTIONS':
         return _sso_cors(make_response(('', 204)))
+    _ator, err = _portal_require_superuser()
+    if err:
+        return err
     if not all(callable(x) for x in (
         portal_verify_token_payload, portal_hash_senha, ensure_portal_auth_schema,
     )):
@@ -3264,10 +3216,6 @@ def api_portal_cadastro_concluir():
             conn.close()
         except Exception:
             pass
-    try:
-        adicionar_usuario_ao_config(usuario, senha)
-    except Exception:
-        pass
     return _sso_cors(jsonify({'ok': True, 'mensagem': 'Cadastro realizado. Faça login.', 'usuario': usuario}))
 
 
@@ -3469,10 +3417,6 @@ def api_portal_senha_redefinir():
             conn.close()
         except Exception:
             pass
-    try:
-        adicionar_usuario_ao_config(usuario, senha)
-    except Exception:
-        pass
     return _sso_cors(jsonify({'ok': True, 'mensagem': 'Senha atualizada. Faça login.', 'usuario': usuario}))
 
 
@@ -3600,8 +3544,13 @@ def sso_entrar_pro():
 
 @app.route('/api/cadastrar', methods=['POST'])
 def api_cadastrar():
-    """Cadastra novo usuário."""
-    data = request.get_json() or {}
+    """Cadastra novo usuário — somente Super Usuário logado (não há autocadastro)."""
+    ator = (session.get('usuario') or '').strip()
+    if not ator:
+        return jsonify({'ok': False, 'erro': 'Não autorizado'}), 401
+    if not (callable(is_portal_superuser) and is_portal_superuser(ator)):
+        return jsonify({'ok': False, 'erro': 'Apenas Super Usuários podem cadastrar usuários.'}), 403
+    data = request.get_json(silent=True) or {}
     usuario = (data.get('usuario') or '').strip()
     senha = data.get('senha') or ''
     confirmar = data.get('confirmar_senha') or ''
@@ -3637,8 +3586,11 @@ def api_cadastrar():
             conn.close()
         except Exception:
             pass
-    adicionar_usuario_ao_config(usuario, senha)
-    return jsonify({'ok': True, 'mensagem': 'Cadastro realizado. Faça login.'})
+    try:
+        app.logger.info('Usuário %s cadastrado por %s', usuario, ator)
+    except Exception:
+        pass
+    return jsonify({'ok': True, 'mensagem': f'Usuário "{usuario}" cadastrado.', 'usuario': usuario})
 
 
 @app.route('/api/logout', methods=['POST'])
@@ -3663,7 +3615,10 @@ def ravex_env_check():
 
 @app.route('/api/usuarios', methods=['GET'])
 def api_listar_usuarios():
-    """Lista todos os usuários cadastrados (apenas nomes; senhas não são exibidas)."""
+    """Lista todos os usuários cadastrados (apenas nomes) — somente Super Usuário."""
+    ator = (session.get('usuario') or '').strip()
+    if not (callable(is_portal_superuser) and is_portal_superuser(ator)):
+        return jsonify({'ok': False, 'erro': 'Apenas Super Usuários.'}), 403
     conn = get_db()
     rows = conn.execute('SELECT usuario, criado_em FROM usuarios ORDER BY usuario').fetchall()
     conn.close()
@@ -3672,10 +3627,35 @@ def api_listar_usuarios():
 
 @app.route('/api/health', methods=['GET', 'OPTIONS'])
 def api_health():
-    """Health check leve para proxy/hospedagem (Render) e wake do portal Plus (CORS)."""
+    """Health check leve para proxy/hospedagem (Render) e wake do portal Plus (CORS).
+
+    /api/health        → leve, não toca no banco (usado pelo healthCheckPath do Render).
+    /api/health?db=1   → testa a conexão com o banco (SELECT 1) e responde 503 se falhar.
+    """
     if request.method == 'OPTIONS':
         return _sso_cors(make_response(('', 204)))
-    return _sso_cors(jsonify({'ok': True, 'env': _app_env()})), 200
+    payload = {'ok': True, 'env': _app_env()}
+    if (request.args.get('db') or '').strip() in ('1', 'true', 'sim'):
+        t0 = time.time()
+        conn = None
+        try:
+            conn = get_db(connect_timeout=5)
+            conn.execute('SELECT 1').fetchone()
+            payload['db'] = 'ok'
+            payload['db_tipo'] = getattr(conn, 'kind', None)
+        except Exception as e:
+            payload['ok'] = False
+            payload['db'] = 'erro'
+            payload['db_erro'] = type(e).__name__
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        payload['db_ms'] = int((time.time() - t0) * 1000)
+        return _sso_cors(jsonify(payload)), (200 if payload['ok'] else 503)
+    return _sso_cors(jsonify(payload)), 200
 
 
 @app.route('/sw.js')
@@ -3798,6 +3778,15 @@ def wms_plus_spa(subpath=None):
 def config_portal_redirect():
     """Tela de Hierarquia e Permissões do Sistema Unificado."""
     return redirect('/camaras?secao=config')
+
+
+@app.route('/usuarios/novo')
+def usuarios_novo():
+    """Cadastro de usuários — somente Super Usuário (não existe mais autocadastro)."""
+    usuario = (session.get('usuario') or '').strip()
+    if not (callable(is_portal_superuser) and is_portal_superuser(usuario)):
+        return redirect(url_for('entrada_modulos'))
+    return render_template('usuarios_novo.html', usuario=usuario)
 
 
 @app.route('/entrada')
@@ -9597,7 +9586,9 @@ def get_romaneio():
 @app.route('/api/romaneio', methods=['POST'])
 def update_romaneio():
     """Atualiza quantidade do romaneio"""
-    data = request.json
+    data = request.get_json(silent=True) or {}
+    if not str(data.get('codigo_barras') or '').strip() or data.get('quantidade_romaneio') is None:
+        return jsonify({'erro': 'Informe codigo_barras e quantidade_romaneio.'}), 400
     conn = get_db()
     if getattr(conn, 'kind', None) == 'pg':
         conn.execute(
@@ -10386,7 +10377,7 @@ def _relatorio_itens_por_roteiro(data_expedicao_inicio=None, data_expedicao_fim=
     params = []
     sql, params = _aplicar_filtro_expedicao_sql(sql, params, ids_filtro, col='id_viagem')
     sql += ' GROUP BY id_viagem, codigo_barras ORDER BY id_viagem, total DESC'
-    rows = conn.execute(sql, params).fetchall()
+    rows = [_row_dict(r) for r in conn.execute(sql, params).fetchall()]
     conn.close()
     vids = sorted(set((r['id_viagem'] or '').strip() for r in rows if (r['id_viagem'] or '').strip()))
     conferente_por_viagem = {vid: (_get_viagem_info_dict(vid).get('conferente') or '').strip() or '' for vid in vids}
@@ -16438,9 +16429,6 @@ def api_terceiros_painel():
       tuple(pp),
     ).fetchall()
 
-    def _row_dict(r):
-      return dict(r) if hasattr(r, 'keys') else {}
-
     docs = [_row_dict(r) for r in (doc_rows or [])]
     etapa_counts = {k: 0 for k in _ETAPAS_PAINEL_TERCEIROS_LABELS}
     remetente_agg = {}
@@ -17448,4 +17436,6 @@ if __name__ == '__main__':
     print(f"\nServidor iniciado em: http://127.0.0.1:{port}")
     print("\nPressione Ctrl+C para parar o servidor")
     print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=port, threaded=True)
+    # Debugger do Werkzeug permite executar código remoto: só liga com FLASK_DEBUG=1.
+    debug_local = (os.environ.get('FLASK_DEBUG') or '').strip() == '1'
+    app.run(debug=debug_local, host='0.0.0.0', port=port, threaded=True)
