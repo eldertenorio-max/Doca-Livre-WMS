@@ -29,7 +29,18 @@ export function getStoredAppTheme(): AppTheme {
   return 'light'
 }
 
+/** Dentro do WMS unificado (/app) a tela segue o tema claro da moldura. */
+export function estaEmbutidoNoWms(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.self !== window.top
+  } catch {
+    return true
+  }
+}
+
 export function resolveAppTheme(sessionActive: boolean, authEnabled: boolean): AppTheme {
+  if (estaEmbutidoNoWms()) return 'light'
   if (hasUserSetTheme()) return getStoredAppTheme()
   if (!authEnabled) return 'dark'
   if (sessionActive) return 'dark'

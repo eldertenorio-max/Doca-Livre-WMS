@@ -9,6 +9,8 @@ type Props = {
   header?: ReactNode
   footer?: ReactNode
   sidebarOpen: boolean
+  /** Dentro do WMS unificado: sem cabeçalho e sem menu próprios (a moldura já tem). */
+  embutido?: boolean
 }
 
 export default function AppShell({
@@ -19,7 +21,17 @@ export default function AppShell({
   header,
   footer,
   sidebarOpen,
+  embutido = false,
 }: Props) {
+  if (embutido) {
+    return (
+      <div className="app-shell app-shell--embutido">
+        <div className="app-shell__main">
+          <main className="app-shell__content">{children}</main>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="app-shell">
       {header}

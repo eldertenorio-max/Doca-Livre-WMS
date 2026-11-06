@@ -2646,7 +2646,7 @@ def api_login():
         'is_superuser': superuser,
         'hub': False,
         'hub_token': hub_token,
-        'redirect': url_for('entrada_modulos'),
+        'redirect': '/app',
     })
 
 
@@ -3927,6 +3927,7 @@ def _serve_unified_spa(dist_subfolder: str):
     }).replace('</', '<\\/')  # impede fechar o <script> com dados do usuário
     sb_origem = "window.__WMS_UNIFIED__.supabaseUrl = window.location.origin + '/sb';" if backend_proprio else ''
     bootstrap_script = (
+        f"<script src=\"{url_for('static', filename='wms-embutido.js')}?v=20261106a\"></script>"
         f"<script>"
         f"window.__WMS_UNIFIED__ = {bootstrap_payload};"
         f"{sb_origem}"
@@ -3947,18 +3948,56 @@ def _serve_unified_spa(dist_subfolder: str):
     return resp
 
 
+def _abrir_na_moldura():
+    """
+    WMS unificado: quem abre uma tela interna direto na janela (favorito antigo, link,
+    redirecionamento) é levado para /app, que mostra a mesma tela dentro da moldura única.
+    Dentro do quadro (Sec-Fetch-Dest: iframe) a tela é servida normalmente.
+    ?moldura=0 abre a tela sozinha (diagnóstico/impressão).
+    """
+    if (request.args.get('moldura') or '').strip() == '0':
+        return None
+    if (request.headers.get('Sec-Fetch-Dest') or '').strip().lower() != 'document':
+        return None
+    destino = request.full_path if request.query_string else request.path
+    if request.path in ('/entrada', '/'):
+        return redirect('/app')
+    return redirect('/app?abrir=' + quote(destino, safe=''))
+
+
+@app.route('/app')
+def wms_app_unificado():
+    """WMS Doca Livre — um cabeçalho, um menu por processo e todas as telas num só sistema."""
+    usuario = (session.get('usuario') or '').strip()
+    if not usuario:
+        return redirect(url_for('login'))
+    superuser = bool(callable(is_portal_superuser) and is_portal_superuser(usuario))
+    abrir = (request.args.get('abrir') or '').strip()
+    if abrir and not re.match(r'^/[A-Za-z]', abrir):
+        abrir = ''
+    resp = make_response(render_template(
+        'wms_shell.html',
+        usuario=usuario,
+        is_superuser=superuser,
+        abrir=abrir,
+        tela=(request.args.get('tela') or '').strip(),
+    ))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return resp
+
+
 @app.route('/contagem')
 @app.route('/contagem/<path:subpath>')
 def wms_light_spa(subpath=None):
     """Módulos de Contagem Diária, Inventário, Temperatura, Ocupação e Catálogo (ex-Light)."""
-    return _serve_unified_spa('wms-light')
+    return _abrir_na_moldura() or _serve_unified_spa('wms-light')
 
 
 @app.route('/camaras')
 @app.route('/camaras/<path:subpath>')
 def wms_plus_spa(subpath=None):
     """Módulos de Câmaras Refrigeradas, NF-e, Voz e Financeiro 3PL (ex-Plus)."""
-    return _serve_unified_spa('wms-plus')
+    return _abrir_na_moldura() or _serve_unified_spa('wms-plus')
 
 
 @app.route('/config-portal')
@@ -3973,12 +4012,14 @@ def usuarios_novo():
     usuario = (session.get('usuario') or '').strip()
     if not (callable(is_portal_superuser) and is_portal_superuser(usuario)):
         return redirect(url_for('entrada_modulos'))
-    return render_template('usuarios_novo.html', usuario=usuario)
+    return _abrir_na_moldura() or render_template('usuarios_novo.html', usuario=usuario)
 
 
 @app.route('/entrada')
 def entrada_modulos():
-    """Hub central unificado com todos os módulos do WMS (Pro + Plus + Light)."""
+    """Hub antigo — agora o início do WMS unificado (/app)."""
+    if (request.args.get('moldura') or '').strip() != '0':
+        return redirect('/app')
     usuario = session.get('usuario', '')
     superuser = bool(callable(is_portal_superuser) and is_portal_superuser(usuario))
     return render_template(
@@ -3992,7 +4033,7 @@ def entrada_modulos():
 @app.route('/painel')
 def painel():
     """Página principal - Operação e Doca (requer login)."""
-    return render_template(
+    return _abrir_na_moldura() or render_template(
         'index.html',
         usuario=session.get('usuario', ''),
         portal_public_url=url_for('entrada_modulos'),

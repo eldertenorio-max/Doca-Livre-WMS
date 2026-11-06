@@ -19,7 +19,8 @@ import {
   isSectionReadOnly,
   type PlusModulosMap,
 } from '../lib/portalModuleAccess'
-import { type ComponentProps, type CSSProperties, type PointerEvent, type ReactNode, useMemo, useState } from 'react'
+import { type ComponentProps, type CSSProperties, type PointerEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { estaEmbutidoNoWms } from '../lib/embutido'
 
 type Props = {
   sidebarMode: SidebarMode
@@ -92,7 +93,14 @@ export function AppSidebar({
   agendamentosHub,
   onBeforeLeaveEntrada,
 }: Props) {
+  // WMS unificado (/app): o menu da moldura escolhe a seção; aqui fica só a seção aberta.
+  const embutido = estaEmbutidoNoWms()
+  useEffect(() => {
+    if (embutido && openSection == null) onOpenSectionChange('consulta')
+  }, [embutido, openSection, onOpenSectionChange])
+
   function sectionOpenChange(id: SidebarSectionId, open: boolean) {
+    if (embutido && !open) return
     if (open && !canOpenSection(plusModulos, id)) return
     if (open && id === 'painel') {
       onSidebarModeChange('fullscreen')
@@ -101,6 +109,7 @@ export function AppSidebar({
   }
 
   function show(id: SidebarSectionId) {
+    if (embutido && id !== (openSection ?? 'consulta')) return false
     return canOpenSection(plusModulos, id)
   }
 

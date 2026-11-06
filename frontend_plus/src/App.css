@@ -9715,3 +9715,13 @@ html.scroll-locked .sidebar.sidebar--wide {
   background: rgba(255, 255, 255, 0.08);
 }
 
+
+/* ——— Dentro do WMS unificado (/app): a moldura já tem marca, menu, relógio e banners ——— */
+html.wms-embutido .app-topbar-back-systems,
+html.wms-embutido .app-topbar-brand-row,
+html.wms-embutido .app-topbar-meta,
+html.wms-embutido .app-topbar-right > .theme-toggle,
+html.wms-embutido .pwa-install-banner,
+html.wms-embutido .ambiente-banner {
+  display: none !important;
+}

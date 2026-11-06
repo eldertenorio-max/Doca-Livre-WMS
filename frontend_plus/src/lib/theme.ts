@@ -1,8 +1,12 @@
+import { estaEmbutidoNoWms } from './embutido'
+
 export type Theme = 'dark' | 'light'
 
 export const THEME_KEY = 'ultrafrio-theme'
 
 export function getStoredTheme(): Theme {
+  // Dentro do WMS unificado (/app) a tela segue o tema claro da moldura.
+  if (estaEmbutidoNoWms()) return 'light'
   try {
     const stored = localStorage.getItem(THEME_KEY)
     if (stored === 'dark') return 'dark'

@@ -25,6 +25,7 @@ import { clearSessaoProdutoListaContext } from './lib/sessaoProdutoListaContext'
 import type { AppView } from './lib/appViews'
 import { getStoredSidebarOpen, storeSidebarOpen } from './lib/sidebarOpen'
 import { useTheme } from './hooks/useTheme'
+import { estaEmbutidoNoWms } from './lib/appTheme'
 
 export type { AppView } from './lib/appViews'
 
@@ -247,6 +248,7 @@ export default function App() {
       onNavigate={navigate}
       footer={sidebarFooter}
       sidebarOpen={sidebarOpen}
+      embutido={estaEmbutidoNoWms()}
       header={
         <AppHeader
           session={session}

@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login — WMS DOCA LIVRE PRO</title>
+    <script>
+      /* Sessão expirou com uma tela aberta dentro do WMS unificado: o login ocupa a janela toda. */
+      try { if (window.self !== window.top) window.top.location.replace(window.location.href); } catch (e) {}
+    </script>
     {% from '_app_head_icons.html' import app_head_icons %}
     {{ app_head_icons() }}
     <link rel="preconnect" href="https://fonts.googleapis.com">

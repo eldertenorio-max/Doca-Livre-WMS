@@ -3226,9 +3226,68 @@ function initModulos() {
         mostrarModulo('enderecamento-wms', { wmsTab: abaUrl });
     } else if (modUrl && ['carregamento', 'devolucoes', 'terceiros', 'estoque-sp'].indexOf(modUrl) !== -1) {
         mostrarModulo(modUrl, { estoqueAba: abaUrl });
+        // As abas de Carregamento/Devoluções/Terceiros são ligadas depois (initTabs etc.):
+        // o clique na aba pedida pela URL roda no próximo ciclo.
+        if (abaUrl) setTimeout(function() { _wmsClicarAbaModulo(modUrl, abaUrl); }, 0);
     }
 
     window.controleMostrarModulo = mostrarModulo;
+
+    /**
+     * Abre módulo + aba por código (usado pelo WMS unificado em /app para trocar de tela
+     * sem recarregar a página). Retorna false se o módulo não existir.
+     */
+    window.wmsAbrirTela = function(modulo, aba) {
+        var validos = ['carregamento', 'devolucoes', 'terceiros', 'estoque-sp', 'enderecamento-wms'];
+        if (validos.indexOf(modulo) === -1) return false;
+        if (modulo !== 'terceiros') _limparTerceirosDocumentoNaSessao();
+        mostrarModulo(modulo, { estoqueAba: aba || null, wmsTab: aba || null });
+        _wmsClicarAbaModulo(modulo, aba);
+        _wmsAtualizarUrlTela(modulo, aba);
+        return true;
+    };
+
+    // Mantém ?modulo=&aba= na URL ao trocar de aba (links diretos e menu do WMS unificado).
+    document.addEventListener('click', function(ev) {
+        var alvo = ev.target && ev.target.closest ? ev.target : null;
+        if (!alvo) return;
+        var b = alvo.closest('[data-wms-tab],[data-estoque-tab],[data-ter-tab],[data-dev-tab],#modulo-carregamento .tab-button[data-tab]');
+        if (b) {
+            if (b.hasAttribute('data-wms-tab')) _wmsAtualizarUrlTela('enderecamento-wms', b.getAttribute('data-wms-tab'));
+            else if (b.hasAttribute('data-estoque-tab')) _wmsAtualizarUrlTela('estoque-sp', b.getAttribute('data-estoque-tab'));
+            else if (b.hasAttribute('data-ter-tab')) _wmsAtualizarUrlTela('terceiros', b.getAttribute('data-ter-tab'));
+            else if (b.hasAttribute('data-dev-tab')) _wmsAtualizarUrlTela('devolucoes', b.getAttribute('data-dev-tab'));
+            else _wmsAtualizarUrlTela('carregamento', b.getAttribute('data-tab'));
+            return;
+        }
+        var m = alvo.closest('[data-modulo]');
+        if (m && m.getAttribute('data-modulo')) _wmsAtualizarUrlTela(m.getAttribute('data-modulo'), '');
+    });
+}
+
+function _wmsClicarAbaModulo(modulo, aba) {
+    if (!aba) return;
+    var seletor = {
+        carregamento: '#modulo-carregamento .tab-button[data-tab="%"]',
+        devolucoes: '[data-dev-tab="%"]',
+        terceiros: '[data-ter-tab="%"]'
+    }[modulo];
+    if (!seletor) return;
+    var valor = window.CSS && CSS.escape ? CSS.escape(aba) : String(aba).replace(/"/g, '');
+    var btn = document.querySelector(seletor.replace('%', valor));
+    if (btn) btn.click();
+}
+
+function _wmsAtualizarUrlTela(modulo, aba) {
+    try {
+        var url = new URL(window.location.href);
+        url.searchParams.set('modulo', modulo);
+        if (aba) url.searchParams.set('aba', aba); else url.searchParams.delete('aba');
+        var nova = url.pathname + url.search + url.hash;
+        if (nova !== window.location.pathname + window.location.search + window.location.hash) {
+            window.history.replaceState(window.history.state, '', nova);
+        }
+    } catch (e) { /* ignore */ }
 }
 
 function initDevolucoesTabs() {
@@ -7010,7 +7069,7 @@ function initWmsEnderecamento() {
     if (!document.getElementById('modulo-enderecamento-wms')) return;
     // Expõe o boot do módulo o quanto antes (antes de binds que possam falhar).
     window._wmsIniciarModulo = function(tab) {
-        var abasWms = ['painel', 'localizacoes', 'etiquetas-longarina', 'produtos', 'movimentacoes', 'recebimento', 'controle-paletes', 'historico-nf', 'relatorios', 'separacao', 'enderecamento', 'ocupacao', 'estoque-seguranca', 'shelf-life', 'visao-cruzada', 'inventario', 'pesquisa', 'asn', 'config-rfq', 'qa-lote', 'picking-avancado', 'yms', '3pl', 'verticais'];
+        var abasWms = ['painel', 'localizacoes', 'mapa-3d', 'etiquetas-longarina', 'produtos', 'movimentacoes', 'recebimento', 'controle-paletes', 'historico-nf', 'relatorios', 'separacao', 'enderecamento', 'ocupacao', 'estoque-seguranca', 'shelf-life', 'visao-cruzada', 'inventario', 'pesquisa', 'asn', 'config-rfq', 'qa-lote', 'picking-avancado', 'yms', 'hub', '3pl', 'verticais'];
         var t = (tab || 'painel').trim();
         if (t === 'areas-especiais') t = 'enderecamento';
         if (abasWms.indexOf(t) === -1) t = 'painel';

@@ -1,0 +1,25 @@
+/*
+ * Telas dentro do WMS unificado (/app): a moldura já tem logo, menu, usuário e "Sair",
+ * então cada tela esconde os próprios. Classe aplicada por wms-embutido.js.
+ */
+html.wms-embutido body { --app-env-banner-h: 0px !important; }
+html.wms-embutido .app-env-banner { display: none !important; }
+
+/* Operação e armazém (/painel): fica só a faixa com o sino de NFs paradas e "Atualizar aba" */
+html.wms-embutido body.doca-livre-pro .modulo-sidebar { display: none !important; }
+html.wms-embutido body.doca-livre-pro .header.app-topbar .app-topbar-left,
+html.wms-embutido body.doca-livre-pro .header.app-topbar .app-topbar-meta,
+html.wms-embutido body.doca-livre-pro .header.app-topbar .app-topbar-user-wrap,
+html.wms-embutido body.doca-livre-pro .header.app-topbar #btn-sair { display: none !important; }
+html.wms-embutido body.doca-livre-pro .header.app-topbar {
+  height: 44px;
+  min-height: 44px;
+  justify-content: flex-end !important;
+  padding: 0 14px !important;
+  top: 0 !important;
+}
+html.wms-embutido body.doca-livre-pro.app-env-homologacao .container { padding-top: 0 !important; }
+
+/* Usuários (/usuarios/novo) */
+html.wms-embutido .usr-top { display: none !important; }
+html.wms-embutido body.usr-page { padding-top: 0 !important; }

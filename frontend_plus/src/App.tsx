@@ -3419,6 +3419,24 @@ export default function App() {
     ],
   )
 
+  // WMS unificado (/app): o menu da moldura troca a seção mudando ?secao= e disparando popstate.
+  const handleOpenSectionRef = useRef(handleOpenSection)
+  handleOpenSectionRef.current = handleOpenSection
+  useEffect(() => {
+    const secoes: SidebarSectionId[] = [
+      'entrada', 'saida', 'editar', 'consulta', 'historico', 'relatorio', 'painel',
+      'canceladas', 'imprimir', 'cadastroVoz', 'financeiro', 'agendamentosHub',
+    ]
+    const onPopState = () => {
+      const raw = new URLSearchParams(window.location.search).get('secao')?.trim() || ''
+      if (secoes.includes(raw as SidebarSectionId) && raw !== openSectionRef.current) {
+        handleOpenSectionRef.current(raw as SidebarSectionId)
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
   const handleVoicePrefsChange = useCallback((patch: Partial<VoicePrefs>) => {
     setVoicePrefs((prev) => {
       const next = { ...prev, ...patch }

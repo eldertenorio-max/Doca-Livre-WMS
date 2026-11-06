@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS Doca Livre</title>
+    {% from '_app_head_icons.html' import app_head_icons %}
+    {{ app_head_icons() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261106a">
+    <script>
+      window.WMS_USUARIO = {{ {'nome': usuario or 'Usuário', 'su': is_superuser} | tojson }};
+      window.WMS_ABRIR_INICIAL = {{ (abrir or '') | tojson }};
+      window.WMS_TELA_INICIAL = {{ (tela or '') | tojson }};
+    </script>
+</head>
+<body class="wms-shell{% if is_homologacao %} wms-shell--homolog{% endif %}">
+    {% from '_doca_livre_logo.html' import doca_livre_logo %}
+    <header class="ws-topo" aria-label="Barra principal">
+        <button type="button" class="ws-btn-menu" id="ws-btn-menu" aria-label="Mostrar ou esconder o menu" aria-expanded="true">
+            <span></span><span></span><span></span>
+        </button>
+        <a href="/app" class="ws-marca" id="ws-marca" title="Início">
+            {{ doca_livre_logo(class='ws-marca-logo') }}
+            <strong>WMS</strong>
+        </a>
+        {% if is_homologacao %}<span class="ws-selo-homolog" title="Ambiente de testes">Homologação</span>{% endif %}
+        <div class="ws-busca" role="search">
+            <input type="search" id="ws-busca" placeholder="Buscar tela (ex.: entrada de NF-e, inventário, romaneio)…" autocomplete="off" aria-label="Buscar tela" aria-controls="ws-busca-resultados">
+            <kbd class="ws-busca-atalho" aria-hidden="true">/</kbd>
+            <ul class="ws-busca-resultados" id="ws-busca-resultados" role="listbox" hidden></ul>
+        </div>
+        <div class="ws-topo-direita">
+            <span class="ws-usuario" title="Usuário logado">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+                <span>{{ usuario or 'Usuário' }}</span>
+            </span>
+            <a class="ws-sair" href="/login?sair=1">Sair</a>
+        </div>
+    </header>
+
+    <div class="ws-corpo">
+        <nav class="ws-menu" id="ws-menu" aria-label="Menu do sistema">
+            <a href="/app" class="ws-menu-inicio" data-tela="inicio">
+                <span class="ws-icone" data-icone="inicio" aria-hidden="true"></span>
+                <span class="ws-rotulo">Início</span>
+            </a>
+            <div id="ws-menu-grupos"></div>
+        </nav>
+        <div class="ws-menu-fundo" id="ws-menu-fundo" hidden></div>
+
+        <main class="ws-conteudo" id="ws-conteudo">
+            <section class="ws-inicio" id="ws-inicio" aria-label="Início">
+                <div class="ws-inicio-topo">
+                    <h1>Olá, <span>{{ usuario or 'Usuário' }}</span></h1>
+                    <p>Tudo do armazém num só lugar. Escolha uma tela ou use a busca.</p>
+                </div>
+                <div class="ws-inicio-bloco" id="ws-inicio-favoritos-bloco" hidden>
+                    <h2>Favoritos</h2>
+                    <div class="ws-cards" id="ws-inicio-favoritos"></div>
+                </div>
+                <div class="ws-inicio-bloco" id="ws-inicio-recentes-bloco" hidden>
+                    <h2>Usados recentemente</h2>
+                    <div class="ws-cards" id="ws-inicio-recentes"></div>
+                </div>
+                <div id="ws-inicio-grupos"></div>
+            </section>
+            <div class="ws-quadros" id="ws-quadros"></div>
+            <div class="ws-carregando" id="ws-carregando" hidden>
+                <span class="ws-carregando-barra"></span>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='wms-menu.js') }}?v=20261106a"></script>
+    <script src="{{ url_for('static', filename='wms-shell.js') }}?v=20261106a"></script>
+    {% include '_pwa_install.html' %}
+</body>
+</html>
