@@ -28,7 +28,7 @@ import openpyxl
 from openpyxl.styles import Font
 from io import BytesIO
 from werkzeug.utils import secure_filename
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 try:
     from sso_portal import (
@@ -225,6 +225,36 @@ def _app_env():
 
 def _app_env_url():
     return (os.environ.get('RENDER_EXTERNAL_URL') or '').strip() or None
+
+
+# Endereço oficial do WMS (Azure Container Apps, ao lado do banco). O Render de produção
+# apontava para o Supabase, que foi apagado: lá, todo acesso é redirecionado para cá.
+URL_OFICIAL_AZURE = 'https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io'
+
+
+def _destino_redirecionamento():
+    """REDIRECIONAR_PARA (qualquer ambiente) ou, no Render de produção, o endereço da Azure."""
+    destino = (os.environ.get('REDIRECIONAR_PARA') or '').strip()
+    if destino:
+        return destino
+    if (os.environ.get('RENDER') or '').strip().lower() == 'true' and _app_env() == 'producao':
+        return URL_OFICIAL_AZURE
+    return ''
+
+
+@app.before_request
+def _redirecionar_endereco_antigo():
+    """Roda antes de tudo (inclusive antes de tocar no banco)."""
+    destino = _destino_redirecionamento()
+    if not destino:
+        return None
+    alvo = urlparse(destino)
+    if not alvo.scheme or not alvo.netloc or request.host.lower() == alvo.netloc.lower():
+        return None  # já está no endereço oficial (evita laço)
+    if request.path == '/api/health':
+        return None  # health check do Render continua respondendo
+    caminho = request.full_path if request.query_string else request.path
+    return redirect(destino.rstrip('/') + caminho, code=302 if request.method in ('GET', 'HEAD') else 307)
 
 
 @app.context_processor
