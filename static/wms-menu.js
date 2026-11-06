@@ -1,7 +1,8 @@
 /**
- * Menu único do WMS Doca Livre — fonte da verdade para o menu lateral, a busca e a tela inicial.
- * Organizado por processo do armazém (docs/INVENTARIO_FUNCIONALIDADES.md, seção 5).
- * Cada item aponta para a tela existente; nenhuma funcionalidade foi removida.
+ * Menu único do WMS DOCA LIVRE PRO — fonte da verdade para o menu lateral, a busca e a tela de módulos.
+ * Base: os módulos e abas do WMS PRO (Carga / Expedição, Retorno / Devoluções, Descarga / Recebimento,
+ * Estoque Geral, Endereçamento WMS 2D/3D). As telas das Câmaras e da Contagem entram nesses menus ou
+ * em módulos novos no mesmo padrão. Nenhuma funcionalidade foi removida.
  *   [id, rótulo, url, opções]   opções.su = só Super Usuário
  */
 (function () {
@@ -12,117 +13,111 @@
   function cont(view) { return '/contagem?view=' + view; }
 
   var grupos = [
-    { id: 'recebimento', rotulo: 'Recebimento', icone: 'entrada', itens: [
-      ['rec-previsoes', 'Previsões de entrada (agendamentos)', wms('hub')],
-      ['rec-yms', 'Pátio e docas (YMS)', wms('yms')],
-      ['rec-asn', 'Aviso de recebimento (ASN)', wms('asn')],
-      ['rec-enviar-xml', 'Enviar XML da NF-e', pro('terceiros', 'enviar-xml')],
-      ['rec-pendencia', 'Pendência de recebimento', pro('terceiros', 'pendencia-recebimento')],
-      ['rec-conferencia', 'Conferência e paletização', wms('recebimento')],
-      ['rec-recebidos', 'Fornecedores recebidos', pro('terceiros', 'fornecedores-recebidos')],
-      ['rec-qa', 'Qualidade do lote (QA)', wms('qa-lote')],
-      ['rec-painel', 'Painel do recebimento', pro('terceiros', 'painel')]
+    { id: 'carga', rotulo: 'Carga / Expedição', icone: 'saida', itens: [
+      ['exp-painel', 'Painel', pro('carregamento', 'painel')],
+      ['exp-ravex', 'Importar Ravex', pro('carregamento', 'importar-ravex')],
+      ['exp-baixados', 'Baixados (Ravex)', pro('carregamento', 'baixa-ravex')],
+      ['exp-conferencia', 'Conferência', pro('carregamento', 'conferencia')],
+      ['exp-extrato', 'Extrato', pro('carregamento', 'extrato')],
+      ['exp-romaneio', 'Romaneio por Item', pro('carregamento', 'romaneio')],
+      ['exp-relatorios', 'Relatórios', pro('carregamento', 'relatorios')],
+      ['exp-divergencias', 'Divergências', pro('carregamento', 'divergencias')],
+      ['exp-separacao', 'Separação', wms('separacao')],
+      ['exp-picking', 'Ondas de Picking', wms('picking-avancado')],
+      ['cad-base', 'Base de Produtos', pro('carregamento', 'base')]
     ]},
-    { id: 'fiscal', rotulo: 'Fiscal e transferências', icone: 'fiscal', itens: [
-      ['fis-pendentes', 'NFs pendentes de lançamento', pro('terceiros', 'pendentes-lancamento')],
-      ['fis-lancadas', 'Notas fiscais lançadas', pro('terceiros', 'notas-lancadas')],
-      ['fis-pend-mg', 'Pendências de envio para MG', pro('terceiros', 'pendencias-mg')],
-      ['fis-enviadas-mg', 'Notas enviadas para MG', pro('terceiros', 'notas-enviadas-mg')],
-      ['fis-receb-mg', 'Recebimentos de MG', pro('terceiros', 'recebimentos-mg')],
-      ['fis-historico', 'Histórico do recebimento', pro('terceiros', 'historico')],
-      ['fis-relatorios', 'Relatórios do recebimento', pro('terceiros', 'relatorios')]
+    { id: 'devolucoes', rotulo: 'Retorno / Devoluções', icone: 'devolucao', itens: [
+      ['dev-painel', 'Painel', pro('devolucoes', 'painel')],
+      ['dev-conferencia', 'Conferência', pro('devolucoes', 'conferencia')],
+      ['dev-extrato', 'Extrato', pro('devolucoes', 'extrato')],
+      ['dev-baixados', 'Baixados (Ravex)', pro('devolucoes', 'baixa-ravex')],
+      ['dev-relatorios', 'Relatórios', pro('devolucoes', 'relatorios')],
+      ['dev-divergencias', 'Divergências', pro('devolucoes', 'divergencias')]
     ]},
-    { id: 'armazenagem', rotulo: 'Armazenagem', icone: 'armazem', itens: [
-      ['arm-painel', 'Painel do armazém', wms('painel')],
+    { id: 'recebimento', rotulo: 'Descarga / Recebimento', icone: 'entrada', itens: [
+      ['rec-painel', 'Painel', pro('terceiros', 'painel')],
+      ['rec-enviar-xml', '1° Enviar XML', pro('terceiros', 'enviar-xml')],
+      ['rec-pendencia', '2° Pendência de Recebimento', pro('terceiros', 'pendencia-recebimento')],
+      ['rec-recebidos', '3° Fornecedores Recebidos', pro('terceiros', 'fornecedores-recebidos')],
+      ['fis-pendentes', '4° NFs Pendentes de Lançamento', pro('terceiros', 'pendentes-lancamento')],
+      ['fis-lancadas', '5° Notas Fiscais Lançadas', pro('terceiros', 'notas-lancadas')],
+      ['fis-pend-mg', '6° Pendências Envio MG', pro('terceiros', 'pendencias-mg')],
+      ['fis-enviadas-mg', '7° Notas Enviadas para MG', pro('terceiros', 'notas-enviadas-mg')],
+      ['fis-receb-mg', '8° Recebimentos de MG', pro('terceiros', 'recebimentos-mg')],
+      ['fis-relatorios', 'Relatórios', pro('terceiros', 'relatorios')],
+      ['fis-historico', 'Histórico', pro('terceiros', 'historico')],
+      ['rec-previsoes', 'Agendamentos', wms('hub')],
+      ['rec-yms', 'Pátio e Docas (YMS)', wms('yms')],
+      ['rec-asn', 'ASN', wms('asn')],
+      ['rec-conferencia', 'Conferência e Paletização', wms('recebimento')],
+      ['rec-qa', 'QA Lote', wms('qa-lote')]
+    ]},
+    { id: 'estoque', rotulo: 'Estoque Geral', icone: 'estoque', itens: [
+      ['est-atual', 'Estoque Atual', pro('estoque-sp', 'estoque-atual')],
+      ['est-saida', 'Histórico de Saída', pro('estoque-sp', 'saida')],
+      ['est-ent-dev', 'Entrada (Devoluções)', pro('estoque-sp', 'entrada-devolucao')],
+      ['est-ent-ter', 'Entrada Terceiros', pro('estoque-sp', 'entrada-terceiros')],
+      ['est-reentregas', 'Reentregas', pro('estoque-sp', 'reentregas')],
+      ['est-avaria', 'Avaria', pro('estoque-sp', 'avaria')],
+      ['est-descarte', 'Descarte / Perdas', pro('estoque-sp', 'descarte-perdas')],
+      ['est-bloqueado', 'Palete Bloqueado', pro('estoque-sp', 'palete-bloqueado')],
+      ['est-sku', 'Pesquisa SKU', wms('pesquisa')],
+      ['est-produtos', 'Produtos Endereçados', wms('produtos')],
+      ['est-seguranca', 'Estoque de Segurança', wms('estoque-seguranca')],
+      ['est-shelf', 'Shelf Life', wms('shelf-life')],
+      ['est-cruzada', 'Visão Cruzada', wms('visao-cruzada')],
+      ['est-contagens', 'Estoque x Shelf-Life (contagens)', cont('estoque')],
+      ['est-seg-planilha', 'Estoque de Segurança (planilhas)', cont('seguranca')]
+    ]},
+    { id: 'wms', rotulo: 'Endereçamento WMS 2D/3D', icone: 'armazem', itens: [
+      ['arm-painel', 'Painel', wms('painel')],
       ['arm-mapa', 'Endereçamento 2D/3D', wms('enderecamento')],
       ['arm-mapa3d', 'Mapa 3D', wms('mapa-3d')],
       ['arm-localizacoes', 'Localizações', wms('localizacoes')],
-      ['arm-movimentacoes', 'Movimentações e putaway', wms('movimentacoes')],
-      ['arm-paletes', 'Controle de paletes', wms('controle-paletes')],
-      ['arm-etiquetas', 'Etiquetas de longarina', wms('etiquetas-longarina')],
-      ['arm-ocupacao', 'Ocupação do armazém', wms('ocupacao')]
+      ['arm-etiquetas', 'Etq. Longarina', wms('etiquetas-longarina')],
+      ['arm-movimentacoes', 'Movimentações', wms('movimentacoes')],
+      ['arm-paletes', 'Controle Paletes', wms('controle-paletes')],
+      ['arm-ocupacao', 'Ocupação', wms('ocupacao')],
+      ['inv-wms', 'Inventário', wms('inventario')],
+      ['rel-historico-nf', 'Histórico NF', wms('historico-nf')],
+      ['rel-wms', 'Relatórios', wms('relatorios')],
+      ['fat-3pl', '3PL', wms('3pl')],
+      ['cfg-rfq', 'Config RFQ', wms('config-rfq')],
+      ['cfg-verticais', 'Verticais', wms('verticais')]
     ]},
-    { id: 'camaras', rotulo: 'Câmaras frias', icone: 'camara', itens: [
-      ['cam-mapa', 'Mapa das câmaras e consulta', cam('consulta')],
-      ['cam-entrada', 'Entrada de NF-e nas câmaras', cam('entrada')],
-      ['cam-saida', 'Saída de NF-e das câmaras', cam('saida')],
-      ['cam-movimentar', 'Movimentar posição', cam('editar')],
-      ['cam-canceladas', 'NF-e canceladas', cam('canceladas')],
-      ['cam-agendamentos', 'Agendamentos das câmaras', cam('agendamentosHub')],
-      ['cam-historico', 'Histórico das câmaras', cam('historico')],
-      ['cam-relatorio', 'Relatório das câmaras', cam('relatorio')],
-      ['cam-painel', 'Painel das câmaras', cam('painel')],
-      ['cam-imprimir', 'Imprimir mapa das câmaras', cam('imprimir')],
-      ['cam-ia', 'IA Doca Livre e voz', cam('cadastroVoz')]
+    { id: 'camaras', rotulo: 'Câmaras Frias', icone: 'camara', itens: [
+      ['cam-mapa', 'Mapa de Câmaras & Consulta', cam('consulta')],
+      ['cam-entrada', 'Entrada NF-e', cam('entrada')],
+      ['cam-saida', 'Saída NF-e', cam('saida')],
+      ['cam-movimentar', 'Movimentar Posição / Voz', cam('editar')],
+      ['cam-canceladas', 'NF-e Canceladas', cam('canceladas')],
+      ['cam-agendamentos', 'Agendamentos', cam('agendamentosHub')],
+      ['cam-historico', 'Histórico', cam('historico')],
+      ['cam-relatorio', 'Relatórios', cam('relatorio')],
+      ['cam-painel', 'KPIs & Painel', cam('painel')],
+      ['cam-imprimir', 'Imprimir Mapa', cam('imprimir')],
+      ['cam-ia', 'IA Doca Livre & Voz', cam('cadastroVoz')],
+      ['fat-financeiro', 'Financeiro 3PL', cam('financeiro')]
     ]},
-    { id: 'estoque', rotulo: 'Estoque', icone: 'estoque', itens: [
-      ['est-atual', 'Estoque geral', pro('estoque-sp', 'estoque-atual')],
-      ['est-saida', 'Histórico de saída', pro('estoque-sp', 'saida')],
-      ['est-ent-dev', 'Entradas de devolução', pro('estoque-sp', 'entrada-devolucao')],
-      ['est-ent-ter', 'Entradas de terceiros', pro('estoque-sp', 'entrada-terceiros')],
-      ['est-reentregas', 'Reentregas', pro('estoque-sp', 'reentregas')],
-      ['est-avaria', 'Avaria', pro('estoque-sp', 'avaria')],
-      ['est-descarte', 'Descarte e perdas', pro('estoque-sp', 'descarte-perdas')],
-      ['est-bloqueado', 'Palete bloqueado', pro('estoque-sp', 'palete-bloqueado')],
-      ['est-sku', 'Pesquisa por SKU', wms('pesquisa')],
-      ['est-produtos', 'Produtos endereçados', wms('produtos')],
-      ['est-seguranca', 'Estoque de segurança', wms('estoque-seguranca')],
-      ['est-shelf', 'Shelf life', wms('shelf-life')],
-      ['est-cruzada', 'Visão cruzada', wms('visao-cruzada')],
-      ['est-seg-planilha', 'Estoque de segurança (planilhas)', cont('seguranca')],
-      ['est-contagens', 'Estoque e shelf-life das contagens', cont('estoque')]
-    ]},
-    { id: 'inventario', rotulo: 'Inventário e contagem', icone: 'inventario', itens: [
-      ['inv-contagem', 'Contagem diária', cont('contagem')],
+    { id: 'contagem', rotulo: 'Contagem & Inventário', icone: 'inventario', itens: [
+      ['inv-painel', 'Painel de Contagem', cont('painel')],
+      ['inv-contagem', 'Contagem Diária', cont('contagem')],
       ['inv-inventarios', 'Inventários', cont('inventarios')],
-      ['inv-wms', 'Inventário do armazém', wms('inventario')],
-      ['inv-painel', 'Painel de contagem', cont('painel')],
-      ['inv-temperatura', 'Temperatura das câmaras', cont('temperatura')],
-      ['inv-ocupacao', 'Ocupação e avarias', cont('ocupacao')],
-      ['inv-agendamentos', 'Agendamentos da contagem', cont('agendamentos')]
-    ]},
-    { id: 'expedicao', rotulo: 'Expedição', icone: 'saida', itens: [
-      ['exp-painel', 'Painel de expedição', pro('carregamento', 'painel')],
-      ['exp-ravex', 'Importar romaneios (Ravex)', pro('carregamento', 'importar-ravex')],
-      ['exp-baixados', 'Romaneios baixados', pro('carregamento', 'baixa-ravex')],
-      ['exp-separacao', 'Separação', wms('separacao')],
-      ['exp-picking', 'Ondas de picking', wms('picking-avancado')],
-      ['exp-conferencia', 'Conferência de carregamento', pro('carregamento', 'conferencia')],
-      ['exp-extrato', 'Extrato do carregamento', pro('carregamento', 'extrato')],
-      ['exp-romaneio', 'Romaneio por item', pro('carregamento', 'romaneio')],
-      ['exp-divergencias', 'Divergências de carregamento', pro('carregamento', 'divergencias')],
-      ['exp-relatorios', 'Relatórios de expedição', pro('carregamento', 'relatorios')]
-    ]},
-    { id: 'devolucoes', rotulo: 'Devoluções', icone: 'devolucao', itens: [
-      ['dev-painel', 'Painel de devoluções', pro('devolucoes', 'painel')],
-      ['dev-conferencia', 'Conferência de devolução', pro('devolucoes', 'conferencia')],
-      ['dev-extrato', 'Extrato de devoluções', pro('devolucoes', 'extrato')],
-      ['dev-baixados', 'Devoluções baixadas (Ravex)', pro('devolucoes', 'baixa-ravex')],
-      ['dev-divergencias', 'Divergências de devolução', pro('devolucoes', 'divergencias')],
-      ['dev-relatorios', 'Relatórios de devolução', pro('devolucoes', 'relatorios')]
-    ]},
-    { id: 'faturamento', rotulo: 'Faturamento 3PL', icone: 'financeiro', itens: [
-      ['fat-financeiro', 'Financeiro 3PL', cam('financeiro')],
-      ['fat-3pl', 'Depositantes e faturas', wms('3pl')]
-    ]},
-    { id: 'relatorios', rotulo: 'Relatórios', icone: 'relatorio', itens: [
-      ['rel-wms', 'Relatórios do armazém', wms('relatorios')],
-      ['rel-historico-nf', 'Histórico de NF', wms('historico-nf')]
+      ['inv-temperatura', 'Temperatura das Câmaras', cont('temperatura')],
+      ['inv-ocupacao', 'Ocupação & Avarias', cont('ocupacao')],
+      ['inv-agendamentos', 'Agendamentos', cont('agendamentos')]
     ]},
     { id: 'cadastros', rotulo: 'Cadastros', icone: 'cadastro', itens: [
-      ['cad-base', 'Base de produtos (códigos de barras)', pro('carregamento', 'base')],
-      ['cad-catalogo', 'Catálogo de produtos', cont('produtos')],
-      ['cad-familia', 'Famílias de produto', cont('produtosFamilia')],
-      ['cad-grupos', 'Grupos de produto', cont('produtosGrupos')],
-      ['cad-subgrupos', 'Subgrupos de produto', cont('produtosSubGrupos')],
-      ['cad-importacao', 'Importar planilha de produtos', cont('produtosImportacao')],
-      ['cad-enderecos', 'Cadastro de endereços', cont('enderecamento')]
+      ['cad-catalogo', 'Catálogo de Produtos', cont('produtos')],
+      ['cad-familia', 'Família', cont('produtosFamilia')],
+      ['cad-grupos', 'Grupos', cont('produtosGrupos')],
+      ['cad-subgrupos', 'SubGrupos', cont('produtosSubGrupos')],
+      ['cad-importacao', 'Importação de Planilha', cont('produtosImportacao')],
+      ['cad-enderecos', 'Cadastro de Endereços', cont('enderecamento')]
     ]},
-    { id: 'configuracoes', rotulo: 'Configurações', icone: 'config', itens: [
-      ['cfg-rfq', 'Regras de recebimento (RFQ)', wms('config-rfq')],
-      ['cfg-verticais', 'Verticais (cross-dock, bobinas)', wms('verticais')],
+    { id: 'administracao', rotulo: 'Administração', icone: 'config', itens: [
       ['cfg-usuarios', 'Usuários', '/usuarios/novo', { su: true }],
-      ['cfg-permissoes', 'Hierarquia e permissões', '/camaras?secao=config', { su: true }]
+      ['cfg-permissoes', 'Hierarquia & Permissões', '/camaras?secao=config', { su: true }]
     ]}
   ];
 

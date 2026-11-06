@@ -60,7 +60,6 @@
   /* ── Menu lateral ─────────────────────────────────────── */
   function montarMenu() {
     var cont = $('ws-menu-grupos');
-    $('ws-menu').querySelector('.ws-menu-inicio .ws-icone').innerHTML = icone('inicio');
     M.grupos.forEach(function (g) {
       var visiveis = g.itens.filter(function (i) { return porId[i.id]; });
       if (!visiveis.length) return;
@@ -97,13 +96,14 @@
       grupo.appendChild(lista);
       cont.appendChild(grupo);
     });
-    $('ws-menu').querySelector('.ws-menu-inicio').addEventListener('click', function (ev) {
-      ev.preventDefault();
-      abrirTela('inicio');
-    });
-    $('ws-marca').addEventListener('click', function (ev) {
-      ev.preventDefault();
-      abrirTela('inicio');
+    ['ws-btn-modulos', 'ws-marca'].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener('click', function (ev) {
+        if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0) return;
+        ev.preventDefault();
+        abrirTela('inicio');
+      });
     });
   }
 
@@ -158,6 +158,7 @@
     f.addEventListener('load', function () {
       q.carregado = true;
       carregando(false);
+      setTimeout(sincronizarBarraPro, 300);
       try {
         var w = f.contentWindow;
         urlInternaMudou(w, w.location.pathname + w.location.search);
@@ -211,8 +212,9 @@
     $('ws-inicio').hidden = false;
     renderInicioPessoal();
     marcarAtivo('inicio');
+    sincronizarBarraPro();
     atualizarUrlShell('', opts.substituir);
-    document.title = 'Início — WMS Doca Livre';
+    document.title = 'Módulos — WMS DOCA LIVRE PRO';
     fecharMenuMobile();
   }
 
@@ -242,7 +244,8 @@
     appVisivel = app;
     marcarAtivo(item);
     if (item) registrarRecente(item.id);
-    document.title = (item ? item.rotulo + ' — ' : '') + 'WMS Doca Livre';
+    sincronizarBarraPro();
+    document.title = (item ? tituloItem(item) + ' — ' : '') + 'WMS DOCA LIVRE PRO';
     fecharMenuMobile();
   }
 
@@ -262,7 +265,49 @@
     if (!item) return;
     marcarAtivo(item);
     atualizarUrlShell('?tela=' + encodeURIComponent(item.id), true);
-    document.title = item.rotulo + ' — WMS Doca Livre';
+    document.title = tituloItem(item) + ' — WMS DOCA LIVRE PRO';
+  }
+
+  function tituloItem(item) { return item.grupoRotulo + ' › ' + item.rotulo; }
+
+  /* ── Sino de NFs paradas e "Atualizar aba" do PRO no cabeçalho único ── */
+  function docPro() {
+    if (appVisivel !== 'pro' || !quadros.pro || !quadros.pro.carregado) return null;
+    try { return quadros.pro.el.contentWindow.document; } catch (e) { return null; }
+  }
+  function sincronizarBarraPro() {
+    var doc = docPro();
+    var contPro = doc && doc.getElementById('terceiros-alertas-count');
+    var sinoPro = doc && doc.getElementById('btn-terceiros-alertas');
+    var atualizarPro = doc && doc.getElementById('btn-atualizar-aba');
+    $('ws-alertas').hidden = !contPro;
+    if (contPro) {
+      $('ws-alertas-count').textContent = contPro.textContent;
+      $('ws-btn-alertas').classList.toggle('header-alertas-btn--ativo', !!(sinoPro && sinoPro.classList.contains('header-alertas-btn--ativo')));
+    }
+    // O PRO mostra "Atualizar aba" só no Carregamento (style.display controlado por ele).
+    $('ws-btn-atualizar').hidden = !(atualizarPro && atualizarPro.style.display !== 'none');
+  }
+  function ligarBarraPro() {
+    $('ws-btn-alertas').addEventListener('click', function () {
+      var doc = docPro();
+      var b = doc && doc.getElementById('btn-terceiros-alertas');
+      if (b) b.click();
+    });
+    $('ws-btn-atualizar').addEventListener('click', function () {
+      var doc = docPro();
+      var b = doc && doc.getElementById('btn-atualizar-aba');
+      if (b) b.click();
+    });
+    setInterval(sincronizarBarraPro, 1500);
+  }
+
+  /* ── Relógio (como no cabeçalho do PRO) ──────────────── */
+  function atualizarRelogio() {
+    var d = new Date();
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    if ($('ws-hora')) $('ws-hora').textContent = p(d.getHours()) + ':' + p(d.getMinutes());
+    if ($('ws-data')) $('ws-data').textContent = p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
   }
 
   /* ── Busca ───────────────────────────────────────────── */
@@ -417,6 +462,9 @@
   window.wmsShell = { abrirUrl: function (url) { abrirUrl(url); }, abrirTela: abrirTela, urlInternaMudou: urlInternaMudou };
 
   montarMenu();
+  ligarBarraPro();
+  atualizarRelogio();
+  setInterval(atualizarRelogio, 20000);
   renderInicioGrupos();
   ligarBusca();
   if (ler('ws-menu-recolhido', false) && !ehMobile()) alternarMenu(true);
