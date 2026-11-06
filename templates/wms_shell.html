@@ -7,7 +7,7 @@
     {% from '_app_head_icons.html' import app_head_icons %}
     {{ app_head_icons() }}
     <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20260719c">
-    <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261106c">
+    <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261106d">
     <script>
       window.WMS_USUARIO = {{ {'nome': usuario or 'Usuário', 'su': is_superuser} | tojson }};
       window.WMS_ABRIR_INICIAL = {{ (abrir or '') | tojson }};
@@ -23,7 +23,7 @@
                 <button type="button" class="app-topbar-menu" id="ws-btn-menu" aria-label="Recolher ou abrir o menu lateral" aria-expanded="true" title="Menu lateral">
                     <span class="app-topbar-menu-icon" aria-hidden="true"></span>
                 </button>
-                <a href="/app" id="ws-btn-modulos" class="app-topbar-back header-link-voltar" title="Todos os módulos" aria-label="Todos os módulos">
+                <a href="/app" id="ws-btn-modulos" class="app-topbar-back header-link-voltar" title="Voltar para todos os módulos" aria-label="Voltar para todos os módulos" hidden>
                     <span class="app-topbar-back-icon" aria-hidden="true">←</span>
                     <span class="app-topbar-back-label">Módulos</span>
                 </a>
@@ -36,6 +36,7 @@
                         </strong>
                     </a>
                 </div>
+                <nav class="ws-trilha" id="ws-trilha" aria-label="Você está em"><strong>Módulos</strong></nav>
             </div>
             <div class="ws-busca" role="search">
                 <input type="search" id="ws-busca" placeholder="Buscar tela (ex.: conferência, entrada NF-e, inventário)…" autocomplete="off" aria-label="Buscar tela" aria-controls="ws-busca-resultados">
@@ -97,8 +98,8 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='wms-menu.js') }}?v=20261106c"></script>
-    <script src="{{ url_for('static', filename='wms-shell.js') }}?v=20261106c"></script>
+    <script src="{{ url_for('static', filename='wms-menu.js') }}?v=20261106d"></script>
+    <script src="{{ url_for('static', filename='wms-shell.js') }}?v=20261106d"></script>
     {% include '_pwa_install.html' %}
 </body>
 </html>

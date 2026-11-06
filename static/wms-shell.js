@@ -72,37 +72,57 @@
       titulo.innerHTML = '<span class="ws-icone" aria-hidden="true">' + icone(g.icone) + '</span>' +
         '<span class="ws-rotulo"></span><span class="ws-seta" aria-hidden="true">›</span>';
       titulo.querySelector('.ws-rotulo').textContent = g.rotulo;
+      titulo.setAttribute('aria-controls', 'ws-itens-' + g.id);
       titulo.addEventListener('click', function () {
+        var abrir;
         if (document.body.classList.contains('ws-menu-recolhido') && !ehMobile()) {
           alternarMenu(false);
-          grupo.setAttribute('aria-expanded', 'true');
+          abrir = true;
         } else {
-          grupo.setAttribute('aria-expanded', grupo.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+          abrir = grupo.getAttribute('aria-expanded') !== 'true';
+        }
+        // Sanfona: um módulo aberto por vez.
+        if (abrir) {
+          document.querySelectorAll('#ws-menu .ws-grupo').forEach(function (outro) {
+            if (outro !== grupo) outro.setAttribute('aria-expanded', 'false');
+          });
+        }
+        grupo.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+        if (abrir) {
+          try { grupo.scrollIntoView({ block: 'nearest' }); } catch (e) { /* ignore */ }
         }
       });
       var lista = criar('div', 'ws-grupo-itens');
-      visiveis.forEach(function (it) {
-        var a = criar('a', 'ws-item', it.rotulo);
-        a.href = '/app?tela=' + encodeURIComponent(it.id);
-        a.dataset.tela = it.id;
-        var estrela = criar('button', 'ws-item-fav', '★');
-        estrela.type = 'button';
-        estrela.dataset.tela = it.id;
-        estrela.title = 'Favoritar';
-        estrela.setAttribute('aria-label', 'Favoritar ' + it.rotulo);
-        estrela.setAttribute('aria-pressed', favoritos().indexOf(it.id) !== -1 ? 'true' : 'false');
-        estrela.addEventListener('click', function (ev) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          alternarFavorito(it.id);
+      lista.id = 'ws-itens-' + g.id;
+      var secoesVisiveis = (g.secoes || [{ rotulo: '', itens: visiveis }]).filter(function (sec) {
+        return sec.itens.some(function (i) { return porId[i.id]; });
+      });
+      var mostrarSecoes = secoesVisiveis.length > 1;
+      secoesVisiveis.forEach(function (sec) {
+        if (mostrarSecoes) lista.appendChild(criar('div', 'ws-secao', sec.rotulo));
+        sec.itens.filter(function (i) { return porId[i.id]; }).forEach(function (it) {
+          var a = criar('a', 'ws-item', it.rotulo);
+          a.href = '/app?tela=' + encodeURIComponent(it.id);
+          a.dataset.tela = it.id;
+          var estrela = criar('button', 'ws-item-fav', '★');
+          estrela.type = 'button';
+          estrela.dataset.tela = it.id;
+          estrela.title = 'Favoritar';
+          estrela.setAttribute('aria-label', 'Favoritar ' + it.rotulo);
+          estrela.setAttribute('aria-pressed', favoritos().indexOf(it.id) !== -1 ? 'true' : 'false');
+          estrela.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            alternarFavorito(it.id);
+          });
+          a.appendChild(estrela);
+          a.addEventListener('click', function (ev) {
+            if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0) return;
+            ev.preventDefault();
+            abrirTela(it.id);
+          });
+          lista.appendChild(a);
         });
-        a.appendChild(estrela);
-        a.addEventListener('click', function (ev) {
-          if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0) return;
-          ev.preventDefault();
-          abrirTela(it.id);
-        });
-        lista.appendChild(a);
       });
       grupo.appendChild(titulo);
       grupo.appendChild(lista);
@@ -225,6 +245,7 @@
     $('ws-inicio').hidden = false;
     renderInicioPessoal();
     marcarAtivo('inicio');
+    atualizarTrilha(null);
     sincronizarBarraPro();
     atualizarUrlShell('', opts.substituir);
     document.title = 'Módulos — WMS DOCA LIVRE PRO';
@@ -257,6 +278,7 @@
     Object.keys(quadros).forEach(function (a) { quadros[a].el.hidden = a !== app; });
     appVisivel = app;
     marcarAtivo(item);
+    atualizarTrilha(item);
     if (item) registrarRecente(item.id);
     sincronizarBarraPro();
     document.title = (item ? tituloItem(item) + ' — ' : '') + 'WMS DOCA LIVRE PRO';
@@ -278,11 +300,35 @@
     var item = porChave[M.chaveDaUrl(url)];
     if (!item) return;
     marcarAtivo(item);
+    atualizarTrilha(item);
     atualizarUrlShell('?tela=' + encodeURIComponent(item.id), true);
     document.title = tituloItem(item) + ' — WMS DOCA LIVRE PRO';
   }
 
   function tituloItem(item) { return item.grupoRotulo + ' › ' + item.rotulo; }
+
+  /** Trilha "Módulo › Tela" no cabeçalho; "← Módulos" só aparece dentro de uma tela. */
+  function atualizarTrilha(item) {
+    var trilha = $('ws-trilha');
+    var voltar = $('ws-btn-modulos');
+    if (voltar) voltar.hidden = !item;
+    if (!trilha) return;
+    trilha.innerHTML = '';
+    if (!item) {
+      trilha.appendChild(criar('strong', null, 'Módulos'));
+      return;
+    }
+    var grupo = criar('button', 'ws-trilha-modulo', item.grupoRotulo);
+    grupo.type = 'button';
+    grupo.title = 'Abrir ' + item.grupoRotulo;
+    grupo.addEventListener('click', function () {
+      var g = M.grupos.filter(function (x) { return x.id === item.grupo; })[0];
+      if (g && porId[g.principal]) abrirTela(g.principal);
+    });
+    trilha.appendChild(grupo);
+    trilha.appendChild(criar('span', 'ws-trilha-sep', '›'));
+    trilha.appendChild(criar('strong', null, item.rotulo));
+  }
 
   /* ── Sino de NFs paradas e "Atualizar aba" do PRO no cabeçalho único ── */
   function docPro() {
@@ -326,7 +372,7 @@
 
   /* ── Busca ───────────────────────────────────────────── */
   var indiceBusca = itens.map(function (i) {
-    return { item: i, texto: normalizar(i.rotulo + ' ' + i.grupoRotulo), rotulo: normalizar(i.rotulo) };
+    return { item: i, texto: normalizar(i.rotulo + ' ' + i.grupoRotulo + ' ' + (i.secao || '')), rotulo: normalizar(i.rotulo) };
   });
   var resultadoSel = -1;
   function buscar(q) {
@@ -359,7 +405,7 @@
       var b = criar('button');
       b.type = 'button';
       b.appendChild(criar('span', null, it.rotulo));
-      b.appendChild(criar('small', null, it.grupoRotulo));
+      b.appendChild(criar('small', null, it.grupoRotulo + (it.secao ? ' › ' + it.secao : '')));
       b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
       b.addEventListener('click', function () { escolherResultado(it); });
       li.dataset.idx = idx;
