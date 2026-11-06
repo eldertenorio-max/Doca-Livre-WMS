@@ -13,7 +13,9 @@
   function cont(view) { return '/contagem?view=' + view; }
 
   var grupos = [
-    { id: 'carga', rotulo: 'Carga / Expedição', icone: 'saida', itens: [
+    { id: 'carga', rotulo: 'Carga / Expedição', icone: 'saida',
+      descricao: 'Importar romaneios do Ravex, conferir o carregamento, extrato, divergências e relatórios.', principal: 'exp-painel', atalhos: ['exp-conferencia', 'exp-ravex', 'exp-extrato', 'exp-relatorios'],
+      itens: [
       ['exp-painel', 'Painel', pro('carregamento', 'painel')],
       ['exp-ravex', 'Importar Ravex', pro('carregamento', 'importar-ravex')],
       ['exp-baixados', 'Baixados (Ravex)', pro('carregamento', 'baixa-ravex')],
@@ -26,7 +28,9 @@
       ['exp-picking', 'Ondas de Picking', wms('picking-avancado')],
       ['cad-base', 'Base de Produtos', pro('carregamento', 'base')]
     ]},
-    { id: 'devolucoes', rotulo: 'Retorno / Devoluções', icone: 'devolucao', itens: [
+    { id: 'devolucoes', rotulo: 'Retorno / Devoluções', icone: 'devolucao',
+      descricao: 'Conferência do retorno, extrato, divergências e relatórios de devolução.', principal: 'dev-painel', atalhos: ['dev-conferencia', 'dev-extrato', 'dev-relatorios'],
+      itens: [
       ['dev-painel', 'Painel', pro('devolucoes', 'painel')],
       ['dev-conferencia', 'Conferência', pro('devolucoes', 'conferencia')],
       ['dev-extrato', 'Extrato', pro('devolucoes', 'extrato')],
@@ -34,7 +38,9 @@
       ['dev-relatorios', 'Relatórios', pro('devolucoes', 'relatorios')],
       ['dev-divergencias', 'Divergências', pro('devolucoes', 'divergencias')]
     ]},
-    { id: 'recebimento', rotulo: 'Descarga / Recebimento', icone: 'entrada', itens: [
+    { id: 'recebimento', rotulo: 'Descarga / Recebimento', icone: 'entrada',
+      descricao: 'XML da NF-e, pendências de recebimento, conferência, lançamento fiscal e envio para MG.', principal: 'rec-painel', atalhos: ['rec-enviar-xml', 'rec-pendencia', 'rec-conferencia', 'rec-previsoes'],
+      itens: [
       ['rec-painel', 'Painel', pro('terceiros', 'painel')],
       ['rec-enviar-xml', '1° Enviar XML', pro('terceiros', 'enviar-xml')],
       ['rec-pendencia', '2° Pendência de Recebimento', pro('terceiros', 'pendencia-recebimento')],
@@ -52,7 +58,9 @@
       ['rec-conferencia', 'Conferência e Paletização', wms('recebimento')],
       ['rec-qa', 'QA Lote', wms('qa-lote')]
     ]},
-    { id: 'estoque', rotulo: 'Estoque Geral', icone: 'estoque', itens: [
+    { id: 'estoque', rotulo: 'Estoque Geral', icone: 'estoque',
+      descricao: 'Estoque atual, saídas, entradas, avarias, reentregas e pesquisa por SKU.', principal: 'est-atual', atalhos: ['est-atual', 'est-sku', 'est-avaria', 'est-shelf'],
+      itens: [
       ['est-atual', 'Estoque Atual', pro('estoque-sp', 'estoque-atual')],
       ['est-saida', 'Histórico de Saída', pro('estoque-sp', 'saida')],
       ['est-ent-dev', 'Entrada (Devoluções)', pro('estoque-sp', 'entrada-devolucao')],
@@ -69,7 +77,9 @@
       ['est-contagens', 'Estoque x Shelf-Life (contagens)', cont('estoque')],
       ['est-seg-planilha', 'Estoque de Segurança (planilhas)', cont('seguranca')]
     ]},
-    { id: 'wms', rotulo: 'Endereçamento WMS 2D/3D', icone: 'armazem', itens: [
+    { id: 'wms', rotulo: 'Endereçamento WMS 2D/3D', icone: 'armazem',
+      descricao: 'Mapa 2D/3D, localizações, movimentações, paletes, ocupação e inventário do armazém.', principal: 'arm-painel', atalhos: ['arm-mapa', 'arm-mapa3d', 'arm-movimentacoes', 'inv-wms'],
+      itens: [
       ['arm-painel', 'Painel', wms('painel')],
       ['arm-mapa', 'Endereçamento 2D/3D', wms('enderecamento')],
       ['arm-mapa3d', 'Mapa 3D', wms('mapa-3d')],
@@ -85,7 +95,9 @@
       ['cfg-rfq', 'Config RFQ', wms('config-rfq')],
       ['cfg-verticais', 'Verticais', wms('verticais')]
     ]},
-    { id: 'camaras', rotulo: 'Câmaras Frias', icone: 'camara', itens: [
+    { id: 'camaras', rotulo: 'Câmaras Frias', icone: 'camara',
+      descricao: 'Mapa das câmaras, entrada e saída de NF-e, movimentação por voz e financeiro 3PL.', principal: 'cam-mapa', atalhos: ['cam-mapa', 'cam-entrada', 'cam-saida', 'fat-financeiro'],
+      itens: [
       ['cam-mapa', 'Mapa de Câmaras & Consulta', cam('consulta')],
       ['cam-entrada', 'Entrada NF-e', cam('entrada')],
       ['cam-saida', 'Saída NF-e', cam('saida')],
@@ -99,7 +111,9 @@
       ['cam-ia', 'IA Doca Livre & Voz', cam('cadastroVoz')],
       ['fat-financeiro', 'Financeiro 3PL', cam('financeiro')]
     ]},
-    { id: 'contagem', rotulo: 'Contagem & Inventário', icone: 'inventario', itens: [
+    { id: 'contagem', rotulo: 'Contagem & Inventário', icone: 'inventario',
+      descricao: 'Contagem diária, inventários, temperatura e ocupação das câmaras.', principal: 'inv-painel', atalhos: ['inv-contagem', 'inv-inventarios', 'inv-temperatura'],
+      itens: [
       ['inv-painel', 'Painel de Contagem', cont('painel')],
       ['inv-contagem', 'Contagem Diária', cont('contagem')],
       ['inv-inventarios', 'Inventários', cont('inventarios')],
@@ -107,7 +121,9 @@
       ['inv-ocupacao', 'Ocupação & Avarias', cont('ocupacao')],
       ['inv-agendamentos', 'Agendamentos', cont('agendamentos')]
     ]},
-    { id: 'cadastros', rotulo: 'Cadastros', icone: 'cadastro', itens: [
+    { id: 'cadastros', rotulo: 'Cadastros', icone: 'cadastro',
+      descricao: 'Catálogo de produtos, famílias, grupos e cadastro de endereços.', principal: 'cad-catalogo', atalhos: ['cad-catalogo', 'cad-enderecos', 'cad-importacao'],
+      itens: [
       ['cad-catalogo', 'Catálogo de Produtos', cont('produtos')],
       ['cad-familia', 'Família', cont('produtosFamilia')],
       ['cad-grupos', 'Grupos', cont('produtosGrupos')],
@@ -115,7 +131,9 @@
       ['cad-importacao', 'Importação de Planilha', cont('produtosImportacao')],
       ['cad-enderecos', 'Cadastro de Endereços', cont('enderecamento')]
     ]},
-    { id: 'administracao', rotulo: 'Administração', icone: 'config', itens: [
+    { id: 'administracao', rotulo: 'Administração', icone: 'config',
+      descricao: 'Usuários, hierarquia e permissões.', principal: 'cfg-usuarios', atalhos: ['cfg-usuarios', 'cfg-permissoes'],
+      itens: [
       ['cfg-usuarios', 'Usuários', '/usuarios/novo', { su: true }],
       ['cfg-permissoes', 'Hierarquia & Permissões', '/camaras?secao=config', { su: true }]
     ]}

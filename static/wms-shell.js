@@ -85,6 +85,18 @@
         var a = criar('a', 'ws-item', it.rotulo);
         a.href = '/app?tela=' + encodeURIComponent(it.id);
         a.dataset.tela = it.id;
+        var estrela = criar('button', 'ws-item-fav', '★');
+        estrela.type = 'button';
+        estrela.dataset.tela = it.id;
+        estrela.title = 'Favoritar';
+        estrela.setAttribute('aria-label', 'Favoritar ' + it.rotulo);
+        estrela.setAttribute('aria-pressed', favoritos().indexOf(it.id) !== -1 ? 'true' : 'false');
+        estrela.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          alternarFavorito(it.id);
+        });
+        a.appendChild(estrela);
         a.addEventListener('click', function (ev) {
           if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0) return;
           ev.preventDefault();
@@ -208,6 +220,7 @@
     opts = opts || {};
     appVisivel = 'inicio';
     Object.keys(quadros).forEach(function (a) { quadros[a].el.hidden = true; });
+    $('ws-quadros').hidden = true;
     carregando(false);
     $('ws-inicio').hidden = false;
     renderInicioPessoal();
@@ -228,6 +241,7 @@
     // URL nova (replaceState) e esse aviso deve cair na entrada nova, não na anterior.
     atualizarUrlShell(item ? '?tela=' + encodeURIComponent(item.id) : '?abrir=' + encodeURIComponent(url), opts.substituir);
     $('ws-inicio').hidden = true;
+    $('ws-quadros').hidden = false;
     var q = quadro(app);
     if (!navegarNoLocal(app, q, url)) {
       carregando(true);
@@ -401,51 +415,86 @@
     if (i === -1) f.push(id); else f.splice(i, 1);
     gravar('ws-favoritos', f);
     renderInicioPessoal();
-    document.querySelectorAll('.ws-fav[data-tela="' + id + '"]').forEach(function (b) {
+    document.querySelectorAll('.ws-fav[data-tela="' + id + '"], .ws-item-fav[data-tela="' + id + '"]').forEach(function (b) {
       b.setAttribute('aria-pressed', i === -1 ? 'true' : 'false');
     });
   }
-  function card(it) {
-    var c = criar('div', 'ws-card');
-    c.tabIndex = 0;
-    c.setAttribute('role', 'link');
-    c.appendChild(criar('span', null, it.rotulo));
+  /** Atalho compacto (favoritos/recentes): nome da tela + módulo, para não haver ambiguidade. */
+  function atalho(it) {
+    var b = criar('div', 'ws-atalho');
+    b.tabIndex = 0;
+    b.setAttribute('role', 'link');
+    var txt = criar('span', 'ws-atalho-texto');
+    txt.appendChild(criar('strong', null, it.rotulo));
+    txt.appendChild(criar('small', null, it.grupoRotulo));
+    b.appendChild(txt);
     var fav = criar('button', 'ws-fav', '★');
     fav.type = 'button';
     fav.dataset.tela = it.id;
-    fav.title = 'Favoritar';
-    fav.setAttribute('aria-label', 'Favoritar ' + it.rotulo);
+    fav.title = favoritos().indexOf(it.id) !== -1 ? 'Tirar dos favoritos' : 'Favoritar';
+    fav.setAttribute('aria-label', fav.title + ': ' + it.rotulo);
     fav.setAttribute('aria-pressed', favoritos().indexOf(it.id) !== -1 ? 'true' : 'false');
     fav.addEventListener('click', function (ev) { ev.stopPropagation(); alternarFavorito(it.id); });
-    c.appendChild(fav);
-    c.addEventListener('click', function () { abrirTela(it.id); });
-    c.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') abrirTela(it.id); });
-    return c;
+    b.appendChild(fav);
+    b.addEventListener('click', function () { abrirTela(it.id); });
+    b.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') abrirTela(it.id); });
+    return b;
   }
-  function renderLista(idBloco, idCards, ids) {
-    var cont = $(idCards);
+  function renderLista(idBloco, idCont, ids) {
+    var cont = $(idCont);
     cont.innerHTML = '';
-    ids.forEach(function (id) { if (porId[id]) cont.appendChild(card(porId[id])); });
+    ids.forEach(function (id) { if (porId[id]) cont.appendChild(atalho(porId[id])); });
     $(idBloco).hidden = !cont.children.length;
   }
   function renderInicioPessoal() {
     renderLista('ws-inicio-favoritos-bloco', 'ws-inicio-favoritos', favoritos());
     renderLista('ws-inicio-recentes-bloco', 'ws-inicio-recentes', ler('ws-recentes', []).slice(0, 6));
   }
+
+  /** Um cartão por módulo: para que serve, atalhos das telas mais usadas e a tela principal. */
+  function cartaoModulo(g) {
+    var visiveis = g.itens.filter(function (i) { return porId[i.id]; });
+    if (!visiveis.length) return null;
+    var principal = porId[g.principal] || visiveis[0];
+    var c = criar('article', 'ws-modulo');
+    c.tabIndex = 0;
+    c.setAttribute('role', 'link');
+    c.setAttribute('aria-label', g.rotulo + ' — abrir ' + principal.rotulo);
+    c.dataset.grupo = g.id;
+    var topo = criar('div', 'ws-modulo-topo');
+    var ic = criar('span', 'ws-modulo-icone');
+    ic.setAttribute('aria-hidden', 'true');
+    ic.innerHTML = icone(g.icone);
+    var titulos = criar('div');
+    titulos.appendChild(criar('h3', null, g.rotulo));
+    if (g.descricao) titulos.appendChild(criar('p', null, g.descricao));
+    topo.appendChild(ic);
+    topo.appendChild(titulos);
+    c.appendChild(topo);
+    var chips = criar('div', 'ws-modulo-atalhos');
+    (g.atalhos || []).forEach(function (id) {
+      var it = porId[id];
+      if (!it) return;
+      var chip = criar('button', 'ws-chip', it.rotulo);
+      chip.type = 'button';
+      chip.dataset.tela = id;
+      chip.addEventListener('click', function (ev) { ev.stopPropagation(); abrirTela(id); });
+      chips.appendChild(chip);
+    });
+    if (chips.children.length) c.appendChild(chips);
+    var rodape = criar('div', 'ws-modulo-rodape');
+    rodape.appendChild(criar('span', null, visiveis.length + (visiveis.length === 1 ? ' tela' : ' telas')));
+    rodape.appendChild(criar('span', 'ws-modulo-abrir', 'Abrir ' + principal.rotulo + ' ›'));
+    c.appendChild(rodape);
+    c.addEventListener('click', function () { abrirTela(principal.id); });
+    c.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') abrirTela(principal.id); });
+    return c;
+  }
   function renderInicioGrupos() {
     var cont = $('ws-inicio-grupos');
     M.grupos.forEach(function (g) {
-      var visiveis = g.itens.filter(function (i) { return porId[i.id]; });
-      if (!visiveis.length) return;
-      var bloco = criar('div', 'ws-inicio-grupo');
-      var h = criar('h2');
-      h.innerHTML = '<span class="ws-icone" aria-hidden="true">' + icone(g.icone) + '</span>';
-      h.appendChild(criar('span', null, g.rotulo));
-      var cards = criar('div', 'ws-cards');
-      visiveis.forEach(function (it) { cards.appendChild(card(it)); });
-      bloco.appendChild(h);
-      bloco.appendChild(cards);
-      cont.appendChild(bloco);
+      var c = cartaoModulo(g);
+      if (c) cont.appendChild(c);
     });
   }
 

@@ -7,7 +7,7 @@
     {% from '_app_head_icons.html' import app_head_icons %}
     {{ app_head_icons() }}
     <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20260719c">
-    <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261106b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261106c">
     <script>
       window.WMS_USUARIO = {{ {'nome': usuario or 'Usuário', 'su': is_superuser} | tojson }};
       window.WMS_ABRIR_INICIAL = {{ (abrir or '') | tojson }};
@@ -81,13 +81,15 @@
                     </div>
                     <div class="ws-inicio-bloco" id="ws-inicio-favoritos-bloco" hidden>
                         <h2>Favoritos</h2>
-                        <div class="ws-cards" id="ws-inicio-favoritos"></div>
+                        <div class="ws-atalhos" id="ws-inicio-favoritos"></div>
                     </div>
                     <div class="ws-inicio-bloco" id="ws-inicio-recentes-bloco" hidden>
                         <h2>Usados recentemente</h2>
-                        <div class="ws-cards" id="ws-inicio-recentes"></div>
+                        <div class="ws-atalhos" id="ws-inicio-recentes"></div>
                     </div>
-                    <div id="ws-inicio-grupos"></div>
+                    <h2 class="ws-inicio-subtitulo">Todos os módulos</h2>
+                    <div class="ws-modulos" id="ws-inicio-grupos"></div>
+                    <p class="ws-inicio-dica">Dica: passe o mouse sobre uma tela no menu lateral e clique na ★ para adicioná-la aos favoritos.</p>
                 </section>
                 <div class="ws-quadros" id="ws-quadros"></div>
                 <div class="ws-carregando" id="ws-carregando" hidden><span class="ws-carregando-barra"></span></div>
@@ -95,8 +97,8 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='wms-menu.js') }}?v=20261106b"></script>
-    <script src="{{ url_for('static', filename='wms-shell.js') }}?v=20261106b"></script>
+    <script src="{{ url_for('static', filename='wms-menu.js') }}?v=20261106c"></script>
+    <script src="{{ url_for('static', filename='wms-shell.js') }}?v=20261106c"></script>
     {% include '_pwa_install.html' %}
 </body>
 </html>

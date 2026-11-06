@@ -126,35 +126,83 @@ body.ws-menu-recolhido .ws-grupo-titulo { justify-content: center; padding-left:
 /* ── Conteúdo ────────────────────────────────────────────── */
 .ws-conteudo { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; background: var(--content-bg, #eef1f4); }
 .ws-quadros, .ws-quadros iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-.ws-quadros iframe { background: var(--content-bg, #eef1f4); display: block; }
+.ws-quadros { pointer-events: none; }           /* a camada não pode bloquear cliques na tela Módulos */
+.ws-quadros[hidden] { display: none; }
+.ws-quadros iframe { background: var(--content-bg, #eef1f4); display: block; pointer-events: auto; }
 .ws-quadros iframe[hidden] { display: none; }
 .ws-carregando { position: absolute; inset: 0 0 auto 0; height: 3px; overflow: hidden; z-index: 5; }
 .ws-carregando[hidden] { display: none; }
 .ws-carregando-barra { position: absolute; inset: 0; width: 40%; background: var(--brand-yellow, #f9db00); animation: ws-carregar 1.1s ease-in-out infinite; }
 @keyframes ws-carregar { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
 
-/* Tela "Módulos" (todas as telas por módulo, favoritos e recentes) */
+/* Tela "Módulos": um cartão por módulo, como o Hub do PRO */
 .ws-inicio { position: absolute; inset: 0; overflow-y: auto; padding: 24px clamp(16px, 3vw, 36px) 48px; }
 .ws-inicio[hidden] { display: none; }
 .ws-inicio-topo h1 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 800; }
-.ws-inicio-topo p { margin: 0 0 20px; color: var(--text-muted, #5c6670); }
-.ws-inicio-bloco, .ws-inicio-grupo { margin-bottom: 22px; }
-.ws-inicio h2 { font-size: 1rem; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; font-weight: 800; }
-.ws-inicio h2 .ws-icone { color: #000; width: 22px; height: 22px; min-width: 22px; }
-.ws-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
-.ws-card {
-  position: relative; display: flex; align-items: center; min-height: 54px; padding: 11px 40px 11px 14px;
+.ws-inicio-topo p { margin: 0 0 22px; color: var(--text-muted, #5c6670); }
+.ws-inicio-bloco { margin-bottom: 22px; }
+.ws-inicio h2 { font-size: 0.82rem; margin: 0 0 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #5c6670; }
+.ws-inicio-dica { margin: 18px 0 0; font-size: 0.82rem; color: #8a929a; }
+
+/* Atalhos compactos (favoritos e recentes) */
+.ws-atalhos { display: flex; flex-wrap: wrap; gap: 8px; }
+.ws-atalho {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 7px 38px 7px 12px;
   background: var(--bg-panel, #fff); border: 1px solid var(--border, #dde1e6); border-radius: 10px; cursor: pointer;
-  text-align: left; font: inherit; font-weight: 700; font-size: 0.9rem; color: #000; line-height: 1.25;
-  border-left: 3px solid transparent;
+  max-width: 320px; border-left: 3px solid var(--brand-yellow, #f9db00);
 }
-.ws-card:hover, .ws-card:focus-visible { border-color: #000; border-left-color: var(--brand-yellow, #f9db00); box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08); outline: none; }
+.ws-atalho:hover, .ws-atalho:focus-visible { border-color: #000; border-left-color: var(--brand-yellow, #f9db00); outline: none; }
+.ws-atalho-texto { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.ws-atalho-texto strong { font-size: 0.88rem; color: #000; }
+.ws-atalho-texto small { font-size: 0.74rem; color: #5c6670; }
 .ws-fav {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px;
-  border: 0; background: transparent; border-radius: 8px; cursor: pointer; color: #b9c0c7; font-size: 1.05rem;
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px;
+  border: 0; background: transparent; border-radius: 8px; cursor: pointer; color: #b9c0c7; font-size: 1rem;
 }
 .ws-fav:hover { background: #f1f3f5; color: #8a929a; }
 .ws-fav[aria-pressed="true"] { color: #e0b800; }
+
+/* Cartões de módulo */
+.ws-modulos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.ws-modulo {
+  display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--bg-panel, #fff);
+  border: 1px solid var(--border, #dde1e6); border-radius: 14px; cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.ws-modulo:hover, .ws-modulo:focus-visible {
+  border-color: #000; box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1); transform: translateY(-1px); outline: none;
+}
+.ws-modulo-topo { display: flex; gap: 14px; align-items: flex-start; }
+.ws-modulo-icone {
+  width: 46px; height: 46px; min-width: 46px; border-radius: 12px; background: #000; color: var(--brand-yellow, #f9db00);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ws-modulo-icone svg { width: 24px; height: 24px; }
+.ws-modulo h3 { margin: 2px 0 4px; font-size: 1.08rem; font-weight: 800; color: #000; }
+.ws-modulo p { margin: 0; font-size: 0.86rem; line-height: 1.35; color: #5c6670; }
+.ws-modulo-atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-chip {
+  border: 1px solid #d0d7de; background: #f8f9fb; color: #000; border-radius: 999px; padding: 6px 12px;
+  font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+}
+.ws-chip:hover, .ws-chip:focus-visible { background: var(--brand-yellow, #f9db00); border-color: var(--brand-yellow, #f9db00); outline: none; }
+.ws-modulo-rodape {
+  margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding-top: 12px; border-top: 1px solid #eef0f2; font-size: 0.8rem; color: #5c6670;
+}
+.ws-modulo-abrir { font-weight: 700; color: #000; }
+.ws-modulo:hover .ws-modulo-abrir { text-decoration: underline; text-decoration-color: var(--brand-yellow, #f9db00); text-underline-offset: 3px; }
+
+/* Estrela de favorito nos itens do menu lateral (aparece ao passar o mouse) */
+.ws-item { position: relative; padding-right: 38px; }
+.ws-item-fav {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border: 0;
+  border-radius: 6px; background: transparent; color: #6b6b6b; font-size: 0.95rem; cursor: pointer; opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.ws-item:hover .ws-item-fav, .ws-item-fav:focus-visible, .ws-item-fav[aria-pressed="true"] { opacity: 1; }
+.ws-item-fav:hover { color: #fff; background: rgb(255 255 255 / 0.08); }
+.ws-item-fav[aria-pressed="true"] { color: var(--brand-yellow, #f9db00); }
 
 /* ── Celular: menu vira gaveta ─────────────────────────────── */
 @media (max-width: 900px) {
