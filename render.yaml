@@ -22,10 +22,6 @@ services:
         generateValue: true
       - key: SSO_SECRET
         sync: false
-      - key: SUPABASE_URL
-        value: https://wbqyufalamdsgurejvyz.supabase.co
-      - key: SUPABASE_ANON_KEY
-        value: sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK
       - key: PORTAL_PUBLIC_URL
         value: https://doca-livre-wms-pro.onrender.com/
       - key: SYSTEM_URL_LIGHT
@@ -37,7 +33,7 @@ services:
       - key: PGSSLMODE
         value: require
       - key: DATABASE_URL
-        sync: false
+        value: postgresql://ofertacargaadmin:P44oEgrDjcRDmxdxsWA0IJN9AEvKduOEaA1@psql-ofertacarga-prod.postgres.database.azure.com:5432/wmspro?sslmode=require
       - key: HUB_API_URL
         sync: false
       - key: RAVEX_USER
@@ -63,10 +59,6 @@ services:
         generateValue: true
       - key: SSO_SECRET
         sync: false
-      - key: SUPABASE_URL
-        value: https://wbqyufalamdsgurejvyz.supabase.co
-      - key: SUPABASE_ANON_KEY
-        value: sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK
       - key: PORTAL_PUBLIC_URL
         value: https://doca-livre-wms-pro-homologacao.onrender.com/
       - key: SYSTEM_URL_LIGHT
@@ -78,7 +70,7 @@ services:
       - key: PGSSLMODE
         value: require
       - key: DATABASE_URL
-        sync: false
+        value: postgresql://ofertacargaadmin:P44oEgrDjcRDmxdxsWA0IJN9AEvKduOEaA1@psql-ofertacarga-prod.postgres.database.azure.com:5432/wmspro?sslmode=require
       - key: HUB_API_URL
         sync: false
       - key: RAVEX_USER
