@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { wrapSupabaseClientWithDataProtection } from './supabaseDataProtection'
+import { instalarRealtimePorConsulta, usaBackendWms } from './pollingRealtime'
 
 type UnifiedWindow = Window & {
   __WMS_UNIFIED__?: {
@@ -29,5 +30,13 @@ export function isSupabaseConfigured(): boolean {
 
 export const supabase: any = (() => {
   const { url, anonKey } = resolveCredentials()
-  return wrapSupabaseClientWithDataProtection(createClient(url, anonKey))
+  const backendWms = usaBackendWms(url)
+  const client = createClient(
+    url,
+    anonKey,
+    backendWms ? { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } } : undefined,
+  )
+  // Dados na Azure via /sb do WMS: tempo real por consulta periódica (sem WebSocket).
+  if (backendWms) instalarRealtimePorConsulta(client, url)
+  return wrapSupabaseClientWithDataProtection(client)
 })()

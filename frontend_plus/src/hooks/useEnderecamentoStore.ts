@@ -9,7 +9,8 @@ import {
   syncWriteLocalSyncBase,
 } from '../lib/repository/localRepository'
 import { ensureSupabaseConfig } from '../lib/supabaseConfig'
-import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { getSupabaseUrl, isSupabaseConfigured } from '../lib/supabaseClient'
+import { usaBackendWms } from '../lib/pollingRealtime'
 import { subscribeEnderecamentoChanges } from '../lib/supabaseRealtime'
 import { podeZerarBancoHomologacao, zerarBancoHomologacaoSupabase } from '../lib/homologZerarBanco'
 import { normalizePersistedData, prepareLoadedDataWithRepair } from '../lib/persistence'
@@ -52,6 +53,15 @@ const REMOTE_RELOAD_DEBOUNCE_MS = 120
 const IGNORE_REMOTE_AFTER_SAVE_MS = 4000
 /** Fallback caso o Realtime não esteja habilitado. */
 const POLL_INTERVAL_MS = 1500
+/**
+ * Com os dados na Azure (/sb do WMS) as mudanças chegam por /sb/changes a cada 4 s;
+ * a recarga completa vira só rede de segurança (antes: 7 tabelas a cada 1,5 s por aba).
+ */
+const POLL_INTERVAL_BACKEND_WMS_MS = 30000
+
+function intervaloRecargaMs(): number {
+  return usaBackendWms(getSupabaseUrl()) ? POLL_INTERVAL_BACKEND_WMS_MS : POLL_INTERVAL_MS
+}
 const PERSIST_RETRY_MS = 600
 const PERSIST_AUTO_RETRY_MS = 2500
 const PERSIST_AUTO_RETRY_MAX = 5
@@ -710,7 +720,7 @@ export function useEnderecamentoStore() {
     const unsubscribe = subscribeEnderecamentoChanges(() => {
       requestRemoteReload()
     })
-    const poll = window.setInterval(() => requestRemoteReload(), POLL_INTERVAL_MS)
+    const poll = window.setInterval(() => requestRemoteReload(), intervaloRecargaMs())
 
     const onVisible = () => {
       if (document.visibilityState === 'visible') requestRemoteReload()

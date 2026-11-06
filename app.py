@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file, Response, redirect, url_for, session, g, current_app, send_from_directory, make_response
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as dt_time
 try:
     from zoneinfo import ZoneInfo
 except ImportError:
@@ -949,6 +949,58 @@ def sync_usuarios_from_config():
         conn.close()
 
 
+class _LinhaCompat(dict):
+    """
+    Linha do Postgres que funciona como dict (row['col']) E por índice (row[0]),
+    igual ao sqlite3.Row. Muitas consultas do app usam row[0]; com o dict_row puro do
+    psycopg isso dava KeyError: 0 em produção (painel de gráficos, relatórios Excel...).
+    """
+    __slots__ = ('_valores',)
+
+    def __getitem__(self, chave):
+        if isinstance(chave, (int, slice)):
+            return self._valores[chave]
+        return dict.__getitem__(self, chave)
+
+
+def _linha_compat_factory(cursor):
+    desc = cursor.description
+    nomes = [c.name for c in desc] if desc else []
+
+    def _fazer(valores):
+        linha = _LinhaCompat(zip(nomes, valores))
+        linha._valores = tuple(valores)
+        return linha
+
+    return _fazer
+
+
+def _excel_sem_fuso(wb):
+    """openpyxl não aceita datetime com fuso (timestamptz do Postgres): converte para Brasília."""
+    tz_br = None
+    if ZoneInfo:
+        try:
+            tz_br = ZoneInfo('America/Sao_Paulo')
+        except Exception:
+            tz_br = None
+    if tz_br is None:
+        tz_br = timezone(timedelta(hours=-3))
+    for ws in wb.worksheets:
+        for linha in ws.iter_rows():
+            for cel in linha:
+                v = cel.value
+                if isinstance(v, (datetime, dt_time)) and getattr(v, 'tzinfo', None) is not None:
+                    if isinstance(v, datetime):
+                        cel.value = v.astimezone(tz_br).replace(tzinfo=None)
+                    else:
+                        cel.value = v.replace(tzinfo=None)
+
+
+def _salvar_excel(wb, destino):
+    _excel_sem_fuso(wb)
+    wb.save(destino)
+
+
 def get_db(connect_timeout=None):
     """Retorna conexão com o banco de dados. Timeout para suportar 4 docas bipando ao mesmo tempo."""
     db_url = (os.environ.get('DATABASE_URL') or '').strip()
@@ -962,7 +1014,7 @@ def get_db(connect_timeout=None):
                 db_url,
                 sslmode=os.environ.get('PGSSLMODE', 'require'),
                 connect_timeout=max(3, ct),
-                row_factory=dict_row,
+                row_factory=_linha_compat_factory,
                 options='-c statement_timeout=30000 -c lock_timeout=8000',
             ),
             kind='pg',
@@ -1051,6 +1103,23 @@ try:
     app.register_blueprint(rfq_platform_bp, url_prefix='/api/rfq')
 except Exception as _rfq_import_err:
     print('Aviso: módulo RFQ platform não carregado:', _rfq_import_err)
+
+# Light (/contagem) e Plus (/camaras): API compatível com Supabase servida em /sb,
+# executando no Postgres da Azure (DATABASE_URL). O Supabase não é mais usado.
+try:
+    from supabase_compat import bp as supabase_compat_bp, registrar as _registrar_supabase_compat
+    _registrar_supabase_compat(
+        conn_factory=lambda: _pg_conexao_crua(30000) if (os.environ.get('DATABASE_URL') or '').strip() else None,
+        usuario_atual=lambda: (session.get('usuario') or '').strip() or None,
+    )
+    app.register_blueprint(supabase_compat_bp, url_prefix='/sb')
+except Exception as _sb_import_err:
+    print('Aviso: camada /sb (Light/Plus) não carregada:', _sb_import_err)
+
+
+def _light_plus_usa_backend_proprio():
+    """True (padrão): Light/Plus usam /sb (Azure). LIGHT_PLUS_DADOS=supabase volta ao Supabase antigo."""
+    return (os.environ.get('LIGHT_PLUS_DADOS') or '').strip().lower() != 'supabase'
 
 
 def _ensure_pg_tabela_geral_dados(conn):
@@ -2303,7 +2372,7 @@ def proteger_rotas():
         try:
             usuario_ok = _usuario_ainda_existe(session.get('usuario'))
         except Exception as e:
-            if request.path.startswith('/api/'):
+            if request.path.startswith(('/api/', '/sb/')):
                 return jsonify({'ok': False, 'erro': 'Falha ao validar sessão: %s' % (e,)}), 503
             return redirect(url_for('login'))
         if not usuario_ok:
@@ -2311,12 +2380,16 @@ def proteger_rotas():
             session.pop('usuario_id', None)
             session.pop('_auth_ok_user', None)
             session.pop('_auth_ok_ts', None)
-            if request.path.startswith('/api/'):
+            if request.path.startswith(('/api/', '/sb/')):
                 return jsonify({'ok': False, 'erro': 'Sessão encerrada. Usuário foi removido.'}), 401
             return redirect(url_for('login'))
     # Exige login
     if _requer_login():
-        if request.path.startswith('/api/'):
+        if request.path.startswith('/sb/'):
+            # Formato de erro do PostgREST (o supabase-js do Light/Plus lê code/message).
+            return jsonify({'code': 'PGRST301', 'message': 'Sessão expirada. Faça login novamente no WMS.',
+                            'details': None, 'hint': None}), 401
+        if request.path.startswith(('/api/', '/sb/')):
             return jsonify({'ok': False, 'erro': 'Não autorizado'}), 401
         return redirect(url_for('login'))
 
@@ -2428,7 +2501,7 @@ def _get_db_login():
                 db_url,
                 sslmode=os.environ.get('PGSSLMODE', 'require'),
                 connect_timeout=8,
-                row_factory=dict_row,
+                row_factory=_linha_compat_factory,
                 # Login: timeouts agressivos para não prender "Entrando…" se o banco travar.
                 options='-c statement_timeout=8000 -c lock_timeout=3000',
             ),
@@ -3666,6 +3739,15 @@ def service_worker():
     return resp
 
 
+@app.route('/icon-192.png')
+@app.route('/icon-512.png')
+@app.route('/apple-touch-icon.png')
+def icones_raiz():
+    """O Plus (camaras) referencia os ícones na raiz; eles ficam em static/icons."""
+    nome = request.path.lstrip('/')
+    return send_from_directory(os.path.join(app.static_folder, 'icons'), nome, max_age=86400)
+
+
 @app.route('/manifest.webmanifest')
 def manifest_app():
     """Manifest PWA — ícone na tela inicial e instalação na barra de tarefas."""
@@ -3704,12 +3786,20 @@ def manifest_app():
     }), 200, {'Content-Type': 'application/manifest+json; charset=utf-8'}
 
 
+def _sb_url_publica():
+    """URL absoluta da camada /sb (respeita https atrás do proxy do Render)."""
+    proto = (request.headers.get('X-Forwarded-Proto') or request.scheme or 'https').split(',')[0].strip()
+    return f"{proto}://{request.host}/sb"
+
+
 @app.route('/supabase-config.json')
 def supabase_config_json():
-    """Configuração pública do Supabase unificado para os módulos Light e Plus."""
+    """Configuração dos módulos Light e Plus: camada /sb (Azure) ou Supabase antigo (LIGHT_PLUS_DADOS=supabase)."""
+    if _light_plus_usa_backend_proprio():
+        return jsonify({'url': _sb_url_publica(), 'anonKey': 'wms-sessao'})
     return jsonify({
-        'url': (os.environ.get('SUPABASE_URL') or 'https://wbqyufalamdsgurejvyz.supabase.co').strip(),
-        'anonKey': (os.environ.get('SUPABASE_ANON_KEY') or 'sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK').strip(),
+        'url': (os.environ.get('SUPABASE_URL') or '').strip(),
+        'anonKey': (os.environ.get('SUPABASE_ANON_KEY') or '').strip(),
     })
 
 
@@ -3725,8 +3815,13 @@ def _serve_unified_spa(dist_subfolder: str):
             hub_token = sso_issue_hub_token(usuario)
         except Exception:
             hub_token = 'session-cookie'
-    supabase_url = (os.environ.get('SUPABASE_URL') or 'https://wbqyufalamdsgurejvyz.supabase.co').strip()
-    supabase_anon_key = (os.environ.get('SUPABASE_ANON_KEY') or 'sb_publishable_G1gT1Fp_sc_ojXyJYKzElA_-fVP80TK').strip()
+    backend_proprio = _light_plus_usa_backend_proprio()
+    if backend_proprio:
+        # A URL final é montada no navegador (window.location.origin + '/sb').
+        supabase_url, supabase_anon_key = '', 'wms-sessao'
+    else:
+        supabase_url = (os.environ.get('SUPABASE_URL') or '').strip()
+        supabase_anon_key = (os.environ.get('SUPABASE_ANON_KEY') or '').strip()
     index_path = os.path.join(app.static_folder, dist_subfolder, 'index.html')
     with open(index_path, 'r', encoding='utf-8') as f:
         html = f.read()
@@ -3739,10 +3834,12 @@ def _serve_unified_spa(dist_subfolder: str):
         'apiBase': '/',
         'hubHref': url_for('entrada_modulos'),
         'logoutHref': '/login?sair=1',
-    })
+    }).replace('</', '<\\/')  # impede fechar o <script> com dados do usuário
+    sb_origem = "window.__WMS_UNIFIED__.supabaseUrl = window.location.origin + '/sb';" if backend_proprio else ''
     bootstrap_script = (
         f"<script>"
         f"window.__WMS_UNIFIED__ = {bootstrap_payload};"
+        f"{sb_origem}"
         f"try {{"
         f"  sessionStorage.setItem('doca_hub_user_v1', window.__WMS_UNIFIED__.usuario);"
         f"  sessionStorage.setItem('doca_hub_token_v1', window.__WMS_UNIFIED__.hubToken);"
@@ -10113,7 +10210,7 @@ def export_divergencias_excel():
             linha += 2  # linhas em branco entre roteiros
         nome_arquivo = 'divergencias_pagina_completa.xlsx'
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10198,7 +10295,7 @@ def export_relatorio_bipados():
             ws.cell(row=row_idx, column=col_idx, value=val)
     nome_arquivo = 'relatorio_tudo_que_foi_bipado.xlsx'
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10371,7 +10468,7 @@ def _relatorio_itens_por_roteiro(data_expedicao_inicio=None, data_expedicao_fim=
     ids_filtro = _get_id_viagens_por_data_expedicao(data_expedicao_inicio or '', data_expedicao_fim or '')
     conn = get_db()
     sql = '''
-        SELECT id_viagem, codigo_barras, MAX(codigo_interno) as codigo_interno, produto, SUM(quantidade) as total
+        SELECT id_viagem, codigo_barras, MAX(codigo_interno) as codigo_interno, MAX(produto) as produto, SUM(quantidade) as total
         FROM produtos_bipados WHERE id_viagem IS NOT NULL AND trim(id_viagem) != ''
     '''
     params = []
@@ -10407,7 +10504,7 @@ def _relatorio_itens_mais_bipados(data_expedicao_inicio=None, data_expedicao_fim
     from openpyxl import Workbook
     ids_filtro = _get_id_viagens_por_data_expedicao(data_expedicao_inicio or '', data_expedicao_fim or '')
     conn = get_db()
-    sql = 'SELECT codigo_barras, produto, SUM(quantidade) as total, COUNT(DISTINCT id_viagem) as num_viagens FROM produtos_bipados WHERE 1=1'
+    sql = 'SELECT codigo_barras, MAX(produto) as produto, SUM(quantidade) as total, COUNT(DISTINCT id_viagem) as num_viagens FROM produtos_bipados WHERE 1=1'
     params = []
     sql, params = _aplicar_filtro_expedicao_sql(sql, params, ids_filtro, col='id_viagem')
     sql += ' GROUP BY codigo_barras ORDER BY total DESC'
@@ -10435,7 +10532,7 @@ def _relatorio_resumo_produto(data_expedicao_inicio=None, data_expedicao_fim=Non
         fluxo = 'carregamento'
     ids_filtro = _get_id_viagens_por_data_expedicao(data_expedicao_inicio or '', data_expedicao_fim or '')
     conn = get_db()
-    sql = '''SELECT codigo_barras, produto, SUM(quantidade) as total,
+    sql = '''SELECT codigo_barras, MAX(produto) as produto, SUM(quantidade) as total,
                COUNT(DISTINCT id_viagem) as num_viagens, MIN(data_hora) as primeira, MAX(data_hora) as ultima
         FROM produtos_bipados WHERE COALESCE(fluxo, 'carregamento') = ?'''
     params = [fluxo]
@@ -10632,7 +10729,7 @@ def export_relatorio_bipados_periodo():
     data_exp_fim = request.args.get('data_expedicao_fim', '').strip()
     wb = _relatorio_bipados_periodo(data_inicio, data_fim, data_exp_inicio, data_exp_fim)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_bipados_periodo.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10644,7 +10741,7 @@ def export_relatorio_resumo_roteiro():
     fluxo = (request.args.get('fluxo') or 'carregamento').strip().lower()
     wb = _relatorio_resumo_roteiro(de, ate, fluxo)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_resumo_por_roteiro.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10655,7 +10752,7 @@ def export_relatorio_tempo_placa():
     ate = request.args.get('data_expedicao_fim', '').strip()
     wb = _relatorio_tempo_placa(de, ate)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_tempo_por_placa.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10666,7 +10763,7 @@ def export_relatorio_itens_por_roteiro():
     ate = request.args.get('data_expedicao_fim', '').strip()
     wb = _relatorio_itens_por_roteiro(de, ate)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_itens_por_roteiro.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10677,7 +10774,7 @@ def export_relatorio_itens_mais_bipados():
     ate = request.args.get('data_expedicao_fim', '').strip()
     wb = _relatorio_itens_mais_bipados(de, ate)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_itens_mais_bipados.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10689,7 +10786,7 @@ def export_relatorio_resumo_produto():
     fluxo = (request.args.get('fluxo') or 'carregamento').strip().lower()
     wb = _relatorio_resumo_produto(de, ate, fluxo)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_resumo_por_produto.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10701,7 +10798,7 @@ def export_relatorio_roteiros_divergencia():
     fluxo = (request.args.get('fluxo') or 'carregamento').strip().lower()
     wb = _relatorio_roteiros_divergencia(de, ate, fluxo)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_roteiros_com_divergencia.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10712,7 +10809,7 @@ def export_relatorio_carregamento_veiculo():
     ate = request.args.get('data_expedicao_fim', '').strip()
     wb = _relatorio_carregamento_veiculo(de, ate)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_carregamento_por_veiculo.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10723,7 +10820,7 @@ def export_relatorio_peso_viagem_placa():
     ate = request.args.get('data_expedicao_fim', '').strip()
     wb = _relatorio_peso_viagem_placa(de, ate)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_peso_por_viagem_placa.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10734,7 +10831,7 @@ def export_relatorio_responsaveis_viagem():
     ate = request.args.get('data_expedicao_fim', '').strip()
     wb = _relatorio_responsaveis_viagem(de, ate)
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_responsaveis_por_viagem.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10794,7 +10891,7 @@ def _relatorio_romaneio_guarulhos():
 def export_relatorio_romaneio_guarulhos():
     wb = _relatorio_romaneio_guarulhos()
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorio_romaneio_cd_guarulhos.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -10847,7 +10944,7 @@ def export_relatorio_extrato_excel():
         ws.cell(row=row_idx, column=10, value=item.get('aviso_sobra') or '')
         ws.cell(row=row_idx, column=11, value=item.get('quantidade_falta'))
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     nome_arquivo = 'extrato_roteiro_{}.xlsx'.format(id_viagem.replace('/', '_').replace('\\', '_')[:50])
     return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -11699,7 +11796,7 @@ def get_painel_graficos_extras():
     conn.row_factory = sqlite3.Row
     # Item mais bipado (agrupa por codigo_barras, soma quantidade; label = produto ou codigo_barras)
     rows_itens = conn.execute('''
-        SELECT produto, codigo_barras, SUM(quantidade) as total
+        SELECT MAX(produto) as produto, codigo_barras, SUM(quantidade) as total
         FROM produtos_bipados
         GROUP BY codigo_barras
         ORDER BY total DESC
@@ -15130,7 +15227,7 @@ def _terceiros_workbook_simple(headers, rows):
 
 def _terceiros_send_workbook(wb, download_name):
     buf = BytesIO()
-    wb.save(buf)
+    _salvar_excel(wb, buf)
     buf.seek(0)
     return send_file(
         buf,
@@ -17397,11 +17494,39 @@ def get_estatisticas():
         'veiculos': [dict(row) for row in veiculos]
     })
 
+def _pg_conexao_crua(statement_timeout_ms=120000):
+    """Conexão psycopg sem o wrapper CompatConn (usada para aplicar a estrutura)."""
+    db_url = (os.environ.get('DATABASE_URL') or '').strip()
+    return psycopg.connect(
+        db_url,
+        sslmode=os.environ.get('PGSSLMODE', 'require'),
+        connect_timeout=15,
+        options=f'-c statement_timeout={int(statement_timeout_ms)} -c lock_timeout=15000',
+    )
+
+
+def _aplicar_estrutura_pg():
+    """Banco Postgres (Azure): cria/atualiza todas as tabelas Pro + Light + Plus (azure_schema.py)."""
+    if not (os.environ.get('DATABASE_URL') or '').strip() or psycopg is None:
+        return
+    if (os.environ.get('AZURE_SCHEMA_DESATIVADO') or '').strip() == '1':
+        return
+    import azure_schema
+    azure_schema.aplicar_estrutura(_pg_conexao_crua, log=lambda m: print(m, flush=True))
+
+
 def _init_db_em_background():
     """Não bloqueia o boot do Gunicorn (evita 502 no health check do Render)."""
     try:
         # Pequena pausa: deixa /api/health e login ganharem a 1ª conexão no cold start.
         time.sleep(1.5)
+        _aplicar_estrutura_pg()
+    except Exception as e:
+        try:
+            print("[controle-carregamento] estrutura PG falhou:", e, flush=True)
+        except Exception:
+            pass
+    try:
         init_db()
     except Exception as e:
         import traceback

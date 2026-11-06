@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { instalarRealtimePorConsulta, usaBackendWms } from './pollingRealtime'
 
 function cleanEnv(value: string | undefined): string {
   if (!value) return ''
@@ -57,7 +58,13 @@ let client: SupabaseClient | null = null
 
 export function getSupabase(): SupabaseClient {
   if (!isSupabaseConfigured()) throw missingEnvError
-  if (!client) client = createClient(supabaseUrl, supabaseAnonKey)
+  if (!client) {
+    client = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    })
+    // Dados na Azure via /sb do WMS: tempo real por consulta periódica (sem WebSocket).
+    if (usaBackendWms(supabaseUrl)) instalarRealtimePorConsulta(client, supabaseUrl)
+  }
   return client
 }
 
