@@ -22,3 +22,5 @@ scripts
 .env
 .env.*
 EBB1A500
+# Senhas em texto puro: nunca dentro da imagem
+config_usuarios.py

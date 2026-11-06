@@ -5,6 +5,7 @@ try:
 except ImportError:
     ZoneInfo = None
 from werkzeug.security import generate_password_hash, check_password_hash
+import secrets
 from werkzeug.exceptions import HTTPException
 import sqlite3
 import os
@@ -946,8 +947,35 @@ def sync_usuarios_from_config():
                 )
         conn.commit()
         _criar_admin_inicial(conn)
+        _bloquear_admin_senha_padrao(conn)
     finally:
         conn.close()
+
+
+def _bloquear_admin_senha_padrao(conn):
+    """
+    Versões antigas criavam admin/admin automaticamente (e a imagem Docker antiga levava o
+    config_usuarios.py). Se o usuário 'admin' ainda tiver a senha 'admin', troca por um hash
+    aleatório (conta bloqueada) — a senha padrão é pública.
+    """
+    try:
+        row = conn.execute("SELECT senha_hash FROM usuarios WHERE usuario = 'admin'").fetchone()
+        if not row:
+            return
+        senha_hash = row['senha_hash'] if hasattr(row, 'keys') else row[0]
+        if senha_hash and check_password_hash(senha_hash, 'admin'):
+            conn.execute(
+                "UPDATE usuarios SET senha_hash = ? WHERE usuario = 'admin'",
+                (generate_password_hash(secrets.token_urlsafe(32), method='pbkdf2:sha256'),),
+            )
+            conn.commit()
+            print('[controle-carregamento] Usuário "admin" com senha padrão foi bloqueado.', flush=True)
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print('[controle-carregamento] Verificação do admin padrão falhou:', e, flush=True)
 
 
 def _criar_admin_inicial(conn):
