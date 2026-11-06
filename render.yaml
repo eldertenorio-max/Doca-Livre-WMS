@@ -35,6 +35,12 @@ services:
       - key: DATABASE_URL
         # NUNCA coloque a URL/senha aqui (repositório público). Defina no painel do Render.
         sync: false
+      - key: ADMIN_INICIAL_USUARIO
+        # Opcional: cria este usuário no 1º boot se ele não existir (banco vazio). Ex.: Diego
+        sync: false
+      - key: ADMIN_INICIAL_SENHA
+        # Opcional: senha (mín. 8) do usuário inicial. Nunca altera senha de usuário existente.
+        sync: false
       - key: HUB_API_URL
         sync: false
       - key: RAVEX_USER
@@ -72,6 +78,12 @@ services:
         value: require
       - key: DATABASE_URL
         # NUNCA coloque a URL/senha aqui (repositório público). Defina no painel do Render.
+        sync: false
+      - key: ADMIN_INICIAL_USUARIO
+        # Opcional: cria este usuário no 1º boot se ele não existir (banco vazio). Ex.: Diego
+        sync: false
+      - key: ADMIN_INICIAL_SENHA
+        # Opcional: senha (mín. 8) do usuário inicial. Nunca altera senha de usuário existente.
         sync: false
       - key: HUB_API_URL
         sync: false

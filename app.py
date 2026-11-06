@@ -945,8 +945,40 @@ def sync_usuarios_from_config():
                     (usuario, senha_hash, datetime.now().isoformat()),
                 )
         conn.commit()
+        _criar_admin_inicial(conn)
     finally:
         conn.close()
+
+
+def _criar_admin_inicial(conn):
+    """
+    Primeiro acesso num banco vazio: ADMIN_INICIAL_USUARIO + ADMIN_INICIAL_SENHA (painel do
+    Render, nunca no repositório) criam esse usuário se ele ainda não existir. Nunca altera
+    a senha de um usuário existente. Use um login da lista de Super Usuários (ex.: Diego).
+    """
+    usuario = (os.environ.get('ADMIN_INICIAL_USUARIO') or '').strip()
+    senha = os.environ.get('ADMIN_INICIAL_SENHA') or ''
+    if not usuario or not senha:
+        return
+    if len(senha) < 8:
+        print('[controle-carregamento] ADMIN_INICIAL_SENHA ignorada: use pelo menos 8 caracteres.', flush=True)
+        return
+    try:
+        if conn.execute('SELECT 1 FROM usuarios WHERE usuario = ?', (usuario,)).fetchone():
+            return
+        conn.execute(
+            '''INSERT INTO usuarios (usuario, senha_hash, criado_em) VALUES (?, ?, ?)
+               ON CONFLICT(usuario) DO NOTHING''',
+            (usuario, generate_password_hash(senha, method='pbkdf2:sha256'), datetime.now().isoformat()),
+        )
+        conn.commit()
+        print('[controle-carregamento] Usuário inicial "%s" criado (ADMIN_INICIAL_USUARIO).' % usuario, flush=True)
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print('[controle-carregamento] Falha ao criar usuário inicial:', e, flush=True)
 
 
 class _LinhaCompat(dict):
