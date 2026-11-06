@@ -52,7 +52,8 @@ ARQUIVOS_ESTRUTURA = [
     'fix_fn_sync_tabela_geral.sql',
     'create_wms_enderecamento.sql',
     'migrate_wms_produto_planejamento.sql',
-    'fix_wms_camara_totais.sql',
+    # fix_wms_camara_totais.sql NÃO entra: é correção de DADOS pontual (UPDATE de totais e
+    # DELETE de endereços vazios fora de um layout antigo) — perigosa num banco com dados atuais.
     'migrate_unificar_light_plus_pro.sql',
 ]
 
