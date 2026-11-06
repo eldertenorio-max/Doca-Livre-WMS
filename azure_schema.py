@@ -133,28 +133,78 @@ def _checksum(texto: str) -> str:
     return hashlib.sha256(texto.encode('utf-8')).hexdigest()[:16]
 
 
+# Erros que significam "já existe" (comando idempotente já aplicado antes): não contam como falha.
+_JA_EXISTE = {'42710', '42P07', '42723', '42P06', '42P16'}
+_TRAVA_ESTRUTURA = 727001  # pg_advisory_lock: só um worker do gunicorn aplica por vez
+_RE_VIEW = re.compile(r'CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(?:public\.)?("?)([A-Za-z_][\w ]*?)\1\s+(?:WITH\b|AS\b)', re.I)
+
+
+def _views_esperadas() -> dict[str, set[str]]:
+    """{nome_da_view: {arquivos que a definem}}."""
+    out: dict[str, set[str]] = {}
+    for nome in ARQUIVOS_ESTRUTURA:
+        caminho = os.path.join(SQL_DIR, nome)
+        if not os.path.isfile(caminho):
+            continue
+        with open(caminho, encoding='utf-8') as f:
+            for m in _RE_VIEW.finditer(f.read()):
+                out.setdefault(m.group(2).strip(), set()).add(nome)
+    return out
+
+
+def _corrigir_views_congeladas(conn, log) -> set[str]:
+    """
+    Cópias de banco às vezes gravam uma VIEW como TABELA (dados parados no dia da cópia).
+    Renomeia essas tabelas para <nome>_tabela_antiga (nada é apagado) e devolve os arquivos
+    que precisam ser reaplicados para recriar as views verdadeiras.
+    """
+    sql_relkind = (
+        "SELECT c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = 'public' AND c.relname = %s"
+    )
+    reaplicar: set[str] = set()
+    for view, arquivos in _views_esperadas().items():
+        r = conn.execute(sql_relkind, (view,)).fetchone()
+        if not r or r[0] not in ('r', 'p'):
+            continue
+        destino = (view + '_tabela_antiga')[:63]
+        if conn.execute(sql_relkind, (destino,)).fetchone():
+            destino = (view + '_tabela_antiga_' + time.strftime('%Y%m%d%H%M%S'))[:63]
+        conn.execute('ALTER TABLE public."%s" RENAME TO "%s"' % (view.replace('"', ''), destino.replace('"', '')))
+        log('[azure_schema] "%s" era TABELA (cópia congelada); renomeada para "%s" e a view será recriada.'
+            % (view, destino))
+        reaplicar |= arquivos
+    return reaplicar
+
+
 def aplicar_estrutura(conn_factory, log=print, forcar=False) -> dict:
     """
-    Aplica os arquivos de estrutura que ainda não foram aplicados (ou mudaram).
-    conn_factory() deve devolver uma conexão psycopg *crua* (não CompatConn).
-    Retorna um resumo {arquivo: {'aplicados': n, 'ignorados': n, 'erros': [...]}}.
+    Aplica os arquivos de estrutura que ainda não foram aplicados, que mudaram ou que
+    tiveram erro real na última vez. conn_factory() deve devolver uma conexão psycopg
+    *crua* (não CompatConn). Retorna {arquivo: {'aplicados', 'ignorados', 'erros'}}.
     """
     resumo: dict = {}
     conn = conn_factory()
     try:
         conn.autocommit = True
+        # Vários workers sobem juntos: o primeiro aplica, os outros esperam e encontram tudo feito.
+        conn.execute('SELECT pg_advisory_lock(%s)', (_TRAVA_ESTRUTURA,))
         conn.execute(
-            '''CREATE TABLE IF NOT EXISTS public._schema_bootstrap (
-                arquivo TEXT PRIMARY KEY,
-                checksum TEXT NOT NULL,
-                aplicado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                erros INTEGER NOT NULL DEFAULT 0
-            )'''
+            "CREATE TABLE IF NOT EXISTS public._schema_bootstrap ("
+            " arquivo TEXT PRIMARY KEY,"
+            " checksum TEXT NOT NULL,"
+            " aplicado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+            " erros INTEGER NOT NULL DEFAULT 0)"
         )
         feitos = {
-            r[0]: r[1]
-            for r in conn.execute('SELECT arquivo, checksum FROM public._schema_bootstrap').fetchall()
+            r[0]: (r[1], int(r[2] or 0))
+            for r in conn.execute('SELECT arquivo, checksum, erros FROM public._schema_bootstrap').fetchall()
         }
+        try:
+            reaplicar = _corrigir_views_congeladas(conn, log)
+        except Exception as e:
+            log('[azure_schema] verificação de views falhou: %s' % e)
+            reaplicar = set()
         pendentes: list[tuple[str, str]] = []  # (arquivo, comando) que falharam: 2ª passada
         for nome in ARQUIVOS_ESTRUTURA:
             caminho = os.path.join(SQL_DIR, nome)
@@ -164,7 +214,8 @@ def aplicar_estrutura(conn_factory, log=print, forcar=False) -> dict:
             with open(caminho, encoding='utf-8') as f:
                 texto = f.read()
             ck = _checksum(texto)
-            if not forcar and feitos.get(nome) == ck:
+            anterior = feitos.get(nome)
+            if not forcar and nome not in reaplicar and anterior and anterior[0] == ck and anterior[1] == 0:
                 continue
             info = {'aplicados': 0, 'ignorados': 0, 'erros': []}
             for cmd in dividir_sql(texto):
@@ -175,6 +226,9 @@ def aplicar_estrutura(conn_factory, log=print, forcar=False) -> dict:
                     conn.execute(cmd)
                     info['aplicados'] += 1
                 except Exception as e:  # cada comando é independente (autocommit)
+                    if getattr(e, 'sqlstate', None) in _JA_EXISTE:
+                        info['aplicados'] += 1
+                        continue
                     msg = (str(e).strip().splitlines() or [''])[0][:200]
                     info['erros'].append(msg)
                     pendentes.append((nome, cmd))
@@ -184,28 +238,36 @@ def aplicar_estrutura(conn_factory, log=print, forcar=False) -> dict:
         for nome, cmd in pendentes:
             try:
                 conn.execute(cmd)
+                ok = True
+            except Exception as e:
+                ok = getattr(e, 'sqlstate', None) in _JA_EXISTE
+            if ok:
                 info = resumo[nome]
                 info['aplicados'] += 1
                 if info['erros']:
                     info['erros'].pop(0)
-            except Exception:
-                pass
         for nome, info in resumo.items():
             ck = info.pop('_checksum', None)
             if ck is None:
                 continue
             conn.execute(
-                '''INSERT INTO public._schema_bootstrap (arquivo, checksum, aplicado_em, erros)
-                   VALUES (%s, %s, NOW(), %s)
-                   ON CONFLICT (arquivo) DO UPDATE
-                   SET checksum = EXCLUDED.checksum, aplicado_em = NOW(), erros = EXCLUDED.erros''',
+                "INSERT INTO public._schema_bootstrap (arquivo, checksum, aplicado_em, erros)"
+                " VALUES (%s, %s, NOW(), %s)"
+                " ON CONFLICT (arquivo) DO UPDATE"
+                " SET checksum = EXCLUDED.checksum, aplicado_em = NOW(), erros = EXCLUDED.erros",
                 (nome, ck, len(info['erros'])),
             )
             log('[azure_schema] %s: %d aplicados, %d ignorados, %d erros' % (
                 nome, info['aplicados'], info['ignorados'], len(info['erros'])))
             for e in info['erros'][:5]:
                 log('[azure_schema]   - %s' % e)
+        if not resumo:
+            log('[azure_schema] estrutura já em dia.')
     finally:
+        try:
+            conn.execute('SELECT pg_advisory_unlock(%s)', (_TRAVA_ESTRUTURA,))
+        except Exception:
+            pass
         try:
             conn.close()
         except Exception:
