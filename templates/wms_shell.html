@@ -6,7 +6,7 @@
     <title>WMS DOCA LIVRE PRO</title>
     {% from '_app_head_icons.html' import app_head_icons %}
     {{ app_head_icons() }}
-    <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20260719c">
+    <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20261109b">
     <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261109a">
     <script>
       window.WMS_USUARIO = {{ {'nome': usuario or 'Usuário', 'su': is_superuser} | tojson }};
@@ -16,7 +16,7 @@
 </head>
 <body class="doca-livre-pro wms-shell{% if is_homologacao %} app-env-homologacao{% endif %}">
     {% include '_app_env_banner.html' %}
-    {% from '_doca_livre_logo.html' import doca_livre_logo %}
+    {% from '_doca_livre_logo.html' import doca_livre_logo, doca_livre_simbolo %}
     <div class="ws-raiz">
         <header class="header app-topbar" aria-label="Barra principal">
             <div class="app-topbar-left">
@@ -61,7 +61,7 @@
                             <strong>{{ usuario or 'Usuário' }}</strong>
                             <span>WMS DOCA LIVRE PRO</span>
                         </div>
-                        <span class="app-topbar-avatar ws-avatar" aria-hidden="true"><img src="{{ url_for('static', filename='doca-livre-icone.png') }}?v=20261109a" alt=""></span>
+                        <span class="app-topbar-avatar ws-avatar" aria-hidden="true">{{ doca_livre_simbolo(theme='dark') }}</span>
                     </div>
                 </div>
                 <a href="/login?sair=1" class="btn-sair" title="Sair">Sair</a>

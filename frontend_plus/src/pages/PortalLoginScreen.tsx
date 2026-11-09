@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from 'react'
-import { LOGO_DOCA_LIVRE_SRC } from '../lib/brandAssets'
+import { LogoDocaLivre } from '../components/LogoDocaLivre'
 import {
   portalCadastroConcluir,
   portalCadastroEnviarCodigo,
@@ -324,7 +324,7 @@ export default function PortalLoginScreen({ onSuccess }: Props) {
     <div className="portal-login" role="main">
       <div className="portal-login__card">
         <div className="portal-login__header">
-          <img className="portal-login__logo" src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" />
+          <LogoDocaLivre className="portal-login__logo" alt="Doca Livre" />
           <h1 className="portal-login__title">{title}</h1>
           <p className="portal-login__tagline">{tagline}</p>
         </div>

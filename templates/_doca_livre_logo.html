@@ -1,12 +1,20 @@
-{# Logo Doca Livre — mesmo asset do projeto Ultrafrio #}
-{% macro doca_livre_logo(class='', alt='Doca Livre') %}
-<img src="{{ url_for('static', filename='logo-doca-livre-v2.png') }}?v=20261109a" alt="{{ alt }}" class="doca-livre-logo{% if class %} {{ class }}{% endif %}">
+{# Logo Doca Livre — duas versões oficiais:
+   tema claro (fundo branco/claro): moldura e "LIVRE" em azul-marinho  -> logo-doca-livre-claro.png
+   tema escuro (fundo preto/escuro): moldura e "LIVRE" em branco        -> logo-doca-livre-escuro.png
+   As setas e "DOCA" são amarelos nas duas. #}
+{% macro doca_livre_logo(class='', alt='Doca Livre', theme='light') %}
+<img src="{{ url_for('static', filename='logo-doca-livre-escuro.png' if theme == 'dark' else 'logo-doca-livre-claro.png') }}?v=20261109b" alt="{{ alt }}" class="doca-livre-logo{% if class %} {{ class }}{% endif %}">
+{% endmacro %}
+
+{# Só o símbolo (moldura + setas), para avatares e espaços pequenos. #}
+{% macro doca_livre_simbolo(class='', alt='', theme='light') %}
+<img src="{{ url_for('static', filename='doca-livre-simbolo-escuro.png' if theme == 'dark' else 'doca-livre-simbolo-claro.png') }}?v=20261109b" alt="{{ alt }}" class="doca-livre-simbolo{% if class %} {{ class }}{% endif %}">
 {% endmacro %}
 
 {# Marca completa: logo PNG + WMS PRO (estilo topbar Ultrafrio / Doca Livre) #}
 {% macro doca_livre_brand(logo_class='', wrap_class='', size='md', theme='light', alt='WMS DOCA LIVRE PRO') %}
 <div class="doca-livre-brand doca-livre-brand--{{ size }}{% if theme == 'dark' %} doca-livre-brand--dark{% endif %}{% if wrap_class %} {{ wrap_class }}{% endif %}">
-    {{ doca_livre_logo(class=logo_class, alt=alt) }}
+    {{ doca_livre_logo(class=logo_class, alt=alt, theme=theme) }}
     <strong class="doca-livre-wms" aria-label="WMS DOCA LIVRE PRO">
         <span class="doca-livre-wms-main">WMS</span>
         <span class="doca-livre-wms-light">PRO</span>

@@ -6,7 +6,8 @@ import { SidebarLayoutControl } from './SidebarLayoutControl'
 import { ThemeToggle } from './ThemeToggle'
 import { LayoutLegend, type LayoutLegendProps } from './LayoutLegend'
 import { AccountMenuPopover } from './AccountMenuPopover'
-import { BRAND_PRODUCT_NAME, BRAND_PRODUCT_VARIANT, LOGO_DOCA_LIVRE_SRC } from '../lib/brandAssets'
+import { BRAND_PRODUCT_NAME, BRAND_PRODUCT_VARIANT } from '../lib/brandAssets'
+import { LogoDocaLivre } from './LogoDocaLivre'
 import { isHomologacao } from '../lib/appAmbiente'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { PRESERVADO_ZERAR_HOMOLOG } from '../lib/homologZerarBanco'
@@ -38,13 +39,7 @@ function formatClock(now: Date): { time: string; date: string } {
 }
 
 function BrandMark() {
-  return (
-    <img
-      src={LOGO_DOCA_LIVRE_SRC}
-      alt="Doca Livre"
-      className="app-topbar-logo"
-    />
-  )
+  return <LogoDocaLivre alt="Doca Livre" className="app-topbar-logo" />
 }
 
 export function AppTopBar({

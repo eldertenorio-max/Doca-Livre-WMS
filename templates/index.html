@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='stock-system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='entrada-modulos.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='modulo-sidebar.css') }}?v=20260626h">
-    <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20260719c">
+    <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20261109b">
     <link rel="stylesheet" href="{{ url_for('static', filename='wms-mapa-3d.css') }}?v=20260619a">
     <link rel="stylesheet" href="{{ url_for('static', filename='wms-embutido.css') }}?v=20261106a">
     <script src="{{ url_for('static', filename='wms-embutido.js') }}?v=20261109a"></script>
@@ -26,7 +26,7 @@
 <body class="doca-livre-pro{% if is_homologacao %} app-env-homologacao{% endif %}">
     {% include '_app_env_banner.html' %}
     {% from '_stock_system_logo.html' import stock_system_logo %}
-    {% from '_doca_livre_logo.html' import doca_livre_logo %}
+    {% from '_doca_livre_logo.html' import doca_livre_logo, doca_livre_simbolo %}
     <div class="container">
         <header class="header app-topbar" aria-label="Barra principal">
             <div class="app-topbar-left">
@@ -72,7 +72,7 @@
                         <span>WMS DOCA LIVRE PRO</span>
                     </div>
                     <span class="app-topbar-avatar" aria-hidden="true">
-                        {{ doca_livre_logo(alt='') }}
+                        {{ doca_livre_simbolo() }}
                     </span>
                 </div>
             </div>

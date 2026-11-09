@@ -3843,19 +3843,19 @@ def manifest_app():
     """Manifest PWA — ícone na tela inicial e instalação na barra de tarefas."""
     icons = [
         {
-            'src': url_for('static', filename='icons/icon-192.png'),
+            'src': url_for('static', filename='icons/icon-192.png', v='20261109b'),
             'sizes': '192x192',
             'type': 'image/png',
             'purpose': 'any',
         },
         {
-            'src': url_for('static', filename='icons/icon-512.png'),
+            'src': url_for('static', filename='icons/icon-512.png', v='20261109b'),
             'sizes': '512x512',
             'type': 'image/png',
             'purpose': 'any',
         },
         {
-            'src': url_for('static', filename='icons/icon-512.png'),
+            'src': url_for('static', filename='icons/icon-512.png', v='20261109b'),
             'sizes': '512x512',
             'type': 'image/png',
             'purpose': 'maskable',

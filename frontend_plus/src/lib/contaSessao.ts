@@ -1,4 +1,4 @@
-import { LOGO_DOCA_LIVRE_SRC } from './brandAssets'
+import { SIMBOLO_DOCA_LIVRE_CLARO_SRC } from './brandAssets'
 
 export type ContaUsuario = {
   id: string
@@ -19,7 +19,7 @@ export function contaSistema(): ContaUsuario {
   return {
     id: CONTA_SISTEMA_ID,
     nome: 'Doca Livre',
-    avatarUrl: LOGO_DOCA_LIVRE_SRC,
+    avatarUrl: SIMBOLO_DOCA_LIVRE_CLARO_SRC,
     ultimoAcesso: new Date().toISOString(),
     ativo: true,
   }

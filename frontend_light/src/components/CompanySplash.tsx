@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { LOGO_DOCA_LIVRE_SRC } from '../lib/brandAssets'
+import { LogoDocaLivre } from './LogoDocaLivre'
 import { isHomologacao } from '../lib/appAmbiente'
 import './OpeningSplash.css'
 import './CompanySplash.css'
@@ -56,11 +56,7 @@ export default function CompanySplash({ onComplete, loading = false }: Props) {
     <div className={`intro-splash company-splash ${exiting ? 'intro-splash--exit' : ''}`} aria-busy="true">
       <div className="intro-content company-splash__content">
         <div className="company-splash__brand">
-          <img
-            src={LOGO_DOCA_LIVRE_SRC}
-            alt=""
-            className="intro-logo company-splash__logo"
-          />
+          <LogoDocaLivre className="intro-logo company-splash__logo" />
           <p className="company-splash__title">Doca Livre Sistemas</p>
         </div>
         {isHomologacao() && <p className="intro-ambiente intro-ambiente--homolog">Homologação</p>}
