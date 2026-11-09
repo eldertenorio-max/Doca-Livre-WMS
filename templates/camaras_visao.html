@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visão Geral das Câmaras — WMS DOCA LIVRE PRO</title>
+    {% from '_app_head_icons.html' import app_head_icons %}
+    {{ app_head_icons() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='wms-embutido.css') }}?v=20261106a">
+    <script src="{{ url_for('static', filename='wms-embutido.js') }}?v=20261109a"></script>
+    <style>
+        :root {
+            --fundo: #eef1f4; --painel: #fff; --borda: #dde1e6; --texto: #000; --texto-2: #5c6670;
+            --amarelo: #f9db00; --verde: #16a34a; --ambar: #d97706; --vermelho: #dc2626;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--fundo); color: var(--texto); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .vc { max-width: 1400px; margin: 0 auto; padding: 24px clamp(16px, 3vw, 32px) 40px; }
+        .vc-topo { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+        .vc-topo h1 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 800; }
+        .vc-topo p { margin: 0; color: var(--texto-2); font-size: 0.92rem; }
+        .vc-btn { border: 1px solid #d0d7de; background: #fff; color: #000; border-radius: 8px; padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+        .vc-btn:hover { background: var(--amarelo); border-color: var(--amarelo); }
+        .vc-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 22px; }
+        .vc-kpi { background: var(--painel); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 16px; }
+        .vc-kpi span { display: block; font-size: 0.76rem; font-weight: 700; color: var(--texto-2); text-transform: uppercase; letter-spacing: 0.05em; }
+        .vc-kpi strong { display: block; margin-top: 4px; font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .vc-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+        .vc-cam { background: var(--painel); border: 1px solid var(--borda); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .vc-cam-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .vc-cam h2 { margin: 0; font-size: 1.15rem; font-weight: 800; }
+        .vc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .vc-chip { font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #f1f3f5; color: #374151; border: 1px solid #e5e7eb; }
+        .vc-chip--nf { background: #eef6ff; color: #1d4ed8; border-color: #c7dcfb; }
+        .vc-chip--palete { background: #fff8d6; color: #7a5d00; border-color: #f3df7a; }
+        .vc-taxa { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+        .vc-barra { height: 10px; border-radius: 999px; background: #eef0f2; overflow: hidden; }
+        .vc-barra > i { display: block; height: 100%; border-radius: 999px; background: var(--verde); }
+        .vc-barra > i.alto { background: var(--ambar); }
+        .vc-barra > i.critico { background: var(--vermelho); }
+        .vc-numeros { display: flex; justify-content: space-between; font-size: 0.86rem; color: var(--texto-2); }
+        .vc-numeros b { color: #000; font-variant-numeric: tabular-nums; }
+        .vc-detalhe { font-size: 0.82rem; color: var(--texto-2); }
+        .vc-alerta { font-size: 0.8rem; background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; border-radius: 8px; padding: 6px 8px; }
+        .vc-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 10px; border-top: 1px solid #eef0f2; }
+        .vc-acoes a { text-decoration: none; color: #000; font-size: 0.8rem; font-weight: 600; border: 1px solid #d0d7de; background: #f8f9fb; border-radius: 999px; padding: 6px 12px; }
+        .vc-acoes a:hover { background: var(--amarelo); border-color: var(--amarelo); }
+        .vc-erro { background: #fff1f2; border: 1px solid #fecdd3; color: #9f1239; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+        .vc-carregando { color: var(--texto-2); padding: 30px 0; }
+    </style>
+</head>
+<body>
+<main class="vc">
+    <div class="vc-topo">
+        <div>
+            <h1>Visão Geral das Câmaras</h1>
+            <p>Todas as câmaras do armazém num só lugar — ocupação real das NF-e (Câmaras Frias) e dos paletes (WMS). <span id="vc-atualizado"></span></p>
+        </div>
+        <button type="button" class="vc-btn" id="vc-atualizar">Atualizar</button>
+    </div>
+    <div id="vc-erro" class="vc-erro" hidden></div>
+    <section class="vc-resumo" aria-label="Resumo do armazém">
+        <div class="vc-kpi"><span>Câmaras</span><strong id="vc-k-camaras">—</strong></div>
+        <div class="vc-kpi"><span>Posições</span><strong id="vc-k-posicoes">—</strong></div>
+        <div class="vc-kpi"><span>Ocupadas</span><strong id="vc-k-ocupadas">—</strong></div>
+        <div class="vc-kpi"><span>Livres</span><strong id="vc-k-livres">—</strong></div>
+        <div class="vc-kpi"><span>Taxa de ocupação</span><strong id="vc-k-taxa">—</strong></div>
+    </section>
+    <section class="vc-grade" id="vc-grade" aria-label="Câmaras"><p class="vc-carregando">Carregando câmaras…</p></section>
+</main>
+<script>
+(function () {
+    var CAMARAS_TEMPERATURA = [11, 12, 13];   // a Contagem registra temperatura dessas (as demais entram na etapa 5)
+    function $(id) { return document.getElementById(id); }
+    function fmt(n) { return Number(n || 0).toLocaleString('pt-BR'); }
+    function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+    function link(rotulo, url) { var a = el('a', null, rotulo); a.href = url; return a; }
+
+    function cartao(c) {
+        var card = el('article', 'vc-cam');
+        var topo = el('div', 'vc-cam-topo');
+        var esq = el('div');
+        esq.appendChild(el('h2', null, c.nome));
+        var chips = el('div', 'vc-chips');
+        if (c.tipo) chips.appendChild(el('span', 'vc-chip', c.tipo));
+        chips.appendChild(el('span', 'vc-chip ' + (c.controle === 'nf' ? 'vc-chip--nf' : 'vc-chip--palete'),
+            c.controle === 'nf' ? 'NF-e · Câmaras Frias' : 'Paletes · WMS'));
+        esq.appendChild(chips);
+        topo.appendChild(esq);
+        topo.appendChild(el('span', 'vc-taxa', String(c.taxa_ocupacao).replace('.', ',') + '%'));
+        card.appendChild(topo);
+
+        var barra = el('div', 'vc-barra');
+        var fill = el('i');
+        fill.style.width = Math.min(100, c.taxa_ocupacao) + '%';
+        if (c.taxa_ocupacao >= 90) fill.className = 'critico'; else if (c.taxa_ocupacao >= 70) fill.className = 'alto';
+        barra.appendChild(fill);
+        card.appendChild(barra);
+
+        var nums = el('div', 'vc-numeros');
+        nums.innerHTML = '<span><b></b> ocupadas</span><span><b></b> livres</span><span><b></b> posições</span>';
+        var bs = nums.querySelectorAll('b');
+        bs[0].textContent = fmt(c.ocupadas); bs[1].textContent = fmt(c.livres); bs[2].textContent = fmt(c.total_posicoes);
+        card.appendChild(nums);
+
+        var ruas = (c.ruas || []).map(function (r) { return r.codigo; });
+        var cols = (c.ruas || []).map(function (r) { return r.colunas; });
+        var maxCol = cols.length ? Math.max.apply(null, cols) : 0;
+        card.appendChild(el('div', 'vc-detalhe',
+            'Ruas ' + ruas.join(' e ') + ' · ' + maxCol + ' colunas · ' + c.niveis + ' níveis' + (c.portas ? ' · ' + c.portas + ' porta(s)' : '')));
+
+        if (c.ocupadas_outra_origem > 0) {
+            card.appendChild(el('div', 'vc-alerta',
+                'Atenção: ' + c.ocupadas_outra_origem + ' posição(ões) desta câmara também aparecem no ' +
+                (c.controle === 'nf' ? 'WMS (paletes)' : 'mapa das Câmaras Frias (NF-e)') + '.'));
+        }
+
+        var acoes = el('div', 'vc-acoes');
+        if (c.controle === 'nf') {
+            acoes.appendChild(link('Mapa e consulta', '/camaras?secao=consulta'));
+            acoes.appendChild(link('Entrada NF-e', '/camaras?secao=entrada'));
+            acoes.appendChild(link('Saída NF-e', '/camaras?secao=saida'));
+        } else {
+            acoes.appendChild(link('Endereçamento 2D/3D', '/painel?modulo=enderecamento-wms&aba=enderecamento'));
+            acoes.appendChild(link('Mapa 3D', '/painel?modulo=enderecamento-wms&aba=mapa-3d'));
+            acoes.appendChild(link('Ocupação', '/painel?modulo=enderecamento-wms&aba=ocupacao'));
+        }
+        if (CAMARAS_TEMPERATURA.indexOf(c.codigo) !== -1) acoes.appendChild(link('Temperatura', '/contagem?view=temperatura'));
+        card.appendChild(acoes);
+        return card;
+    }
+
+    function carregar() {
+        $('vc-erro').hidden = true;
+        fetch('/api/camaras', { credentials: 'same-origin', cache: 'no-store' })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function (d) {
+                $('vc-k-camaras').textContent = fmt((d.camaras || []).length);
+                $('vc-k-posicoes').textContent = fmt(d.total_posicoes);
+                $('vc-k-ocupadas').textContent = fmt(d.ocupadas);
+                $('vc-k-livres').textContent = fmt(d.livres);
+                $('vc-k-taxa').textContent = String(d.taxa_ocupacao).replace('.', ',') + '%';
+                var grade = $('vc-grade');
+                grade.innerHTML = '';
+                (d.camaras || []).forEach(function (c) { grade.appendChild(cartao(c)); });
+                var agora = new Date();
+                $('vc-atualizado').textContent = 'Atualizado às ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0') + '.';
+            })
+            .catch(function (e) {
+                $('vc-erro').textContent = 'Não foi possível carregar as câmaras (' + e.message + '). Tente "Atualizar".';
+                $('vc-erro').hidden = false;
+            });
+    }
+
+    $('vc-atualizar').addEventListener('click', carregar);
+    carregar();
+    setInterval(function () { if (document.visibilityState === 'visible') carregar(); }, 60000);
+})();
+</script>
+</body>
+</html>

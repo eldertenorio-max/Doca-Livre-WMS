@@ -9,7 +9,7 @@
   var embutido = false;
   try { embutido = window.self !== window.top; } catch (e) { embutido = true; }
   window.__WMS_EMBUTIDO__ = embutido;
-  var ROTAS = /^\/(painel|camaras|contagem|entrada|usuarios\/novo|config-portal)(\/|$)/;
+  var ROTAS = /^\/(painel|camaras|contagem|entrada|usuarios\/novo|config-portal|visao-camaras)(\/|$)/;
 
   if (!embutido) {
     // Tela interna aberta direto na janela (favorito antigo, link): abre dentro do WMS unificado.

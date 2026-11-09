@@ -140,10 +140,11 @@
         ]]
       ]},
     { id: 'camaras', rotulo: 'Câmaras Frias', icone: 'camara',
-      descricao: 'Mapa das câmaras, entrada e saída de NF-e, movimentação por voz e financeiro 3PL.',
-      principal: 'cam-mapa', atalhos: ['cam-mapa', 'cam-entrada', 'cam-saida', 'fat-financeiro'],
+      descricao: 'Todas as câmaras do armazém (6 a 13 e 21): visão geral, mapa, entrada e saída de NF-e, voz e financeiro 3PL.',
+      principal: 'cam-visao', atalhos: ['cam-visao', 'cam-mapa', 'cam-entrada', 'cam-saida'],
       secoes: [
         ['Operação', [
+          ['cam-visao', 'Visão Geral das Câmaras', '/visao-camaras'],
           ['cam-mapa', 'Mapa de Câmaras & Consulta', cam('consulta')],
           ['cam-agendamentos', 'Agendamentos', cam('agendamentosHub')],
           ['cam-entrada', 'Entrada NF-e', cam('entrada')],

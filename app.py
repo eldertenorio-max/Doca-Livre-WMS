@@ -3927,7 +3927,7 @@ def _serve_unified_spa(dist_subfolder: str):
     }).replace('</', '<\\/')  # impede fechar o <script> com dados do usuário
     sb_origem = "window.__WMS_UNIFIED__.supabaseUrl = window.location.origin + '/sb';" if backend_proprio else ''
     bootstrap_script = (
-        f"<script src=\"{url_for('static', filename='wms-embutido.js')}?v=20261106a\"></script>"
+        f"<script src=\"{url_for('static', filename='wms-embutido.js')}?v=20261109a\"></script>"
         f"<script>"
         f"window.__WMS_UNIFIED__ = {bootstrap_payload};"
         f"{sb_origem}"
@@ -3998,6 +3998,28 @@ def wms_light_spa(subpath=None):
 def wms_plus_spa(subpath=None):
     """Módulos de Câmaras Refrigeradas, NF-e, Voz e Financeiro 3PL (ex-Plus)."""
     return _abrir_na_moldura() or _serve_unified_spa('wms-plus')
+
+
+@app.route('/api/camaras', methods=['GET'])
+def api_camaras():
+    """Cadastro único de câmaras (data/camaras.json) com a ocupação real de cada uma."""
+    import camaras_cadastro
+    conn = get_db()
+    try:
+        dados = camaras_cadastro.resumo(conn)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    dados['atualizado_em'] = datetime.now(timezone.utc).isoformat()
+    return jsonify(dados)
+
+
+@app.route('/visao-camaras')
+def visao_camaras():
+    """Visão Geral das Câmaras — todas as câmaras do armazém (Câmaras Frias + WMS) numa tela."""
+    return _abrir_na_moldura() or render_template('camaras_visao.html', usuario=session.get('usuario', ''))
 
 
 @app.route('/config-portal')

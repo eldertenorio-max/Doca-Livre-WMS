@@ -1,0 +1,50 @@
+{
+  "descricao": "Cadastro único de câmaras do armazém (todas as câmaras do mesmo CD). Fonte da verdade para todos os módulos do WMS DOCA LIVRE PRO.",
+  "observacoes": [
+    "layout 'inline': ruas/colunas/níveis descritos aqui (câmaras 6 a 10; espelha frontend_plus/src/layout/camaras.ts até o mapa das Câmaras Frias passar a ler este cadastro).",
+    "layout 'wms': posições detalhadas em data/wms_layout_camaras.json (câmaras 11, 12, 13 e 21).",
+    "controle 'nf': ocupação pelas NF-e endereçadas no mapa das Câmaras Frias (ultrafrio_enderecamentos). controle 'palete': ocupação pelos paletes do Endereçamento WMS (wms_localizacao).",
+    "Ruas mantêm o nome atual de cada câmara (6 a 10: 1 e 2; 11 a 21: letras)."
+  ],
+  "camaras": [
+    {
+      "codigo": 6, "nome": "Câmara 6", "tipo": "Congelado", "controle": "nf", "layout": "inline", "niveis": 5,
+      "ruas": [
+        { "codigo": "1", "colunas": 15 },
+        { "codigo": "2", "colunas": 15, "colunas_bloqueadas": [1, 3], "porta": { "colunas": [2, 3], "niveis": [1, 2] } }
+      ]
+    },
+    {
+      "codigo": 7, "nome": "Câmara 7", "tipo": "Congelado -20°", "controle": "nf", "layout": "inline", "niveis": 5,
+      "ruas": [
+        { "codigo": "1", "colunas": 15, "porta": { "colunas": [2, 3], "niveis": [1, 2] } },
+        { "codigo": "2", "colunas": 15, "porta": { "colunas": [2, 3], "niveis": [1, 2] } }
+      ]
+    },
+    {
+      "codigo": 8, "nome": "Câmara 8", "tipo": "Congelado", "controle": "nf", "layout": "inline", "niveis": 5,
+      "ruas": [
+        { "codigo": "1", "colunas": 15, "porta": { "colunas": [2, 3], "niveis": [1, 3] } },
+        { "codigo": "2", "colunas": 15 }
+      ]
+    },
+    {
+      "codigo": 9, "nome": "Câmara 9", "tipo": "Congelado", "controle": "nf", "layout": "inline", "niveis": 5,
+      "ruas": [
+        { "codigo": "1", "colunas": 15, "celulas_bloqueadas": [{ "coluna": 1, "nivel": 4 }] },
+        { "codigo": "2", "colunas": 15, "celulas_bloqueadas": [{ "coluna": 1, "nivel": 4 }] }
+      ]
+    },
+    {
+      "codigo": 10, "nome": "Câmara 10", "tipo": "Congelado", "controle": "nf", "layout": "inline", "niveis": 5,
+      "ruas": [
+        { "codigo": "1", "colunas": 15 },
+        { "codigo": "2", "colunas": 15 }
+      ]
+    },
+    { "codigo": 11, "nome": "Câmara 11", "tipo": null, "controle": "palete", "layout": "wms" },
+    { "codigo": 12, "nome": "Câmara 12", "tipo": null, "controle": "palete", "layout": "wms" },
+    { "codigo": 13, "nome": "Câmara 13", "tipo": null, "controle": "palete", "layout": "wms" },
+    { "codigo": 21, "nome": "Câmara 21", "tipo": null, "controle": "palete", "layout": "wms" }
+  ]
+}
