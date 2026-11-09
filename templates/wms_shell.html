@@ -7,7 +7,7 @@
     {% from '_app_head_icons.html' import app_head_icons %}
     {{ app_head_icons() }}
     <link rel="stylesheet" href="{{ url_for('static', filename='doca-livre-pro.css') }}?v=20260719c">
-    <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261106d">
+    <link rel="stylesheet" href="{{ url_for('static', filename='wms-shell.css') }}?v=20261109a">
     <script>
       window.WMS_USUARIO = {{ {'nome': usuario or 'Usuário', 'su': is_superuser} | tojson }};
       window.WMS_ABRIR_INICIAL = {{ (abrir or '') | tojson }};
@@ -61,7 +61,7 @@
                             <strong>{{ usuario or 'Usuário' }}</strong>
                             <span>WMS DOCA LIVRE PRO</span>
                         </div>
-                        <span class="app-topbar-avatar" aria-hidden="true">{{ doca_livre_logo(alt='') }}</span>
+                        <span class="app-topbar-avatar ws-avatar" aria-hidden="true"><img src="{{ url_for('static', filename='doca-livre-icone.png') }}?v=20261109a" alt=""></span>
                     </div>
                 </div>
                 <a href="/login?sair=1" class="btn-sair" title="Sair">Sair</a>

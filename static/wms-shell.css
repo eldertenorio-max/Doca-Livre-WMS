@@ -255,3 +255,7 @@ body.ws-menu-recolhido .ws-grupo-titulo { justify-content: center; padding-left:
   body.wms-shell .app-topbar-avatar { display: none; }
   body.wms-shell .btn-sair { padding: 7px 10px; }
 }
+
+/* Avatar do usuário: só o ícone amarelo da Doca Livre sobre fundo preto */
+body.wms-shell .app-topbar-avatar.ws-avatar { background: #000; border-color: #000; }
+body.wms-shell .app-topbar-avatar.ws-avatar img { width: 68%; height: auto; display: block; }
