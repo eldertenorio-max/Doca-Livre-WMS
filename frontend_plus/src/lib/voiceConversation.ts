@@ -49,7 +49,7 @@ function isGreeting(norm: string): boolean {
 
 function helpReply(): string {
   return [
-    'Sou a IA Doca Livre. Posso conversar e executar o WMS Plus por você:',
+    'Sou a IA Doca Livre. Posso conversar e executar o WMS por você:',
     '',
     '• abrir painel, consulta, entrada, saída, movimentação',
     '• pesquisar NF no estoque, consultar item, financeiro, mapa e relatório',

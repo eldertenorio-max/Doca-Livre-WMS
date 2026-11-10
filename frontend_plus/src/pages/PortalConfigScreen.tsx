@@ -30,16 +30,23 @@ type Props = {
   onSair: () => void
 }
 
+/** As três chaves (light/plus/pro) são os módulos do WMS único; os nomes seguem o menu. */
 const SISTEMA_LABEL: Record<SistemaId, string> = {
-  light: 'WMS Light',
-  plus: 'WMS Plus',
-  pro: 'WMS Pro',
+  light: 'Contagem & Inventário',
+  plus: 'Câmaras Frias',
+  pro: 'Operação e Armazém',
+}
+
+const SISTEMA_SIGLA: Record<SistemaId, string> = {
+  light: 'CI',
+  plus: 'CF',
+  pro: 'OP',
 }
 
 const SISTEMA_HINT: Record<SistemaId, string> = {
-  light: 'Estoque · inventário · endereçamento',
-  plus: 'Entrada · saída · consulta · financeiro',
-  pro: 'Carga · retorno · descarga · WMS',
+  light: 'Contagem diária · inventário · shelf life',
+  plus: 'Entrada e saída NF-e · consulta · financeiro',
+  pro: 'Carga · retorno · descarga · estoque · endereçamento',
 }
 
 function isHiddenConfigUser(u: PortalUsuarioRow): boolean {
@@ -233,10 +240,9 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
       <div className={`portal-config__shell${tab === 'hierarquia' ? ' portal-config__shell--wide' : ''}`}>
         <header className="portal-config__header">
           <div>
-            <h1 className="portal-config__title">Configuração do portal</h1>
+            <h1 className="portal-config__title">Hierarquia &amp; Permissões</h1>
             <p className="portal-config__sub">
-              Super Usuário <strong>{usuario}</strong> — hierarquia e permissões dos sistemas Light, Plus e
-              Pro
+              Super Usuário <strong>{usuario}</strong> — quem acessa cada módulo do WMS e o que pode fazer em cada tela
             </p>
           </div>
           <div className="portal-config__actions">
@@ -244,7 +250,7 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
               Sair
             </button>
             <button type="button" className="portal-config__btn portal-config__btn--primary" onClick={onContinuar}>
-              Ir aos sistemas
+              Voltar ao início
             </button>
           </div>
         </header>
@@ -279,12 +285,8 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
           </div>
         ) : tab === 'hierarquia' ? (
           <section className="portal-config__panel portal-config__panel--full">
-            <div className="portal-config__hier-tabs" role="tablist" aria-label="Sistema da hierarquia">
-              {([
-                ['light', 'WMS Light'],
-                ['plus', 'WMS Plus'],
-                ['pro', 'WMS Pro'],
-              ] as const).map(([id, label]) => (
+            <div className="portal-config__hier-tabs" role="tablist" aria-label="Módulo da hierarquia">
+              {(['pro', 'plus', 'light'] as const).map((id) => [id, SISTEMA_LABEL[id]] as const).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
@@ -299,9 +301,7 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
             </div>
             <PortalHierarchyTree
               sistema={hierSistema}
-              sistemaLabel={
-                hierSistema === 'light' ? 'WMS Light' : hierSistema === 'pro' ? 'WMS Pro' : 'WMS Plus'
-              }
+              sistemaLabel={SISTEMA_LABEL[hierSistema]}
               arvore={
                 data.arvores?.[hierSistema] ||
                 (hierSistema === 'plus' ? data.arvore || [] : [])
@@ -367,7 +367,7 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
                         </span>
                         <span
                           className={`portal-config__user-badge${nSis === 0 ? ' portal-config__user-badge--off' : ''}`}
-                          title={`${nSis} sistema(s) liberado(s)`}
+                          title={`${nSis} de 3 módulos liberados`}
                         >
                           {nSis}/3
                         </span>
@@ -402,7 +402,7 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
                     </div>
                   </div>
                   <p className="portal-config__perms-hint">
-                    Escolha os sistemas liberados e, em cada tela, se a pessoa pode só{' '}
+                    Escolha os módulos liberados e, em cada tela, se a pessoa pode só{' '}
                     <strong>visualizar</strong> ou também <strong>editar</strong>.
                   </p>
 
@@ -466,7 +466,7 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
                           <div className="portal-config__sistema-head">
                             <div className="portal-config__sistema-titles">
                               <span className={`portal-config__sis-pill portal-config__sis-pill--${sistema}`}>
-                                {sistema}
+                                {SISTEMA_SIGLA[sistema]}
                               </span>
                               <div>
                                 <strong>{SISTEMA_LABEL[sistema]}</strong>
@@ -555,7 +555,7 @@ export default function PortalConfigScreen({ usuario, onContinuar, onSair }: Pro
                             </>
                           ) : (
                             <p className="portal-config__blocked">
-                              Sistema oculto no hub. Ative o acesso acima para liberar as telas.
+                              Módulo sem acesso. Ative o acesso acima para liberar as telas.
                             </p>
                           )}
                         </article>

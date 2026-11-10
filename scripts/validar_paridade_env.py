@@ -31,8 +31,8 @@ HML_LOGIN = os.environ.get(
 )
 GIT_REMOTE = os.environ.get("WMS_GIT_REMOTE", "pro")
 
-# Paginas shell com banner de ambiente (portal substitui login na raiz)
-SHELL_PAGES = ("portal.html", "index.html", "entrada_modulos.html")
+# Paginas shell com banner de ambiente (WMS unico: moldura /app, login e telas do PRO)
+SHELL_PAGES = ("wms_shell.html", "login.html", "index.html", "entrada_modulos.html")
 
 ALLOWED_HOMOLOG_DIFFS = (
     "app-env-banner",

@@ -1,6 +1,6 @@
 /**
  * Agente Gemini com function calling — mesmo padrão do "Meu Financeiro IA":
- * conversa natural → ferramentas → confirmação falada + ação no WMS Plus.
+ * conversa natural → ferramentas → confirmação falada + ação no WMS (módulo Câmaras Frias).
  */
 import type { SidebarSectionId } from '../components/CollapsibleSidebarSection'
 import type { NotaFiscal } from '../types'
@@ -67,7 +67,7 @@ const TOOLS: ToolDecl[] = [
   {
     name: 'open_section',
     description:
-      'Abre uma tela/módulo do WMS Plus. Use para: painel, consulta estoque, entrada (recebimento XML), agendamentos do Hub, saída (expedição), movimentação/endereçamento, histórico, relatório, mapa, NF cancelada, comando de voz, financeiro.',
+      'Abre uma tela do módulo Câmaras Frias do WMS. Use para: painel, consulta estoque, entrada (recebimento XML), agendamentos do Hub, saída (expedição), movimentação/endereçamento, histórico, relatório, mapa, NF cancelada, comando de voz, financeiro.',
     parameters: {
       type: 'object',
       properties: {
@@ -181,7 +181,7 @@ const TOOLS: ToolDecl[] = [
 ]
 
 function buildSystemPrompt(snap: WmsVoiceSnapshot): string {
-  return `Você é a IA Doca Livre, assistente do WMS Plus. Conversa em português do Brasil, clara e útil — como um chat, não como um menu de voz.
+  return `Você é a IA Doca Livre, assistente do WMS DOCA LIVRE PRO (módulo Câmaras Frias). Conversa em português do Brasil, clara e útil — como um chat, não como um menu de voz.
 
 MISSÃO: responder perguntas e executar o sistema — abrir telas, consultar estoque, buscar NF, movimentar, saída, relatório, mapa, financeiro.
 

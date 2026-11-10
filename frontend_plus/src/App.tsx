@@ -7,13 +7,7 @@ import { VoiceAssistantHUD } from './components/VoiceAssistantHUD'
 import type { SidebarSectionId } from './components/CollapsibleSidebarSection'
 import { DetailModal } from './components/DetailModal'
 import { ManualNfModal, type ManualNfModalResult } from './components/ManualNfModal'
-import CompanySplash from './components/CompanySplash'
-import SystemSelectorScreen from './pages/SystemSelectorScreen'
-import SystemEntryScreen from './pages/SystemEntryScreen'
-import PortalLoginScreen from './pages/PortalLoginScreen'
 import PortalConfigScreen from './pages/PortalConfigScreen'
-import { PortalLoadingOverlay } from './components/PortalLoadingOverlay'
-import { getSystemById, type SystemId } from './lib/systemPortal'
 import {
   clearPortalConfigSeen,
   fetchPortalMe,
@@ -21,22 +15,7 @@ import {
   isLocalSuperUser,
   markPortalConfigSeen,
 } from './lib/portalConfigApi'
-import {
-  clearPortalSsoTokenFromUrl,
-  readPortalSsoTokenFromLocation,
-  verifyPortalSsoToken,
-} from './lib/portalSso'
-import {
-  clearPortalEntryMarker,
-  goToPublicPortal,
-  hasPortalEntryMarker,
-  markPortalEntry,
-} from './lib/portalGate'
-import {
-  clearHubSession,
-  issueSystemSsoUrl,
-  loadHubSession,
-} from './lib/portalApi'
+import { clearHubSession, loadHubSession } from './lib/portalApi'
 import {
   canEditSection,
   canOpenSection,
@@ -339,10 +318,7 @@ export default function App() {
   const [iaSending, setIaSending] = useState(false)
   const conversationStateRef = useRef(createConversationState())
   const openSectionRef = useRef<SidebarSectionId | null>(null)
-  const initialSsoToken = typeof window !== 'undefined' ? readPortalSsoTokenFromLocation() : null
   const initialHub = typeof window !== 'undefined' ? loadHubSession() : null
-  const enteredViaSso = Boolean(initialSsoToken)
-  const forceSystemsHub = false
   const [portalUsuario, setPortalUsuario] = useState(() => initialHub?.usuario || 'Operador')
   const [isSuperUser, setIsSuperUser] = useState(() => {
     const w =
@@ -352,22 +328,11 @@ export default function App() {
     return Boolean(w?.isSuperuser) || isLocalSuperUser(initialHub?.usuario || '')
   })
   const [showPortalConfig, setShowPortalConfig] = useState(() => initialIsConfigRoute)
-  const [allowedSystemIds, setAllowedSystemIds] = useState<SystemId[] | null>(null)
   const [plusModulos, setPlusModulos] = useState<PlusModulosMap>(() => {
     const cached = loadPlusModulosSession()
     return cached === undefined ? null : cached
   })
   const [viewOnlyToast, setViewOnlyToast] = useState<string | null>(null)
-  const [companyIntroDone, setCompanyIntroDone] = useState(true)
-  const [hubReady, setHubReady] = useState(true)
-  const [selectedSystemId, setSelectedSystemId] = useState<SystemId | null>(() =>
-    initialIsConfigRoute ? null : 'plus',
-  )
-  const [ssoBootstrapping, setSsoBootstrapping] = useState(() => enteredViaSso)
-  const [ssoError, setSsoError] = useState<string | null>(null)
-  const [hubErro, setHubErro] = useState<string | null>(null)
-  const [hubBusy, setHubBusy] = useState(false)
-  const [hubBusyLabel, setHubBusyLabel] = useState<string | null>(null)
   const [pendingSelection, setPendingSelection] = useState<Set<AddressId>>(new Set())
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [detailAddress, setDetailAddress] = useState<AddressId | null>(null)
@@ -3803,92 +3768,8 @@ export default function App() {
   const detailOcc = detailAddress ? occupancy.get(detailAddress) : null
   const detailNota = detailOcc ? state.notas.find((n) => n.id === detailOcc.nfId) : null
 
-  // Plus: mantém “Carregando” até o store do app ficar pronto (mín. ~0,5s).
-  useEffect(() => {
-    if (!hubBusy || selectedSystemId !== 'plus') return
-    const started = Date.now()
-    let cancelled = false
-    const finish = () => {
-      if (cancelled) return
-      const wait = Math.max(0, 500 - (Date.now() - started))
-      window.setTimeout(() => {
-        if (cancelled) return
-        setHubBusy(false)
-        setHubBusyLabel(null)
-      }, wait)
-    }
-    if (!loading) {
-      finish()
-      return
-    }
-    const id = window.setInterval(() => {
-      if (!loading) {
-        window.clearInterval(id)
-        finish()
-      }
-    }, 80)
-    return () => {
-      cancelled = true
-      window.clearInterval(id)
-    }
-  }, [hubBusy, selectedSystemId, loading])
-
-  function handleSystemSelect(id: SystemId) {
-    void (async () => {
-      setHubErro(null)
-      setHubBusyLabel('Carregando')
-      setHubBusy(true)
-      if (id === 'plus') {
-        markPortalEntry()
-        setHubReady(true)
-        setSelectedSystemId('plus')
-        return
-      }
-      if (id !== 'light' && id !== 'pro') {
-        setHubBusy(false)
-        setHubBusyLabel(null)
-        setHubErro('Sistema inválido.')
-        return
-      }
-      const hub = loadHubSession()
-      if (!hub?.hubToken) {
-        setHubBusy(false)
-        setHubBusyLabel(null)
-        setHubErro('Sessão do portal expirada. Clique em Sair e faça login de novo.')
-        return
-      }
-      const result = await issueSystemSsoUrl(id, hub.hubToken)
-      if (!result.ok) {
-        setHubBusy(false)
-        setHubBusyLabel(null)
-        setHubErro(result.erro || `Não foi possível abrir o WMS ${id === 'light' ? 'Light' : 'Pro'}.`)
-        return
-      }
-      // Garante que Light/Pro não caiam de volta no domínio do Plus.
-      const expectedHost =
-        id === 'light'
-          ? 'doca-livre-wms-light'
-          : 'doca-livre-wms-pro'
-      try {
-        const host = new URL(result.url).hostname.toLowerCase()
-        if (!host.includes(expectedHost) && !host.includes(id)) {
-          setHubBusy(false)
-          setHubBusyLabel(null)
-          setHubErro(
-            `URL SSO inesperada para ${id}: ${host}. Verifique SYSTEM_URL_${id.toUpperCase()} no Pro.`,
-          )
-          return
-        }
-      } catch {
-        /* segue com o redirect */
-      }
-      // Mantém "Carregando" até a navegação sair desta página.
-      window.location.assign(result.url)
-    })()
-  }
-
-  function handleBackToSystemSelector() {
-    clearPortalEntryMarker()
+  /** Volta ao início do WMS (tela de módulos). */
+  function voltarAoInicioDoWms() {
     const w =
       typeof window !== 'undefined'
         ? (window as unknown as { __WMS_UNIFIED__?: { hubHref?: string } }).__WMS_UNIFIED__
@@ -3907,17 +3788,12 @@ export default function App() {
     opts?: { isSuperuser?: boolean },
   ) {
     if (!permissoes) {
-      setAllowedSystemIds(null)
       if (opts?.isSuperuser) {
         setPlusModulos(null)
         savePlusModulosSession(null)
       }
       return
     }
-    const ids = (['light', 'plus', 'pro'] as const).filter(
-      (s) => permissoes[s]?.pode_acessar !== false,
-    )
-    setAllowedSystemIds([...ids])
     // Super user: acesso total (editar) em todas as telas do Plus.
     const map = opts?.isSuperuser
       ? null
@@ -3948,55 +3824,20 @@ export default function App() {
 
   function handlePortalSair() {
     clearHubSession()
-    clearPortalEntryMarker()
     clearPortalConfigSeen()
     clearPlusModulosSession()
-    setPortalUsuario('')
-    setHubReady(false)
-    setSelectedSystemId(null)
-    setShowPortalConfig(false)
-    setIsSuperUser(false)
-    setAllowedSystemIds(null)
-    setPlusModulos(null)
-    goToPublicPortal(true)
+    const w =
+      typeof window !== 'undefined'
+        ? (window as unknown as { __WMS_UNIFIED__?: { logoutHref?: string } }).__WMS_UNIFIED__
+        : undefined
+    window.location.assign(w?.logoutHref || '/login?sair=1')
   }
 
-  /** Na página dos sistemas: volta ao login do portal (mantém fluxo intro → login → hub). */
-  function handleVoltarDoHub() {
-    clearPortalEntryMarker()
-    setSelectedSystemId(null)
-    setHubReady(false)
-    setShowPortalConfig(false)
-    setHubErro(null)
-    setCompanyIntroDone(true)
-    try {
-      const url = new URL(window.location.href)
-      url.searchParams.delete('hub')
-      url.searchParams.delete('sistemas')
-      url.searchParams.delete('sso_erro')
-      window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}` || '/')
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // Sessão já aberta (reload): confirma Super Usuário na API e abre Configuração se ainda não viu.
+  // Carrega o mapa de módulos (Visualizar / Editar / Sem acesso) do usuário logado.
   useEffect(() => {
-    if (!hubReady || selectedSystemId || forceSystemsHub) return
-    if (hasPortalConfigSeen()) {
-      refreshPortalMe()
-      return
-    }
-    refreshPortalMe({ openConfigIfSuper: true, usuarioHint: portalUsuario })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- só no boot do hub
-  }, [])
-
-  // Dentro do Plus: recarrega mapa de módulos (Visualizar / Editar / Sem acesso).
-  useEffect(() => {
-    if (selectedSystemId !== 'plus') return
     refreshPortalMe()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSystemId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir
+  }, [])
 
   // Fecha aba aberta se permissão deixar de permitir.
   useEffect(() => {
@@ -4014,149 +3855,6 @@ export default function App() {
   const notifyViewOnly = useCallback(() => {
     setViewOnlyToast('Modo visualização — só é possível consultar. Alterações bloqueadas.')
   }, [])
-
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search)
-      let dirty = false
-      if (params.get('sair') === '1') {
-        clearHubSession()
-        clearPortalEntryMarker()
-        setPortalUsuario('')
-        setHubReady(false)
-        setSelectedSystemId(null)
-        params.delete('sair')
-        dirty = true
-      }
-      if (params.get('hub') === '1' || params.get('sistemas') === '1') {
-        clearPortalEntryMarker()
-        const hub = loadHubSession()
-        if (hub?.usuario) {
-          setPortalUsuario(hub.usuario)
-          setIsSuperUser(isLocalSuperUser(hub.usuario))
-        }
-        setSelectedSystemId(null)
-        // Voltar dos sistemas: vai direto ao hub (não reabre Configuração).
-        markPortalConfigSeen()
-        setShowPortalConfig(false)
-        setHubReady(Boolean(hub?.hubToken))
-        setCompanyIntroDone(true)
-        if (hub?.hubToken) refreshPortalMe()
-        params.delete('hub')
-        params.delete('sistemas')
-        dirty = true
-      }
-      if (params.has('sso_erro')) {
-        const raw = params.get('sso_erro') || ''
-        if (raw) setHubErro(decodeURIComponent(raw))
-        // Erro de SSO: garante hub dos 3 sistemas se houver sessão.
-        clearPortalEntryMarker()
-        const hub = loadHubSession()
-        if (hub?.usuario) {
-          setPortalUsuario(hub.usuario)
-          setSelectedSystemId(null)
-          setHubReady(true)
-          setCompanyIntroDone(true)
-        }
-        params.delete('sso_erro')
-        dirty = true
-      }
-      if (!dirty) return
-      const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`
-      window.history.replaceState({}, document.title, next || '/')
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
-  useEffect(() => {
-    const token = readPortalSsoTokenFromLocation()
-    if (!token) return
-    let alive = true
-    setSsoBootstrapping(true)
-    setSsoError(null)
-    void verifyPortalSsoToken(token).then((result) => {
-      if (!alive) return
-      clearPortalSsoTokenFromUrl()
-      if (!result.ok) {
-        clearPortalEntryMarker()
-        setSsoError(result.erro)
-        setSsoBootstrapping(false)
-        setSelectedSystemId(null)
-        return
-      }
-      const usuario = result.usuario.trim()
-      const id = `sso:${usuario.toLowerCase()}`
-      markPortalEntry()
-      setPortalUsuario(usuario)
-      setContaUsuarios(
-        registrarAcessoUsuario({
-          id,
-          nome: usuario,
-          tornarAtivo: true,
-        }),
-      )
-      setContaUsuarioAtivoId(id)
-      setSelectedSystemId('plus')
-      setSsoBootstrapping(false)
-    })
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  // Intro de marca → login do portal → hub dos 3 sistemas.
-  if (!companyIntroDone) {
-    return <CompanySplash onComplete={() => setCompanyIntroDone(true)} />
-  }
-
-  if (!hubReady && !selectedSystemId && !ssoBootstrapping) {
-    return (
-      <PortalLoginScreen
-        onSuccess={(result) => {
-          const usuario = result.usuario
-          clearPortalConfigSeen()
-          setPortalUsuario(usuario)
-          setHubReady(true)
-          setSelectedSystemId(null)
-          const superU = Boolean(result.isSuperuser) || isLocalSuperUser(usuario)
-          setIsSuperUser(superU)
-          applyPortalPermissoes(result.permissoes, { isSuperuser: superU })
-          // Super Usuário: Configuração (Hierarquia / Permissões) antes do hub.
-          setShowPortalConfig(superU)
-          refreshPortalMe({ openConfigIfSuper: true, usuarioHint: usuario })
-        }}
-      />
-    )
-  }
-
-  if (ssoBootstrapping) {
-    return (
-      <div style={{ padding: 48, textAlign: 'center' }}>
-        Entrando pelo portal Doca Livre…
-      </div>
-    )
-  }
-
-  if (ssoError) {
-    return (
-      <div style={{ padding: 32, maxWidth: 480, margin: '48px auto' }}>
-        <h2 style={{ marginTop: 0 }}>SSO não concluído</h2>
-        <p>{ssoError}</p>
-        <button
-          type="button"
-          onClick={() => {
-            setSsoError(null)
-            setHubReady(false)
-            setSelectedSystemId(null)
-            clearPortalEntryMarker()
-          }}
-        >
-          Ir ao login
-        </button>
-      </div>
-    )
-  }
 
   if (showPortalConfig) {
     return (
@@ -4181,34 +3879,6 @@ export default function App() {
     )
   }
 
-  if (hubReady && !selectedSystemId) {
-    return (
-      <PortalConfigScreen
-        usuario={portalUsuario}
-        onSair={handlePortalSair}
-        onContinuar={() => {
-          window.location.assign('/entrada')
-        }}
-      />
-    )
-  }
-
-  const selectedSystem = getSystemById(selectedSystemId!)
-  if (selectedSystem?.url) {
-    return (
-      <SystemEntryScreen
-        system={selectedSystem}
-        onBack={handleBackToSystemSelector}
-        onEnter={() => window.location.assign(selectedSystem.url!)}
-      />
-    )
-  }
-
-  // Entrada no Plus: tela cheia “Carregando” até o painel ficar pronto.
-  if (selectedSystemId === 'plus' && hubBusy) {
-    return <PortalLoadingOverlay label={hubBusyLabel || 'Carregando'} />
-  }
-
   return (
     <div
       className={`app-shell${sidebarMode === 'fullscreen' ? ' app-shell--menu-fullscreen' : ''}`}
@@ -4229,7 +3899,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         persistError={error}
-        onBackToSystems={handleBackToSystemSelector}
+        onBackToSystems={voltarAoInicioDoWms}
         mapLegend={{
           allocateMode: panelAllocateMode,
           editMode: editMode || (nfEditar != null && !editMarcandoStage),

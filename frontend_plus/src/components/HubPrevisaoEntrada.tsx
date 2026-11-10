@@ -65,7 +65,7 @@ export function HubPrevisaoEntrada({ notas, onDarEntradaXml, onDarEntradaManual,
         </button>
       </div>
       <p className="muted hub-prev-hint">
-        Agendamentos do Hub destinados ao <strong>WMS Plus</strong>. Quando estiver agendado, suba o XML ou
+        Agendamentos do Hub destinados ao <strong>WMS</strong>. Quando estiver agendado, suba o XML ou
         cadastre a NF para endereçar os produtos.
       </p>
       <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" hidden onChange={handleFileChange} />

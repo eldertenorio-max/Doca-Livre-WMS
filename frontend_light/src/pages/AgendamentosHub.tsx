@@ -51,7 +51,7 @@ export default function AgendamentosHub() {
         info={
           <>
             <PageInfoBlock>
-              Lista os agendamentos do Hub de Integração destinados ao <strong>WMS Light</strong>.
+              Lista os agendamentos do Hub de Integração destinados ao <strong>WMS</strong>.
             </PageInfoBlock>
             <PageInfoBlock title="Destino">
               No Hub, use a aba <strong>Integração WMS</strong> para escolher Light, Plus ou Pro. Sem destino, o

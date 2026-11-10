@@ -6,7 +6,7 @@ import { BRAND_PRODUCT_NAME, BRAND_PRODUCT_VARIANT } from '../../lib/brandAssets
 import { LogoDocaLivre } from '../LogoDocaLivre'
 
 const EMPRESA_PADRAO = 'Doca Livre'
-const CLIENTES_PADRAO = ['Todos clientes de armazenagem', 'Doca Livre WMS Light']
+const CLIENTES_PADRAO = ['Todos clientes de armazenagem', 'WMS DOCA LIVRE PRO']
 
 type Theme = 'dark' | 'light'
 

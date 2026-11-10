@@ -3924,6 +3924,7 @@ def _serve_unified_spa(dist_subfolder: str):
         'apiBase': '/',
         'hubHref': url_for('entrada_modulos'),
         'logoutHref': '/login?sair=1',
+        'ambiente': 'homolog' if _app_env() == 'homologacao' else 'producao',
     }).replace('</', '<\\/')  # impede fechar o <script> com dados do usuário
     sb_origem = "window.__WMS_UNIFIED__.supabaseUrl = window.location.origin + '/sb';" if backend_proprio else ''
     bootstrap_script = (

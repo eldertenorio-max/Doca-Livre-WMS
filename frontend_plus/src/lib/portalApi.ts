@@ -284,27 +284,3 @@ export async function portalSenhaRedefinir(input: {
     confirmar_senha: input.confirmarSenha,
   })
 }
-
-export async function issueSystemSsoUrl(
-  system: 'light' | 'plus' | 'pro',
-  hubToken: string,
-): Promise<{ ok: true; url: string } | { ok: false; erro: string }> {
-  try {
-    const res = await fetch(`${getProApiBase()}api/sso/issue`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${hubToken}`,
-      },
-      body: JSON.stringify({ system, hub_token: hubToken }),
-    })
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; erro?: string }
-    if (!res.ok || !data.ok || !data.url) {
-      return { ok: false, erro: data.erro || 'Não foi possível abrir o sistema.' }
-    }
-    return { ok: true, url: data.url }
-  } catch {
-    return { ok: false, erro: 'Falha de conexão ao emitir SSO.' }
-  }
-}

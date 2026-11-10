@@ -1,8 +1,5 @@
 export type AppAmbienteDeploy = 'homolog' | 'producao'
 
-const HOSTS_HOMOLOG = ['ultrafrio.onrender.com', 'ultrafrio-homologacao.onrender.com']
-const HOSTS_PRODUCAO = ['wms.docalivre.com.br']
-
 function normalizarAmbiente(value: string | undefined): AppAmbienteDeploy | null {
   const v = value?.trim().toLowerCase()
   if (!v) return null
@@ -11,21 +8,14 @@ function normalizarAmbiente(value: string | undefined): AppAmbienteDeploy | null
   return null
 }
 
-/** Homologação ou produção — null em dev local sem variável definida. */
+/** Homologação ou produção: quem informa é o WMS PRO ao abrir a tela (window.__WMS_UNIFIED__.ambiente). */
 export function getAmbienteDeploy(): AppAmbienteDeploy | null {
   const fromEnv = normalizarAmbiente(import.meta.env.VITE_APP_AMBIENTE)
   if (fromEnv) return fromEnv
-
   if (typeof window !== 'undefined') {
-    const host = window.location.hostname
-    if (HOSTS_HOMOLOG.some((h) => host === h || host.endsWith(`.${h}`))) {
-      return 'homolog'
-    }
-    if (HOSTS_PRODUCAO.some((h) => host === h || host.endsWith(`.${h}`))) {
-      return 'producao'
-    }
+    const w = window as unknown as { __WMS_UNIFIED__?: { ambiente?: string } }
+    return normalizarAmbiente(w.__WMS_UNIFIED__?.ambiente)
   }
-
   return null
 }
 
@@ -42,5 +32,5 @@ export function labelAmbiente(): string | null {
 }
 
 export function tituloApp(): string {
-  return isHomologacao() ? 'Doca Livre Sistemas — Homologação' : 'Doca Livre Sistemas'
+  return isHomologacao() ? 'WMS DOCA LIVRE PRO — Homologação' : 'WMS DOCA LIVRE PRO'
 }
