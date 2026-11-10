@@ -15115,9 +15115,79 @@ def _terceiros_nf_texto_email(doc):
     ])) or '-'
 
 
+_ACS_TOKEN = {'valor': '', 'expira': 0.0}
+_ACS_TOKEN_LOCK = threading.Lock()
+
+
+def _acs_configurado():
+    return bool((os.environ.get('ACS_ENDPOINT') or '').strip() and (os.environ.get('EMAIL_FROM') or '').strip())
+
+
+def _acs_token_identidade():
+    """Token da identidade gerenciada do container (Azure Container Apps) para o ACS, com cache."""
+    with _ACS_TOKEN_LOCK:
+        if _ACS_TOKEN['valor'] and _ACS_TOKEN['expira'] - 300 > time.time():
+            return _ACS_TOKEN['valor']
+        endereco = (os.environ.get('IDENTITY_ENDPOINT') or '').strip()
+        cabecalho = (os.environ.get('IDENTITY_HEADER') or '').strip()
+        if not endereco or not cabecalho:
+            raise RuntimeError('sem identidade gerenciada (IDENTITY_ENDPOINT/IDENTITY_HEADER)')
+        import requests
+        r = requests.get(
+            endereco,
+            params={'api-version': '2019-08-01', 'resource': 'https://communication.azure.com'},
+            headers={'X-IDENTITY-HEADER': cabecalho},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            raise RuntimeError('identidade gerenciada respondeu %s: %s' % (r.status_code, (r.text or '')[:200]))
+        dados = r.json()
+        _ACS_TOKEN['valor'] = dados.get('access_token') or ''
+        _ACS_TOKEN['expira'] = float(dados.get('expires_on') or 0)
+        return _ACS_TOKEN['valor']
+
+
+def _enviar_email_acs(destinatarios, assunto, corpo_texto, corpo_html=None):
+    """Azure Communication Services (acs-docalivre-prod). Retorna (ok, motivo) ou None se não configurado.
+
+    O container se autentica pela própria identidade gerenciada, sem chave guardada. O nome que
+    aparece no "De:" vem do remetente cadastrado no domínio mail.docalivre.com.br.
+    """
+    if not _acs_configurado():
+        return None
+    endpoint = (os.environ.get('ACS_ENDPOINT') or '').strip().rstrip('/')
+    remetente = (os.environ.get('EMAIL_FROM') or '').strip()
+    conteudo = {'subject': assunto, 'plainText': corpo_texto or ''}
+    if corpo_html:
+        conteudo['html'] = corpo_html
+    payload = {
+        'senderAddress': remetente,
+        'recipients': {'to': [{'address': d} for d in destinatarios]},
+        'content': conteudo,
+    }
+    try:
+        import requests
+        r = requests.post(
+            '%s/emails:send' % endpoint,
+            params={'api-version': '2023-03-31'},
+            headers={'Authorization': 'Bearer %s' % _acs_token_identidade(), 'Content-Type': 'application/json'},
+            json=payload,
+            timeout=25,
+        )
+        if r.status_code in (200, 202):
+            print('[email] Azure aceitou: %d destinatario(s)' % len(destinatarios))
+            return True, ''
+        motivo = 'azure_http_%s: %s' % (r.status_code, (r.text or '')[:240])
+    except Exception as e:
+        motivo = 'azure_erro: %s' % e
+    print('[email] Azure recusou (remetente %s): %s' % (remetente, motivo))
+    return False, motivo
+
+
 def _terceiros_smtp_configurado():
     return bool(
-        (os.environ.get('RESEND_API_KEY') or '').strip()
+        _acs_configurado()
+        or (os.environ.get('RESEND_API_KEY') or '').strip()
         or (os.environ.get('SMTP_HOST') or '').strip()
     )
 
@@ -15214,11 +15284,15 @@ def _enviar_email_smtp(destinatarios, assunto, corpo_texto, corpo_html=None):
 
 
 def _terceiros_enviar_email(destinatarios, assunto, corpo_texto, corpo_html=None):
-    """Retorna (ok: bool, motivo: str). Preferência: Resend (HTTPS) → SMTP Gmail."""
+    """Retorna (ok: bool, motivo: str). Preferência: Azure (ACS) → Resend (HTTPS) → SMTP Gmail."""
     destinatarios = [d.strip() for d in (destinatarios or []) if d and '@' in str(d)]
     if not destinatarios:
         print('[email] Nenhum destinatário válido.')
         return False, 'sem_destinatarios'
+
+    azure = _enviar_email_acs(destinatarios, assunto, corpo_texto, corpo_html)
+    if azure is not None:
+        return azure
 
     resend = _enviar_email_resend(destinatarios, assunto, corpo_texto, corpo_html)
     if resend is not None:
