@@ -8,7 +8,7 @@ from flask import Flask, render_template
 from .core import garantir_permissoes_padrao, registrar_nucleo
 from .models import LogAcao, Usuario, db
 
-ASSETS_VERSION = '44'
+ASSETS_VERSION = '45'
 VERSAO = 'v1.0'
 
 

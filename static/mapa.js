@@ -539,12 +539,36 @@
             }
             var topo = r.niveis[r.niveis.length - 1] * A;
             // montantes (em cada divisa de coluna) e longarinas (em cada nível), como numa estante porta-paletes
-            for (var c = r.colunas[0]; c <= r.colunas[r.colunas.length - 1] + 1; c++) {
-                var x = (c - minCol) * L;
-                [-P / 2, P / 2].forEach(function (dz) { bloco(0.07, topo + 0.1, 0.07, cor.montante, x, (topo + 0.1) / 2, z + dz); });
+            // Onde há porta não passa estante: nem longarina na frente, nem montante no meio do vão.
+            var naPorta = function (coluna, nivel) {
+                return r.portas.some(function (p) { return coluna >= p.c0 && coluna <= p.c1 && nivel >= p.n0 && nivel <= p.n1; });
+            };
+            var ultimoNivel = r.niveis[r.niveis.length - 1], primeiraCol = r.colunas[0], ultimaCol = r.colunas[r.colunas.length - 1];
+            // trechos seguidos em que "livre(i)" vale, de inicio a fim: devolve [[de, ate], ...]
+            var trechos = function (inicio, fim, livre) {
+                var lista = [], de = null;
+                for (var i = inicio; i <= fim + 1; i++) {
+                    if (i <= fim && livre(i)) { if (de === null) de = i; } else if (de !== null) { lista.push([de, i - 1]); de = null; }
+                }
+                return lista;
+            };
+            for (var c = primeiraCol; c <= ultimaCol + 1; c++) {
+                (function (c) {
+                    var x = (c - minCol) * L;
+                    // o montante da divisa some só nos níveis em que a porta ocupa os dois lados dele
+                    trechos(1, ultimoNivel, function (n) { return !(naPorta(c - 1, n) && naPorta(c, n)); }).forEach(function (t) {
+                        var base = (t[0] - 1) * A, alto = t[1] * A + (t[1] === ultimoNivel ? 0.1 : 0);
+                        [-P / 2, P / 2].forEach(function (dz) { bloco(0.07, alto - base, 0.07, cor.montante, x, (base + alto) / 2, z + dz); });
+                    });
+                })(c);
             }
-            for (var n = 1; n <= r.niveis[r.niveis.length - 1]; n++) {
-                [-P / 2, P / 2].forEach(function (dz) { bloco(x1 - x0, 0.09, 0.06, cor.longarina, (x0 + x1) / 2, (n - 1) * A + 0.045, z + dz); });
+            for (var n = 1; n <= ultimoNivel; n++) {
+                (function (n) {
+                    trechos(primeiraCol, ultimaCol, function (col) { return !naPorta(col, n); }).forEach(function (t) {
+                        var xa = (t[0] - minCol) * L, xb = (t[1] - minCol + 1) * L;
+                        [-P / 2, P / 2].forEach(function (dz) { bloco(xb - xa, 0.09, 0.06, cor.longarina, (xa + xb) / 2, (n - 1) * A + 0.045, z + dz); });
+                    });
+                })(n);
             }
             var nomeRua = rotulo(r.rua, 1.5);
             nomeRua.position.set(x0 - 1.6, 1.0, z);
