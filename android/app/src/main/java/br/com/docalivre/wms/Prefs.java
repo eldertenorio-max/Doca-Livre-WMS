@@ -7,7 +7,7 @@ import android.content.SharedPreferences;
 final class Prefs {
     private Prefs() {}
 
-    static final String SITE = "https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io";
+    static final String SITE = "https://wms.docalivre.com.br";
     private static final String NAME = "doca_livre_wms";
 
     private static SharedPreferences sp(Context context) {

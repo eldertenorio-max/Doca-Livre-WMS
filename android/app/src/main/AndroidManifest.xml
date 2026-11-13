@@ -70,7 +70,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:host="doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io"
+                    android:host="wms.docalivre.com.br"
                     android:scheme="https" />
             </intent-filter>
         </activity>

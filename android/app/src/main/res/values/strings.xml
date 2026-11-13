@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Doca Livre WMS</string>
-    <string name="launch_url" translatable="false">https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io/</string>
+    <string name="launch_url" translatable="false">https://wms.docalivre.com.br/</string>
     <string name="status_title">App do WMS</string>
     <string name="shortcut_coletor">Coletor</string>
     <string name="shortcut_guardar">Guardar palete</string>
@@ -15,5 +15,5 @@
     <string name="widget_separar">Para separar</string>
     <string name="widget_alertas">Alertas</string>
     <string name="widget_waiting">Abra o WMS → Aplicativo → Ativar neste celular</string>
-    <string name="asset_statements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io\"}}]</string>
+    <string name="asset_statements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://wms.docalivre.com.br\"}}]</string>
 </resources>

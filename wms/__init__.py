@@ -97,9 +97,11 @@ def _garantir_super(app):
     app.logger.warning('Usuario %s promovido a Super Usuario.', primeiro.username)
 
 
-# Endereco oficial do WMS (Azure Container Apps, ao lado do banco). O servico antigo do Render continua existindo so
-# para quem tem o endereco antigo salvo: la, todo acesso e redirecionado para ca.
-URL_OFICIAL_AZURE = 'https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io'
+# Endereco oficial do WMS: o dominio proprio, que aponta para a Azure (Container Apps, ao lado do banco).
+# O servico antigo do Render continua existindo so para quem tem o endereco antigo salvo: la, todo acesso e
+# redirecionado para ca. O endereco comprido da Azure continua respondendo (o aplicativo 1.0.1 abre por ele).
+URL_OFICIAL = 'https://wms.docalivre.com.br'
+HOSTS_DE_PRODUCAO = ('wms.docalivre.com.br', 'doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io')
 
 
 def destino_do_redirecionamento():
@@ -108,7 +110,7 @@ def destino_do_redirecionamento():
     if destino:
         return destino
     if (os.environ.get('RENDER') or '').strip().lower() == 'true' and not os.environ.get('WMS_RODAR_NO_RENDER'):
-        return URL_OFICIAL_AZURE
+        return URL_OFICIAL
     return ''
 
 

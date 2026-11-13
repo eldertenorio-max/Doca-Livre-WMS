@@ -19,7 +19,7 @@ troca a senha no primeiro acesso. O banco fica em `instance/wms.db`.
 
 ## Produção
 
-- **Azure Container Apps** (endereço oficial): a imagem é construída a partir do `Dockerfile`.
+- **Endereço oficial:** https://wms.docalivre.com.br, domínio próprio que aponta para o Azure Container Apps. A imagem é construída a partir do `Dockerfile`.
 - **Render**: o serviço antigo só redireciona para o endereço oficial na Azure (ver `destino_do_redirecionamento` em
   `wms/__init__.py`).
 

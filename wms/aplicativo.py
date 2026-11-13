@@ -32,11 +32,17 @@ def apk_disponivel():
     return os.path.exists(os.path.join(current_app.static_folder, APK.replace('/', os.sep)))
 
 
+def _externo(caminho):
+    """Endereco completo de um caminho do sistema. Em producao sempre o dominio oficial, que e o que o app aceita
+    (mesmo que a pessoa esteja acessando pelo endereco comprido da Azure)."""
+    from . import HOSTS_DE_PRODUCAO, URL_OFICIAL
+    if request.host.split(':')[0].lower() in HOSTS_DE_PRODUCAO:
+        return URL_OFICIAL + caminho
+    return request.host_url.rstrip('/') + caminho
+
+
 def url_do_apk():
-    endereco = url_for('static', filename=APK, _external=True)
-    if request.headers.get('X-Forwarded-Proto', request.scheme) == 'https':
-        endereco = endereco.replace('http://', 'https://', 1)
-    return endereco
+    return _externo(url_for('static', filename=APK))
 
 
 def versao_do_apk():
@@ -94,9 +100,7 @@ def resumo():
 
 def link_de_ativacao(user):
     """Link que abre o app ja instalado e entrega o link pessoal; sem o app, cai no download do APK."""
-    endereco = url_for('aplicativo.resumo', token=user.app_token, _external=True)
-    if request.headers.get('X-Forwarded-Proto', request.scheme) == 'https':
-        endereco = endereco.replace('http://', 'https://', 1)
+    endereco = _externo(url_for('aplicativo.resumo', token=user.app_token))
     return (f'intent://setup?u={quote(endereco, safe="")}#Intent;scheme=docalivrewms;package={PACOTE};'
             f'S.browser_fallback_url={quote(url_do_apk(), safe="")};end')
 
