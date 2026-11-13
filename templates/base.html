@@ -32,7 +32,7 @@
             <i class="fas fa-bars"></i>
         </button>
         {% endif %}
-        <a class="marca {% if not usuario %}ms-3{% endif %}" href="{{ url_for('principal.dashboard') if usuario else url_for('principal.login') }}">
+        <a class="marca {% if not usuario %}ms-3{% endif %}" href="{{ url_for('principal.dashboard') if usuario else url_for('principal.login') }}" title="Início" aria-label="Doca Livre WMS — ir para o início">
             {{ logo() }}
             <span class="marca-wms">WMS</span>
         </a>
@@ -70,11 +70,6 @@
     {% if usuario %}
     <aside class="sidebar" id="sidebar" aria-label="Menu principal">
         <ul class="sidebar-nav">
-            <li class="nav-item">
-                <a class="{% if request.endpoint == 'principal.dashboard' and not request.args.get('aba') %}active{% endif %}" href="{{ url_for('principal.dashboard') }}" title="Início">
-                    <i class="fas fa-house icone"></i><span class="link-text">Início</span>
-                </a>
-            </li>
             {% if usuario.perfil != 'cliente' %}
             <li class="nav-item">
                 <a class="{% if request.endpoint == 'principal.dashboard' and request.args.get('aba') %}active{% endif %}" href="{{ url_for('principal.dashboard', aba='geral') }}" title="Painel">
