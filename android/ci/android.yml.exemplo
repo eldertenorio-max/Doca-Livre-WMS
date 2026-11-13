@@ -1,0 +1,101 @@
+# EXEMPLO (nao esta ativo): build do APK pelo GitHub Actions, no modelo do Meu Financeiro.
+# O APK do WMS e gerado no computador por android/gerar-apk.ps1. Para usar este caminho, copie o arquivo para
+# .github/workflows/android.yml e cadastre os segredos ANDROID_KEYSTORE_BASE64 e ANDROID_KEYSTORE_PASSWORD.
+
+name: App Android
+
+# Gera o instalador do app Android (pasta android/) e publica em
+# Releases -> "android-latest" -> doca-livre-wms.apk, que e o link do botao
+# "Baixar o app" na tela Coletor > Aplicativo Android.
+#
+# Precisa de 2 segredos do repositorio (a chave fica fora do codigo):
+#   ANDROID_KEYSTORE_BASE64   - a chave android-release.p12 em base64
+#   ANDROID_KEYSTORE_PASSWORD - a senha dela
+# A impressao digital dessa chave esta em wms/aplicativo.py (SHA256_DA_CHAVE),
+# servida em /.well-known/assetlinks.json.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Conferir a chave de assinatura
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "Sem a chave: o APK e so compilado (para conferir o codigo), nao publicado."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "file=$RUNNER_TEMP/release.p12" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Gerar o APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Conferir a assinatura (deve bater com o assetlinks.json)
+        if: steps.key.outputs.present == 'true'
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          IMPRESSAO=$("$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | grep -i "SHA-256" | head -1 | sed 's/.*: //' | tr 'a-f' 'A-F')
+          ESPERADA=$(grep -o "SHA256_DA_CHAVE = '[^']*'" wms/aplicativo.py | sed "s/.*'\(.*\)'/\1/" | tr -d ':')
+          rm -f "$RUNNER_TEMP/release.p12"
+          echo "APK assinado com:      $IMPRESSAO"
+          echo "Esperada pelo sistema: $ESPERADA"
+          if [ "$IMPRESSAO" != "$ESPERADA" ]; then
+            echo "::error::A chave que assinou o APK nao e a que o sistema declara em /.well-known/assetlinks.json."
+            exit 1
+          fi
+
+      - name: Avisar que falta a chave
+        if: steps.key.outputs.present != 'true'
+        run: |
+          echo "::warning::O codigo compilou, mas o APK nao foi publicado: faltam os segredos ANDROID_KEYSTORE_BASE64 e ANDROID_KEYSTORE_PASSWORD."
+
+      - name: Publicar em Releases
+        if: steps.key.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk doca-livre-wms.apk
+          if ! gh release view android-latest >/dev/null 2>&1; then
+            gh release create android-latest --title "App Android (Doca Livre WMS)" --latest=false \
+              --notes "Instalador do app Android. Baixe pelo botao em Coletor > Aplicativo Android, dentro do WMS."
+          fi
+          gh release upload android-latest doca-livre-wms.apk --clobber
+          echo "Versao 1.0.${{ github.run_number }} publicada."

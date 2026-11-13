@@ -14,7 +14,7 @@ import os
 import secrets
 from urllib.parse import quote
 
-from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, g, jsonify, redirect, render_template, request, url_for
 
 from .core import ROTAS_PUBLICAS, exigir, perm, pode_ver, registrar_log, usuario_atual
 from .models import NotaFiscal, Palete, Separacao, Usuario, agora, db
@@ -24,7 +24,28 @@ bp = Blueprint('aplicativo', __name__)
 PACOTE = 'br.com.docalivre.wms'
 # Impressao digital (SHA-256) da chave que assina o APK. E publica por natureza; a chave em si fica fora do codigo.
 SHA256_DA_CHAVE = '95:CF:DE:CC:0D:34:5F:7E:71:EA:E7:F9:1E:9D:6E:FD:FB:1C:15:B9:F1:64:69:AE:22:9F:34:CC:7D:6E:37:11'
-APK_URL = os.environ.get('APP_APK_URL') or 'https://github.com/eldertenorio-max/Doca-Livre-WMS/releases/download/android-latest/doca-livre-wms.apk'
+# O instalador e gerado por android/gerar-apk.ps1 e publicado junto com o sistema, em static/app.
+APK = 'app/doca-livre-wms.apk'
+
+
+def apk_disponivel():
+    return os.path.exists(os.path.join(current_app.static_folder, APK.replace('/', os.sep)))
+
+
+def url_do_apk():
+    endereco = url_for('static', filename=APK, _external=True)
+    if request.headers.get('X-Forwarded-Proto', request.scheme) == 'https':
+        endereco = endereco.replace('http://', 'https://', 1)
+    return endereco
+
+
+def versao_do_apk():
+    """Numero da ultima versao gerada (android/versao.txt), para a tela dizer se o app do celular esta em dia."""
+    try:
+        with open(os.path.join(current_app.root_path, '..', 'android', 'versao.txt'), encoding='ascii') as arquivo:
+            return '1.0.' + arquivo.read().strip()
+    except (OSError, ValueError):
+        return None
 
 ROTAS_PUBLICAS.update({'aplicativo.assetlinks', 'aplicativo.resumo'})
 
@@ -77,14 +98,15 @@ def link_de_ativacao(user):
     if request.headers.get('X-Forwarded-Proto', request.scheme) == 'https':
         endereco = endereco.replace('http://', 'https://', 1)
     return (f'intent://setup?u={quote(endereco, safe="")}#Intent;scheme=docalivrewms;package={PACOTE};'
-            f'S.browser_fallback_url={quote(APK_URL, safe="")};end')
+            f'S.browser_fallback_url={quote(url_do_apk(), safe="")};end')
 
 
 @bp.route('/aplicativo')
 @perm('coletor')
 def pagina():
     user = usuario_atual()
-    return render_template('aplicativo.html', apk_url=APK_URL, ativacao=link_de_ativacao(user) if user.app_token else None,
+    return render_template('aplicativo.html', apk_url=url_do_apk() if apk_disponivel() else None, versao_atual=versao_do_apk(),
+                           ativacao=link_de_ativacao(user) if user.app_token else None,
                            no_celular='Android' in (request.headers.get('User-Agent') or ''))
 
 

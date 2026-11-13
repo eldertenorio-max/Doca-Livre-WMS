@@ -4,8 +4,12 @@
 {% block content %}
 <div class="panel-page-header">
     <h2><i class="fas fa-mobile-screen-button me-2"></i>Aplicativo Android</h2>
-    <a class="btn btn-primary" href="{{ apk_url }}"><i class="fas fa-download"></i>Baixar o app (APK)</a>
+    {% if apk_url %}<a class="btn btn-primary" href="{{ apk_url }}" download><i class="fas fa-download"></i>Baixar o app (APK){% if versao_atual %} · {{ versao_atual }}{% endif %}</a>{% endif %}
 </div>
+
+{% if not apk_url %}
+<div class="alert alert-warning">O instalador do aplicativo ainda não foi gerado. Quando ele for publicado, o botão <strong>Baixar o app (APK)</strong> aparece aqui.</div>
+{% endif %}
 
 <div class="row g-3">
     <div class="col-12 col-xl-6">
@@ -48,7 +52,7 @@
             </div>
             {% if not no_celular %}<div class="alert alert-info py-2">O botão <strong>Ativar neste celular</strong> só funciona no celular, com o app instalado. Abra esta tela pelo aplicativo.</div>{% endif %}
             <p class="mb-0">
-                {% if usuario.app_visto_em %}<span class="badge bg-success">Ativado</span> App Android {{ usuario.app_versao or '' }} · último sinal em {{ usuario.app_visto_em|datahora }}.
+                {% if usuario.app_visto_em %}<span class="badge bg-success">Ativado</span> App Android {{ usuario.app_versao or '' }} · último sinal em {{ usuario.app_visto_em|datahora }}.{% if versao_atual and usuario.app_versao and usuario.app_versao != versao_atual %} <span class="text-warning-emphasis">Há uma versão mais nova ({{ versao_atual }}): baixe de novo e instale por cima.</span>{% endif %}
                 {% else %}<span class="badge bg-secondary">Aguardando</span> Nenhum celular buscou o resumo ainda com este código.{% endif %}
             </p>
             {% else %}

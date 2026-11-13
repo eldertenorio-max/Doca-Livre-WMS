@@ -6,3 +6,8 @@ instance
 .env
 *.db
 iniciar.bat
+android/app
+android/ci
+android/*.gradle
+android/gradle.properties
+android/gerar-apk.ps1
