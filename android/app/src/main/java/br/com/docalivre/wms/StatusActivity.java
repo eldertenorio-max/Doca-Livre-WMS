@@ -133,8 +133,8 @@ public class StatusActivity extends Activity {
         }
 
         espaco(8);
-        botao("Abrir o WMS", v -> abrir(Prefs.SITE + "/"));
-        botao("Abrir o Coletor", v -> abrir(Prefs.SITE + "/coletor/"));
+        botao("Abrir o WMS", v -> abrir(Prefs.SITE + "/?apk=1"));
+        botao("Abrir o Coletor", v -> abrir(Prefs.SITE + "/coletor/?apk=1"));
         if (ativado) {
             botao("Atualizar agora", v -> {
                 ResumoWorker.refreshNow(this);

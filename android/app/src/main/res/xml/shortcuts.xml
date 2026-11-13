@@ -8,7 +8,7 @@
         android:shortcutShortLabel="@string/shortcut_coletor">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="https://wms.docalivre.com.br/coletor/"
+            android:data="https://wms.docalivre.com.br/coletor/?apk=1"
             android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
             android:targetPackage="br.com.docalivre.wms" />
     </shortcut>
@@ -19,7 +19,7 @@
         android:shortcutShortLabel="@string/shortcut_guardar">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="https://wms.docalivre.com.br/coletor/guarda"
+            android:data="https://wms.docalivre.com.br/coletor/guarda?apk=1"
             android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
             android:targetPackage="br.com.docalivre.wms" />
     </shortcut>
@@ -30,7 +30,7 @@
         android:shortcutShortLabel="@string/shortcut_separar">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="https://wms.docalivre.com.br/coletor/separacao"
+            android:data="https://wms.docalivre.com.br/coletor/separacao?apk=1"
             android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
             android:targetPackage="br.com.docalivre.wms" />
     </shortcut>
@@ -41,7 +41,7 @@
         android:shortcutShortLabel="@string/shortcut_estoque">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="https://wms.docalivre.com.br/estoque/atual"
+            android:data="https://wms.docalivre.com.br/estoque/atual?apk=1"
             android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
             android:targetPackage="br.com.docalivre.wms" />
     </shortcut>

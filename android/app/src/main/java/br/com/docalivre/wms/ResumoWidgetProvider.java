@@ -57,7 +57,7 @@ public class ResumoWidgetProvider extends AppWidgetProvider {
         long at = Prefs.resumoAt(context);
         String erro = Prefs.erro(context);
 
-        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(Prefs.SITE + "/coletor/"));
+        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(Prefs.SITE + "/coletor/?apk=1"));
         open.setClass(context, LauncherActivity.class);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent tap = PendingIntent.getActivity(

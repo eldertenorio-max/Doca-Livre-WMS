@@ -8,7 +8,7 @@ from flask import Flask, render_template
 from .core import garantir_permissoes_padrao, registrar_nucleo
 from .models import LogAcao, Usuario, db
 
-ASSETS_VERSION = '47'
+ASSETS_VERSION = '48'
 VERSAO = 'v1.0'
 
 
@@ -105,7 +105,7 @@ URL_OFICIAL = 'https://wms.docalivre.com.br'
 HOST_ANTIGO_DA_AZURE = 'doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io'
 HOSTS_DE_PRODUCAO = ('wms.docalivre.com.br', HOST_ANTIGO_DA_AZURE)
 # caminhos que continuam valendo no endereco antigo: saude, chamadas do app ja instalado e o instalador
-CAMINHOS_SEM_ENCAMINHAR = ('/api/', '/.well-known/', '/static/app/')
+CAMINHOS_SEM_ENCAMINHAR = ('/api/', '/.well-known/', '/static/app/', '/sw.js', '/static/wms-plus/sw.js')
 
 
 def destino_do_redirecionamento():

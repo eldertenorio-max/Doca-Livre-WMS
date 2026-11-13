@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doca Livre WMS</title>
+    <meta name="theme-color" content="#101014">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+    <style>
+        body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;
+               background: #101014; color: #e4e4e7; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        main { max-width: 460px; text-align: center; }
+        img { width: 96px; height: 96px; }
+        h1 { font-size: 1.5rem; margin: 18px 0 10px; color: #fff; }
+        p { line-height: 1.5; color: #a1a1aa; margin: 0 0 14px; }
+        a.botao { display: block; padding: 16px; margin-top: 12px; border-radius: 14px; font-weight: 700; font-size: 1.05rem; text-decoration: none; }
+        a.principal { background: #f5c518; color: #111; }
+        a.leve { border: 2px solid #3f3f46; color: #e4e4e7; }
+        ol { text-align: left; color: #a1a1aa; line-height: 1.6; padding-left: 20px; }
+    </style>
+</head>
+<body>
+<main>
+    <img src="{{ url_for('static', filename='img/icon-192.png') }}" alt="">
+    <h1>Este atalho não funciona mais</h1>
+    <p>O WMS deixou de funcionar como aplicativo instalado pelo navegador. Agora existe o <strong>aplicativo oficial</strong>, que é mais completo.</p>
+    {% if apk_url %}<a class="botao principal" href="{{ apk_url }}" download>Baixar o aplicativo (APK)</a>{% endif %}
+    <a class="botao leve" href="intent://{{ host }}/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url={{ site|urlencode }};end">Abrir o WMS no navegador</a>
+    <ol>
+        <li>Baixe e instale o aplicativo oficial.</li>
+        <li>Remova este atalho antigo: segure o ícone dele na tela do celular e escolha <strong>Desinstalar</strong>.</li>
+        <li>Abra o <strong>Doca Livre WMS</strong> novo e entre com o seu usuário.</li>
+    </ol>
+</main>
+</body>
+</html>

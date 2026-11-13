@@ -14,7 +14,7 @@ import os
 import secrets
 from urllib.parse import quote
 
-from flask import Blueprint, current_app, flash, g, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, g, jsonify, redirect, render_template, request, send_from_directory, url_for
 
 from .core import ROTAS_PUBLICAS, exigir, perm, pode_ver, registrar_log, usuario_atual
 from .models import NotaFiscal, Palete, Separacao, Usuario, agora, db
@@ -53,13 +53,30 @@ def versao_do_apk():
     except (OSError, ValueError):
         return None
 
-ROTAS_PUBLICAS.update({'aplicativo.assetlinks', 'aplicativo.resumo'})
+ROTAS_PUBLICAS.update({'aplicativo.assetlinks', 'aplicativo.resumo', 'aplicativo.sw_antigo', 'aplicativo.app_antigo'})
 
 
 @bp.route('/.well-known/assetlinks.json')
 def assetlinks():
     return jsonify([{'relation': ['delegate_permission/common.handle_all_urls'],
                      'target': {'namespace': 'android_app', 'package_name': PACOTE, 'sha256_cert_fingerprints': [SHA256_DA_CHAVE]}}])
+
+
+@bp.route('/sw.js')
+def sw_antigo():
+    """O WMS antigo registrava um service worker em /sw.js. Aqui ele recebe a versao que apaga tudo e se remove."""
+    resposta = send_from_directory(current_app.static_folder, 'sw-desliga.js', mimetype='application/javascript', max_age=0)
+    resposta.headers['Cache-Control'] = 'no-store'
+    return resposta
+
+
+@bp.route('/app-antigo')
+def app_antigo():
+    """Tela mostrada a quem abre o WMS pelo atalho instalado pelo navegador (ver static/so-apk.js)."""
+    from . import URL_OFICIAL
+    site = _externo('/')
+    return render_template('app_antigo.html', apk_url=url_do_apk() if apk_disponivel() else None, site=site,
+                           host=site.split('//', 1)[1].rstrip('/'), oficial=URL_OFICIAL)
 
 
 def dados_do_resumo():

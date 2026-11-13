@@ -94,7 +94,7 @@ public class ResumoWorker extends Worker {
             manager.createNotificationChannel(
                     new NotificationChannel(CANAL, "Alertas do armazém", NotificationManager.IMPORTANCE_DEFAULT));
         }
-        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(Prefs.SITE + "/alertas"));
+        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(Prefs.SITE + "/alertas?apk=1"));
         open.setClass(context, LauncherActivity.class);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent tap = PendingIntent.getActivity(
