@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Atalhos ao segurar o icone do app. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="coletor"
+        android:shortcutShortLabel="@string/shortcut_coletor">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io/coletor/"
+            android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:targetPackage="br.com.docalivre.wms" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="guardar"
+        android:shortcutShortLabel="@string/shortcut_guardar">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io/coletor/guarda"
+            android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:targetPackage="br.com.docalivre.wms" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="separar"
+        android:shortcutShortLabel="@string/shortcut_separar">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io/coletor/separacao"
+            android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:targetPackage="br.com.docalivre.wms" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="estoque"
+        android:shortcutShortLabel="@string/shortcut_estoque">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io/estoque/atual"
+            android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:targetPackage="br.com.docalivre.wms" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="status"
+        android:shortcutShortLabel="@string/shortcut_status">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="br.com.docalivre.wms.StatusActivity"
+            android:targetPackage="br.com.docalivre.wms" />
+    </shortcut>
+</shortcuts>

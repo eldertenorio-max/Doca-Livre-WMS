@@ -8,7 +8,7 @@ from flask import Flask, render_template
 from .core import garantir_permissoes_padrao, registrar_nucleo
 from .models import LogAcao, Usuario, db
 
-ASSETS_VERSION = '45'
+ASSETS_VERSION = '46'
 VERSAO = 'v1.0'
 
 
@@ -65,6 +65,9 @@ def _garantir_colunas():
                 padrao = f' DEFAULT {valor} NOT NULL'
             with db.engine.begin() as conexao:
                 conexao.execute(text(f'ALTER TABLE {tabela.name} ADD COLUMN {coluna.name} {tipo}{padrao}'))
+                if coluna.unique:
+                    conexao.execute(text(f'CREATE UNIQUE INDEX IF NOT EXISTS uq_{tabela.name}_{coluna.name} '
+                                         f'ON {tabela.name} ({coluna.name})'))
 
 
 def _criar_admin_inicial(app):
@@ -183,6 +186,7 @@ def create_app():
     from .fechamento import bp as fechamento_bp
     from .portal import bp as portal_bp
     from . import coletor
+    from .aplicativo import bp as aplicativo_bp
     app.register_blueprint(principal_bp)
     app.register_blueprint(cadastros_bp)
     app.register_blueprint(enderecamento_bp)
@@ -202,6 +206,7 @@ def create_app():
     app.register_blueprint(portal_bp)
     app.register_blueprint(coletor.bp)
     coletor.registrar(app)
+    app.register_blueprint(aplicativo_bp)
     sistema.registrar(app)
     app.register_blueprint(admin_bp)
 

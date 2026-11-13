@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo Doca Livre em uma cor so (icone de notificacao e camada monocromatica do icone do app). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="419"
+    android:viewportHeight="419">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M200,110H76a22,22 0,0 0,-22 22v154a22,22 0,0 0,22 22h124v-19H78a5,5 0,0 1,-5 -5V135a5,5 0,0 1,5 -5h122z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M84,209.5L141,170v19h59v41h-59v19z" />
+    <group android:scaleX="-1" android:translateX="419">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M200,110H76a22,22 0,0 0,-22 22v154a22,22 0,0 0,22 22h124v-19H78a5,5 0,0 1,-5 -5V135a5,5 0,0 1,5 -5h122z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M84,209.5L141,170v19h59v41h-59v19z" />
+    </group>
+</vector>

@@ -121,6 +121,7 @@ MODULOS = [
         'descricao': 'Telas de bipagem para celular ou coletor de dados.',
         'telas': [
             {'id': 'coletor', 'nome': 'Coletor', 'icone': 'barcode', 'endpoint': 'coletor.inicio'},
+            {'id': 'aplicativo', 'nome': 'Aplicativo Android', 'icone': 'mobile-screen-button', 'endpoint': 'aplicativo.pagina'},
         ],
     },
     {

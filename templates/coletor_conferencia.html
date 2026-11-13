@@ -22,7 +22,7 @@
 <form method="POST" action="{{ url_for('entrada.montar_palete', nid=nota.id) }}" autocomplete="off" class="coletor-form" id="formPalete">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
     <label for="ccBip">Bipe o produto (ou escolha na lista)</label>
-    <input type="text" id="ccBip" class="coletor-campo" data-bipar autocapitalize="characters" enterkeyhint="next" placeholder="EAN, DUN ou código">
+    <input type="text" id="ccBip" class="coletor-campo" data-bipar data-camera="enter" autocapitalize="characters" enterkeyhint="next" placeholder="EAN, DUN ou código">
     <label for="ccItem">Item da nota</label>
     <select id="ccItem" name="item_id" class="coletor-campo" required>
         <option value="">— escolher —</option>

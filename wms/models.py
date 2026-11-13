@@ -31,6 +31,11 @@ class Usuario(db.Model):
     ativo = db.Column(db.Boolean, nullable=False, default=True)
     trocar_senha = db.Column(db.Boolean, nullable=False, default=False)
     avatar = db.Column(db.String(40))           # arquivo da foto de perfil em instance/avatars/
+    # Aplicativo Android: codigo pessoal usado pelo widget e pelos avisos (vazio = app nao ativado),
+    # a versao do app que buscou o resumo por ultimo e quando.
+    app_token = db.Column(db.String(64), unique=True)
+    app_versao = db.Column(db.String(20))
+    app_visto_em = db.Column(db.DateTime)
     # Hierarquia: organizacao a que o usuario pertence (vazio = sem restricao de grupo)
     organizacao_id = db.Column(db.Integer, db.ForeignKey('organizacao.id'), index=True)
     organizacao = db.relationship('Organizacao')

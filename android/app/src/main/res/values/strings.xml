@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Doca Livre WMS</string>
+    <string name="launch_url" translatable="false">https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io/</string>
+    <string name="status_title">App do WMS</string>
+    <string name="shortcut_coletor">Coletor</string>
+    <string name="shortcut_guardar">Guardar palete</string>
+    <string name="shortcut_separar">Separar carga</string>
+    <string name="shortcut_estoque">Estoque</string>
+    <string name="shortcut_status">App do WMS</string>
+    <string name="widget_label">Pendências · WMS</string>
+    <string name="widget_description">Paletes para guardar, separação e alertas do armazém</string>
+    <string name="widget_title">WMS Doca Livre</string>
+    <string name="widget_guardar">Para guardar</string>
+    <string name="widget_separar">Para separar</string>
+    <string name="widget_alertas">Alertas</string>
+    <string name="widget_waiting">Abra o WMS → Aplicativo → Ativar neste celular</string>
+    <string name="asset_statements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io\"}}]</string>
+</resources>

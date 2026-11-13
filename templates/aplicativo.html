@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Aplicativo Android · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-mobile-screen-button me-2"></i>Aplicativo Android</h2>
+    <a class="btn btn-primary" href="{{ apk_url }}"><i class="fas fa-download"></i>Baixar o app (APK)</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-6">
+        <div class="card h-100"><div class="card-body">
+            <h5 class="mb-3">O que o aplicativo tem a mais que o site</h5>
+            <ul class="mb-0">
+                <li><strong>Abre em tela cheia</strong>, com ícone próprio no celular, sem a barra do navegador, e já logado.</li>
+                <li><strong>Atalhos</strong>: segure o ícone do app para ir direto ao Coletor, Guardar palete, Separar carga ou Estoque.</li>
+                <li><strong>Leitor de código de barras pela câmera</strong> nas telas do Coletor (botão da câmera ao lado do campo de bipar).</li>
+                <li><strong>Widget</strong> na tela inicial do celular com paletes para guardar, tarefas de separação e alertas.</li>
+                <li><strong>Avisos</strong>: notificação quando surge alerta grave (produto vencido, câmara fora da temperatura).</li>
+                <li><strong>Links do WMS</strong> recebidos por mensagem abrem direto no app.</li>
+            </ul>
+        </div></div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="card h-100"><div class="card-body">
+            <h5 class="mb-3">Como instalar</h5>
+            <ol class="mb-0">
+                <li>No celular Android, toque em <strong>Baixar o app (APK)</strong>.</li>
+                <li>Abra o arquivo baixado. Se o celular perguntar, <strong>permita instalar desta fonte</strong> (o app não está na Play Store).</li>
+                <li>Se o Play Protect avisar que não conhece o app, escolha <strong>Instalar mesmo assim</strong>.</li>
+                <li>Abra o <strong>Doca Livre WMS</strong> e entre com o seu usuário.</li>
+                <li>Volte nesta tela, pelo app, e toque em <strong>Ativar neste celular</strong> para ligar o widget e os avisos.</li>
+            </ol>
+            <p class="text-muted small mt-3 mb-0">Para atualizar: baixe de novo e instale por cima. O app precisa do Google Chrome instalado no celular.</p>
+        </div></div>
+    </div>
+
+    <div class="col-12">
+        <div class="card"><div class="card-body">
+            <h5 class="mb-3">Widget e avisos neste celular</h5>
+            {% if usuario.app_token %}
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <a class="btn btn-primary" href="{{ ativacao }}"><i class="fas fa-link"></i>Ativar neste celular</a>
+                <form method="POST" action="{{ url_for('aplicativo.ativar') }}" onsubmit="return confirm('Trocar o código? Os celulares já ativados param de receber o resumo.');">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" class="btn btn-outline-secondary"><i class="fas fa-rotate"></i>Trocar o código</button></form>
+                <form method="POST" action="{{ url_for('aplicativo.desativar') }}" onsubmit="return confirm('Desativar o aplicativo para o seu usuário?');">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" class="btn btn-outline-danger"><i class="fas fa-power-off"></i>Desativar</button></form>
+            </div>
+            {% if not no_celular %}<div class="alert alert-info py-2">O botão <strong>Ativar neste celular</strong> só funciona no celular, com o app instalado. Abra esta tela pelo aplicativo.</div>{% endif %}
+            <p class="mb-0">
+                {% if usuario.app_visto_em %}<span class="badge bg-success">Ativado</span> App Android {{ usuario.app_versao or '' }} · último sinal em {{ usuario.app_visto_em|datahora }}.
+                {% else %}<span class="badge bg-secondary">Aguardando</span> Nenhum celular buscou o resumo ainda com este código.{% endif %}
+            </p>
+            {% else %}
+            <p>O widget e os avisos mostram as pendências do armazém mesmo com o WMS fechado. Para isso o app usa um código pessoal do seu usuário, que só mostra números (paletes para guardar, tarefas, alertas), de acordo com a sua permissão.</p>
+            <form method="POST" action="{{ url_for('aplicativo.ativar') }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i>Criar o código do meu aplicativo</button>
+            </form>
+            {% endif %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}

@@ -21,7 +21,7 @@
 <div class="coletor-progresso" aria-label="Progresso do inventário"><span style="width: {{ (100 * (total - pendentes) / total)|round|int if total else 0 }}%"></span><b>{{ total - pendentes }} de {{ total }}</b></div>
 <form method="GET" action="{{ base }}" autocomplete="off" class="coletor-form">
     <label for="ciLocal">Bipe o endereço (longarina) ou o palete</label>
-    <input type="text" id="ciLocal" name="local" class="coletor-campo" required {% if not local %}data-bipar{% endif %} autocapitalize="characters" enterkeyhint="search" placeholder="Endereço ou palete" value="{{ local or '' }}">
+    <input type="text" id="ciLocal" name="local" class="coletor-campo" required {% if not local %}data-bipar{% endif %} data-camera autocapitalize="characters" enterkeyhint="search" placeholder="Endereço ou palete" value="{{ local or '' }}">
     <button type="submit" class="coletor-acao coletor-acao--leve"><i class="fas fa-magnifying-glass"></i>Ver o que há aqui</button>
 </form>
 
