@@ -451,6 +451,20 @@
                 return Number(partes[0]) > r.colunas || Number(partes[1]) > r.niveis;
             });
             if (fora.length) problemas.push(rotulo + fora.length + ' posição(ões) com palete ficariam fora do desenho (ex.: coluna ' + fora[0].split('|')[0] + ', nível ' + fora[0].split('|')[1] + '). Tire os paletes antes de diminuir a rua.');
+            // Porta precisa começar no chão (nível 1), sem buraco; senão fica "no ar" no mapa.
+            var portas = {};
+            Object.keys(r.vaos).forEach(function (chave) {
+                var partes = chave.split('|'), col = Number(partes[0]), nivel = Number(partes[1]);
+                if (r.vaos[chave] === 'P' && col <= r.colunas && nivel <= r.niveis) (portas[col] = portas[col] || []).push(nivel);
+            });
+            var noAr = [], faltam = {};
+            Object.keys(portas).map(Number).sort(function (a, b) { return a - b; }).forEach(function (col) {
+                var topo = Math.max.apply(null, portas[col]), buraco = false;
+                for (var nivel = 1; nivel <= topo; nivel++) if (portas[col].indexOf(nivel) === -1) { faltam[nivel] = true; buraco = true; }
+                if (buraco) noAr.push(col);
+            });
+            if (noAr.length) problemas.push(rotulo + 'a porta da(s) coluna(s) ' + noAr.join(', ') + ' não começa no chão. Com a ferramenta Porta, marque também o(s) nível(is) ' +
+                                             Object.keys(faltam).join(', ') + ' nessas colunas, ou tire a porta.');
         });
         var repetidas = nomes.filter(function (n) { return n && ruasDeOutras().indexOf(n) !== -1; });
         // Edição: quantos endereços nascem e quantos somem em relação ao que existe hoje.

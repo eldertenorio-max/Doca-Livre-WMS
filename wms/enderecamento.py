@@ -308,6 +308,28 @@ def _ler_ruas_da_nova_camara():
     return faixas, erros
 
 
+def _portas_no_ar(vaos):
+    """Porta precisa comecar no chao: em cada coluna, os niveis de porta vao do 1 ate o topo da porta, sem buraco.
+
+    Evita a "porta no ar" (porta nos niveis 2 e 3 com posicao de palete no 1), que aparecia quando um clique sem
+    querer no desenho trocava parte da porta por posicao. Devolve as mensagens de erro (vazia = tudo certo).
+    """
+    por_coluna = {}
+    for (rua, coluna, nivel), tipo in vaos.items():
+        if tipo == 'Porta':
+            por_coluna.setdefault((rua, coluna), set()).add(nivel)
+    no_ar = {}      # rua -> (colunas, niveis que faltam para a porta chegar ao chao)
+    for (rua, coluna), niveis in sorted(por_coluna.items()):
+        faltam = set(range(1, max(niveis) + 1)) - niveis
+        if faltam:
+            colunas, todos = no_ar.setdefault(rua, ([], set()))
+            colunas.append(coluna)
+            todos.update(faltam)
+    return [f'Rua {rua}: a porta da(s) coluna(s) {", ".join(map(str, colunas))} não começa no chão. Com a ferramenta '
+            f'Porta, marque também o(s) nível(is) {", ".join(map(str, sorted(faltam)))} nessas colunas, ou tire a porta.'
+            for rua, (colunas, faltam) in sorted(no_ar.items())]
+
+
 def _ler_vaos(faixas):
     """Lugares marcados no desenho como porta ou sem posicao: campos "vao" = "RUA|coluna|nivel|P" ou "...|S".
 
@@ -441,6 +463,7 @@ def camara_editar(cid):
     faixas, erros_ruas = _ler_ruas_da_nova_camara()
     erros += erros_ruas
     vaos = _ler_vaos(faixas) if not erros else {}
+    erros += _portas_no_ar(vaos)
     clientes, erros_clientes = _ler_clientes(faixas) if not erros else ({}, [])
     erros += erros_clientes
     desejados = {(f['ruas'][0], coluna, nivel) for f in faixas
@@ -505,6 +528,8 @@ def camara_nova():
     erros = _salvar_camara(camara)
     faixas, erros_ruas = _ler_ruas_da_nova_camara()
     erros += erros_ruas
+    if not erros:
+        erros += _portas_no_ar(_ler_vaos(faixas))
     clientes, erros_clientes = _ler_clientes(faixas) if not erros else ({}, [])
     erros += erros_clientes
     if erros:
