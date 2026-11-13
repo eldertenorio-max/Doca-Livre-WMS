@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% from '_estoque_partes.html' import paginacao %}
+{% block title %}Temperatura das câmaras · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('enderecamento') %}
+{% macro graus(v) %}{{ ('%g'|format(v))|replace('.', ',') }} °C{% endmacro %}
+{% macro faixa(c) %}{% if c.temp_min is not none and c.temp_max is not none %}{{ ('%g'|format(c.temp_min))|replace('.', ',') }} a {{ graus(c.temp_max) }}{% elif c.temp_max is not none %}até {{ graus(c.temp_max) }}{% elif c.temp_min is not none %}a partir de {{ graus(c.temp_min) }}{% else %}sem faixa no cadastro{% endif %}{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-temperature-half me-2"></i>Temperatura das câmaras</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary" href="{{ url_for('temperaturas.lista', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+        {% if editar and camaras %}<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalTemperatura"><i class="fas fa-plus"></i>Registrar temperaturas</button>{% endif %}
+    </div>
+</div>
+
+{% if not camaras %}
+<div class="card"><div class="card-body bloco-dados-altura"><div class="text-center">
+    <h5>Nenhuma câmara cadastrada</h5>
+    <p class="text-muted mb-3">As temperaturas são registradas por câmara.</p>
+    <a href="{{ url_for('enderecamento.camaras') }}" class="btn btn-primary"><i class="fas fa-table-cells"></i>Ir para Câmaras e endereços</a>
+</div></div></div>
+{% else %}
+
+{# Última leitura de cada câmara #}
+<div class="row g-3 mb-4">
+    {% for c in camaras %}
+    {% set u = ultimas[c.id] %}
+    {% set estado = 'sem' if not u else ('fora' if u.fora else ('ok' if u.fora is not none else 'neutro')) %}
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="card temp-card temp-card--{{ estado }} h-100 mb-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="camara-numero">{{ '%02d'|format(c.codigo) }}</span>
+                    <div class="flex-grow-1 min-w-0">
+                        <h5 class="mb-0">{{ c.nome }}</h5>
+                        <span class="text-muted small">Faixa: {{ faixa(c) }}</span>
+                    </div>
+                </div>
+                <div class="temp-valor">{% if u %}{{ graus(u.temperatura) }}{% else %}—{% endif %}</div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    {% if not u %}<span class="semaforo">Sem leitura</span>
+                    {% elif u.fora %}<span class="semaforo semaforo--vermelho">Fora da faixa</span>
+                    {% elif u.fora is none %}<span class="semaforo">Sem faixa para comparar</span>
+                    {% else %}<span class="semaforo semaforo--verde">Dentro da faixa</span>{% endif %}
+                    {% if u %}<small class="text-muted">{{ u.medido_em|datahora }} · {{ u.conferente }}</small>{% endif %}
+                </div>
+                {% if u and u.medido_em < limite_atraso %}<p class="small text-warning-emphasis fw-semibold mb-0 mt-2"><i class="fas fa-clock me-1"></i>Última leitura há mais de 24 horas</p>{% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    <div class="col-6 col-md-3">
+        <select class="form-select" name="camara" aria-label="Câmara" onchange="this.form.submit()">
+            <option value="">Todas as câmaras</option>
+            {% for c in camaras %}<option value="{{ c.id }}" {% if f.camara == c.id %}selected{% endif %}>{{ '%02d'|format(c.codigo) }} · {{ c.nome }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-6 col-md-2"><label class="visually-hidden" for="tDe">De</label><input type="date" class="form-control" id="tDe" name="de" value="{{ f.de }}" title="A partir de"></div>
+    <div class="col-6 col-md-2"><label class="visually-hidden" for="tAte">Até</label><input type="date" class="form-control" id="tAte" name="ate" value="{{ f.ate }}" title="Até"></div>
+    <div class="col-auto d-flex align-items-center">
+        <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="tFora" name="fora" value="1" {% if f.fora %}checked{% endif %} onchange="this.form.submit()">
+            <label class="form-check-label" for="tFora">Só fora da faixa</label>
+        </div>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if filtros %}<a href="{{ url_for('temperaturas.lista') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-clock-rotate-left me-2"></i>Histórico de leituras</div>
+    <div class="card-body">
+        {% if leituras %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0 align-middle">
+                <thead><tr><th>Data e hora</th><th>Câmara</th><th class="text-end">Temperatura</th><th>Faixa na hora</th><th>Situação</th><th>Conferente</th><th>Observação</th>{% if editar %}<th></th>{% endif %}</tr></thead>
+                <tbody>
+                    {% for l in leituras %}
+                    <tr>
+                        <td class="text-nowrap">{{ l.medido_em|datahora }}</td>
+                        <td>{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }}</td>
+                        <td class="text-end text-nowrap"><strong>{{ graus(l.temperatura) }}</strong></td>
+                        <td class="text-nowrap">{{ faixa(l) }}</td>
+                        <td>{% if l.fora %}<span class="semaforo semaforo--vermelho">Fora da faixa</span>{% elif l.fora is none %}<span class="semaforo">Sem faixa</span>{% else %}<span class="semaforo semaforo--verde">Dentro da faixa</span>{% endif %}</td>
+                        <td>{{ l.conferente }}</td>
+                        <td>{{ l.observacao or '—' }}</td>
+                        {% if editar %}
+                        <td class="text-end">
+                            <form method="POST" action="{{ url_for('temperaturas.excluir', lid=l.id) }}" onsubmit="return confirm('Excluir esta leitura de {{ l.camara.nome }}?');">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir leitura" aria-label="Excluir a leitura de {{ l.camara.nome }} de {{ l.medido_em|datahora }}"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {{ paginacao('temperaturas.lista', pagina, paginas, total, 'leitura(s)', filtros) }}
+        {% else %}
+        <div class="bloco-dados-altura"><div class="text-center" style="max-width: 520px;">
+            {% if filtros %}
+            <h5>Nenhuma leitura com esse filtro</h5>
+            <p class="mb-0"><a href="{{ url_for('temperaturas.lista') }}">Limpar os filtros</a></p>
+            {% else %}
+            <h5>Nenhuma temperatura registrada ainda</h5>
+            <p class="text-muted mb-0">{% if editar %}Use <strong>Registrar temperaturas</strong> para lançar a ronda: conferente, data e os graus de cada câmara.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+            {% endif %}
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="modal fade" id="modalTemperatura" tabindex="-1" aria-labelledby="modalTemperaturaTitulo" aria-hidden="true" data-reabrir="{{ '1' if form else '' }}">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" method="POST" action="{{ url_for('temperaturas.registrar') }}" autocomplete="off" id="formTemperatura">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTemperaturaTitulo"><i class="fas fa-temperature-half me-2"></i>Registrar temperaturas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-md-7">
+                        <label class="form-label" for="tConferente">Conferente <span class="obrigatorio">*</span></label>
+                        <input type="text" class="form-control" id="tConferente" name="conferente" maxlength="120" required value="{{ form.get('conferente', '') if form else usuario.nome }}">
+                    </div>
+                    <div class="col-12 col-md-5">
+                        <label class="form-label" for="tQuando">Data e hora da medição <span class="obrigatorio">*</span></label>
+                        <input type="datetime-local" class="form-control" id="tQuando" name="medido_em" required max="{{ agora_local }}" value="{{ form.get('medido_em', '') if form else agora_local }}">
+                    </div>
+                </div>
+                <div class="temp-ronda">
+                    {% for c in camaras %}
+                    <div class="temp-ronda-linha">
+                        <label for="temp{{ c.id }}"><strong>{{ '%02d'|format(c.codigo) }} · {{ c.nome }}</strong><small class="text-muted">Faixa: {{ faixa(c) }}</small></label>
+                        <div class="input-group">
+                            <input type="text" inputmode="decimal" class="form-control temp-campo" id="temp{{ c.id }}" name="temp_{{ c.id }}" placeholder="Ex.: -18,5"
+                                   value="{{ form.get('temp_' ~ c.id, '') if form else '' }}"
+                                   data-min="{{ c.temp_min if c.temp_min is not none else '' }}" data-max="{{ c.temp_max if c.temp_max is not none else '' }}">
+                            <span class="input-group-text">°C</span>
+                        </div>
+                        <span class="temp-ronda-aviso small" aria-live="polite"></span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <label class="form-label mt-3" for="tObs">Observação</label>
+                <input type="text" class="form-control" id="tObs" name="observacao" maxlength="200" value="{{ form.get('observacao', '') if form else '' }}" placeholder="Ex.: porta ficou aberta no carregamento">
+                <p class="text-muted small mt-3 mb-0">Câmara deixada em branco não é registrada. A faixa de cada câmara vem do cadastro (Câmaras e endereços › editar).</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Registrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Registrar temperaturas: avisa na hora quando o valor digitado está fora da faixa da câmara.
+(function () {
+    var modalEl = document.getElementById('modalTemperatura');
+    if (!modalEl) return;
+    function conferir(campo) {
+        var aviso = campo.closest('.temp-ronda-linha').querySelector('.temp-ronda-aviso');
+        var texto = campo.value.trim().replace(',', '.');
+        var valor = texto === '' ? null : Number(texto);
+        var min = campo.getAttribute('data-min'), max = campo.getAttribute('data-max');
+        var invalido = valor !== null && (isNaN(valor) || valor < -80 || valor > 60);
+        var fora = !invalido && valor !== null && ((min !== '' && valor < Number(min)) || (max !== '' && valor > Number(max)));
+        campo.classList.toggle('is-invalid', invalido);
+        aviso.className = 'temp-ronda-aviso small ' + (invalido || fora ? 'text-danger fw-semibold' : 'text-success');
+        aviso.textContent = invalido ? 'Temperatura inválida' : fora ? 'Fora da faixa' : (valor !== null && (min !== '' || max !== '')) ? 'Dentro da faixa' : '';
+    }
+    var campos = Array.prototype.slice.call(modalEl.querySelectorAll('.temp-campo'));
+    campos.forEach(function (c) { c.addEventListener('input', function () { conferir(c); }); conferir(c); });
+    modalEl.addEventListener('shown.bs.modal', function () { (campos[0] || document.getElementById('tConferente')).focus(); });
+    // O servidor recusou: a janela volta aberta com o que foi digitado.
+    if (modalEl.getAttribute('data-reabrir')) new bootstrap.Modal(modalEl).show();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Permissões por usuário · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-user-lock me-2"></i>Permissões</h2>
+</div>
+
+<ul class="sub-abas" role="tablist" aria-label="Tipos de permissão">
+    <li role="presentation"><a role="tab" aria-selected="false" href="{{ url_for('admin.permissoes') }}"><i class="fas fa-users-gear"></i>Por perfil</a></li>
+    <li role="presentation"><a role="tab" aria-selected="true" class="ativo" href="{{ url_for('admin.permissoes_usuario') }}"><i class="fas fa-user-gear"></i>Por usuário (por hierarquia)</a></li>
+</ul>
+
+<div class="alert alert-info">
+    Os usuários aparecem <strong>separados pela hierarquia</strong> (a organização de cada um). Escolha uma pessoa e defina o que ela pode fazer em
+    <strong>cada funcionalidade</strong>: o módulo inteiro ou tela por tela. O que você marcar aqui vale por cima do perfil dela.
+    <strong>Visualizar</strong> abre a tela; <strong>Editar</strong> também libera as ações (salvar, excluir, finalizar).
+    Só o Super Usuário usa esta tela, e ele manda em todas as hierarquias. Administradores e o Super Usuário têm acesso total e não aparecem na lista.
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-4">
+        <div class="card"><div class="card-body">
+            <h5 class="mb-3">Usuários por hierarquia</h5>
+            {% for bloco in blocos %}
+            <div class="perm-org" style="margin-left: {{ bloco.nivel * 14 }}px;">
+                <div class="perm-org-titulo">
+                    {% if bloco.org %}<i class="fas fa-sitemap"></i><span>{{ bloco.org.nome }}<small>{{ rotulo_tipo[bloco.org.tipo] }}</small></span>
+                    {% else %}<i class="fas fa-user-slash"></i><span>Sem organização<small>ainda não vinculados na Hierarquia</small></span>{% endif %}
+                </div>
+                {% if bloco.usuarios %}
+                <ul class="fin-lista">
+                    {% for u in bloco.usuarios %}
+                    <li class="{% if user and user.id == u.id %}ativo{% endif %}">
+                        <a class="fin-cliente" href="{{ url_for('admin.permissoes_usuario', usuario=u.id) }}" {% if user and user.id == u.id %}aria-current="true"{% endif %}>
+                            <strong>{{ u.nome }}</strong>
+                            <small class="d-block text-muted">{{ u.username }} · {{ perfis.get(u.perfil, u.perfil) }}{% if not u.ativo %} · inativo{% endif %}{% if proprias_por_usuario.get(u.id) %} · <span class="text-primary-emphasis">{{ proprias_por_usuario[u.id] }} própria(s)</span>{% endif %}</small></a>
+                        <i class="fas fa-chevron-right text-muted"></i>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted small mb-0">Nenhum usuário nesta organização.</p>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Ainda não há usuários além dos administradores. Crie em <a href="{{ url_for('admin.usuarios') }}">Usuários</a>.</p>
+            {% endfor %}
+            <p class="text-muted small mt-3 mb-0">Para mudar a organização de alguém, use <a href="{{ url_for('hierarquia.painel') }}">Hierarquia</a>.</p>
+        </div></div>
+    </div>
+    <div class="col-12 col-lg-8">
+        <div class="card"><div class="card-body">
+            {% if not user %}
+            <div class="bloco-dados-altura"><p class="text-muted mb-0">Escolha um usuário na lista para definir as permissões dele.</p></div>
+            {% else %}
+            <h5 class="mb-1">{{ user.nome }}</h5>
+            <p class="text-muted small">{{ user.username }} · perfil {{ perfis.get(user.perfil, user.perfil) }}{% if user.organizacao %} · {{ user.organizacao.nome }}{% else %} · sem organização na hierarquia{% endif %}</p>
+            <form method="POST" action="{{ url_for('admin.permissoes_usuario', usuario=user.id) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <button type="submit" name="acao" value="tudo" class="btn btn-outline-primary btn-sm" onclick="return confirm('Liberar TODAS as funcionalidades (Editar em tudo) para este usuário?');"><i class="fas fa-unlock"></i>Liberar tudo</button>
+                    <button type="submit" name="acao" value="ver" class="btn btn-outline-primary btn-sm" onclick="return confirm('Deixar este usuário só visualizando tudo?');"><i class="fas fa-eye"></i>Só visualizar tudo</button>
+                    {% if proprias %}<button type="submit" name="acao" value="limpar" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Voltar todas as permissões deste usuário para o padrão do perfil?');"><i class="fas fa-rotate-left"></i>Voltar ao padrão do perfil</button>{% endif %}
+                </div>
+                <div class="table-responsive">
+                    <table class="table matriz-permissoes mb-0 align-middle">
+                        <thead><tr><th>Funcionalidade</th><th>Pelo perfil</th><th>Para este usuário</th></tr></thead>
+                        <tbody>
+                            {% for m in modulos %}
+                            {% set do_perfil = pelo_perfil.get(m.id, 0) %}
+                            <tr class="perm-modulo">
+                                <td><i class="fas fa-{{ m.icone }} me-2"></i><strong>{{ m.nome }}</strong><br><small>{{ m.descricao }}</small></td>
+                                <td class="text-nowrap">{{ rotulo_nivel[do_perfil] }}</td>
+                                <td>
+                                    <select class="form-select" name="p:{{ m.id }}" aria-label="{{ m.nome }} para {{ user.nome }}">
+                                        <option value="" {% if m.id not in proprias %}selected{% endif %}>Padrão do perfil ({{ rotulo_nivel[do_perfil] }})</option>
+                                        {% for n, n_rotulo in niveis %}
+                                        <option value="{{ n }}" {% if proprias.get(m.id) == n %}selected{% endif %}>{{ n_rotulo }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                            </tr>
+                            {% if m.telas|length > 1 %}
+                            {% for tela in m.telas %}
+                            {% set chave = m.id ~ '/' ~ tela.id %}
+                            <tr class="perm-tela">
+                                <td><i class="fas fa-{{ tela.icone }} me-2"></i>{{ tela.nome }}</td>
+                                <td class="text-muted small">igual ao módulo</td>
+                                <td>
+                                    <select class="form-select form-select-sm" name="p:{{ chave }}" aria-label="{{ tela.nome }} para {{ user.nome }}">
+                                        <option value="" {% if chave not in proprias %}selected{% endif %}>Igual ao módulo</option>
+                                        {% for n, n_rotulo in niveis %}
+                                        <option value="{{ n }}" {% if proprias.get(chave) == n %}selected{% endif %}>{{ n_rotulo }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3"><i class="fas fa-check"></i>Salvar permissões de {{ user.nome }}</button>
+            </form>
+            {% endif %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}

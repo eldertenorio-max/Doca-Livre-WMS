@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Painel da saída · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-gauge-high me-2"></i>Painel da saída</h2>
+    <form method="GET" class="d-flex flex-wrap align-items-center gap-2" autocomplete="off">
+        <label class="form-label mb-0" for="pDe">De</label>
+        <input type="date" class="form-control" id="pDe" name="de" value="{{ de.isoformat() }}" style="width: auto;">
+        <label class="form-label mb-0" for="pAte">até</label>
+        <input type="date" class="form-control" id="pAte" name="ate" value="{{ ate.isoformat() }}" style="width: auto;">
+        <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+        <a href="{{ url_for('saida.painel') }}" class="btn btn-outline-secondary">Últimos 30 dias</a>
+    </form>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-truck-ramp-box"></i></span><div><div class="kpi-valor">{{ kpis.cargas }}</div><div class="kpi-rotulo">Cargas no período</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-truck-fast"></i></span><div><div class="kpi-valor">{{ kpis.expedidas }}</div><div class="kpi-rotulo">Expedidas</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-hourglass-half"></i></span><div><div class="kpi-valor">{{ kpis.andamento }}</div><div class="kpi-rotulo">Em andamento</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-boxes-stacked"></i></span><div><div class="kpi-valor">{{ kpis.conferido|numero }}</div><div class="kpi-rotulo">Quantidade carregada</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-triangle-exclamation"></i></span><div><div class="kpi-valor">{{ kpis.com_erro }}</div><div class="kpi-rotulo">Cargas com erro</div></div><a href="{{ url_for('saida.divergencias') }}" class="stretched-link" aria-label="Ver divergências"></a></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-minus"></i></span><div><div class="kpi-valor">{{ kpis.faltas }} / {{ kpis.sobras }}</div><div class="kpi-rotulo">Faltas / sobras (itens)</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-bullseye"></i></span><div><div class="kpi-valor">{{ kpis.eficiencia ~ '%' if kpis.eficiencia is not none else '—' }}</div><div class="kpi-rotulo">Eficiência média</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-stopwatch"></i></span><div><div class="kpi-valor">{{ (kpis.tempo_medio // 60) ~ 'h ' ~ ('%02d'|format(kpis.tempo_medio % 60)) ~ 'min' if kpis.tempo_medio is not none else '—' }}</div><div class="kpi-rotulo">Tempo médio de conferência</div></div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-8">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-table-list me-2"></i>Detalhamento por carga</div>
+            <div class="card-body">
+                {% if linhas %}
+                <div class="tabela-scroll">
+                    <table class="table table-striped mb-0">
+                        <thead><tr><th>Carga</th><th>Placa</th><th>Início</th><th>Fim</th><th>Duração</th><th>Itens</th><th>Faltas</th><th>Sobras</th><th style="min-width: 130px;">Carregado</th><th>Situação</th></tr></thead>
+                        <tbody>
+                            {% for l in linhas %}
+                            <tr>
+                                <td><a href="{{ url_for('saida.carga', cid=l.carga.id) }}"><strong>{{ l.carga.codigo }}</strong></a></td>
+                                <td>{{ l.carga.placa or '—' }}</td>
+                                <td class="text-nowrap">{{ l.carga.inicio_conferencia|datahora }}</td>
+                                <td class="text-nowrap">{{ l.carga.fim_conferencia|datahora }}</td>
+                                <td>{{ (l.minutos // 60) ~ 'h ' ~ ('%02d'|format(l.minutos % 60)) ~ 'min' if l.minutos is not none else '—' }}</td>
+                                <td>{{ l.itens }}</td>
+                                <td>{% if l.faltas %}<span class="badge bg-warning">{{ l.faltas }}</span>{% else %}—{% endif %}</td>
+                                <td>{% if l.sobras %}<span class="badge bg-danger">{{ l.sobras }}</span>{% else %}—{% endif %}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress barra-ocupacao flex-grow-1" role="progressbar" aria-label="Carregado da carga {{ l.carga.codigo }}" aria-valuenow="{{ l.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ l.pct }}%"></div></div>
+                                        <span class="small">{{ l.pct }}%</span>
+                                    </div>
+                                </td>
+                                <td>{{ selo(l.carga.status) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="bloco-dados-altura"><div class="text-center"><h5>Nenhuma carga no período</h5><p class="text-muted mb-0">Mude as datas ou importe as notas em Saída por XML.</p></div></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-ranking-star me-2"></i>Itens mais carregados</div>
+            <div class="card-body">
+                {% if top %}
+                <ol class="lista-ranking">
+                    {% for t in top %}
+                    <li>
+                        <div class="d-flex justify-content-between gap-2"><span><strong>{{ t.produto.sku }}</strong> · {{ t.produto.descricao }}</span><strong class="text-nowrap">{{ t.quantidade|numero }}</strong></div>
+                        <div class="progress barra-ocupacao" role="progressbar" aria-label="{{ t.produto.sku }}" aria-valuenow="{{ (100 * t.quantidade / maior)|round|int }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ (100 * t.quantidade / maior)|round|int }}%"></div></div>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                <p class="text-muted mb-0">Nada carregado no período.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

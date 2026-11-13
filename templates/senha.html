@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Trocar senha · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-key me-2"></i>Trocar senha</h2>
+</div>
+
+{% if obrigatoria %}
+<div class="alert alert-warning">Por segurança, defina uma senha nova antes de continuar.</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-12 col-md-8 col-lg-5">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" autocomplete="off">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label" for="atual">Senha atual</label>
+                        <input type="password" class="form-control" id="atual" name="atual" required autocomplete="current-password" autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="nova">Nova senha</label>
+                        <input type="password" class="form-control" id="nova" name="nova" required minlength="6" autocomplete="new-password">
+                        <div class="form-text">Mínimo de 6 caracteres.</div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="confirma">Confirmar nova senha</label>
+                        <input type="password" class="form-control" id="confirma" name="confirma" required minlength="6" autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar nova senha</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

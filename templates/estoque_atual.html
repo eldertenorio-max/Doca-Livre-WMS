@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% from '_estoque_partes.html' import paginacao, dias_vencer %}
+{% block title %}Estoque atual · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-magnifying-glass me-2"></i>Estoque atual</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <div class="btn-group" role="group" aria-label="Como ver o estoque">
+            <a class="btn btn-outline-primary{% if f.visao == 'detalhe' %} active{% endif %}" href="{{ url_for('estoque.atual', **dict(filtros, visao='detalhe')) }}"><i class="fas fa-pallet"></i>Por palete</a>
+            <a class="btn btn-outline-primary{% if f.visao == 'produto' %} active{% endif %}" href="{{ url_for('estoque.atual', **dict(filtros, visao='produto')) }}"><i class="fas fa-box"></i>Por produto</a>
+        </div>
+        <a class="btn btn-outline-primary" href="{{ url_for('estoque.atual', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-pallet"></i></span><div><div class="kpi-valor">{{ resumo.paletes }}</div><div class="kpi-rotulo">Paletes</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-box"></i></span><div><div class="kpi-valor">{{ resumo.skus }}</div><div class="kpi-rotulo">Produtos diferentes</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-layer-group"></i></span><div><div class="kpi-valor">{{ resumo.quantidade|numero }}</div><div class="kpi-rotulo">Quantidade total</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-location-dot"></i></span><div><div class="kpi-valor">{{ resumo.posicoes }}</div><div class="kpi-rotulo">Posições ocupadas</div></div></div></div>
+</div>
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    <input type="hidden" name="visao" value="{{ f.visao }}">
+    <div class="col-12 col-lg-4">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ f.q }}" placeholder="SKU, descrição, EAN, lote, palete, endereço ou NF" aria-label="Buscar no estoque">
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="camara" aria-label="Câmara" onchange="this.form.submit()">
+            <option value="">Todas as câmaras</option>
+            {% for c in camaras %}<option value="{{ c.id }}" {% if f.camara == c.id %}selected{% endif %}>{{ '%02d'|format(c.codigo) }} · {{ c.nome }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="situacao" aria-label="Situação" onchange="this.form.submit()">
+            {% for valor, rotulo in situacoes %}<option value="{{ valor }}" {% if f.situacao == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="classificacao" aria-label="Classificação" onchange="this.form.submit()">
+            <option value="">Todas as classificações</option>
+            {% for c in classificacoes %}<option value="{{ c }}" {% if f.classificacao == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+    </div>
+    {% if donos %}
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="empresa" aria-label="Dono da mercadoria" onchange="this.form.submit()">
+            <option value="">Todos os donos</option>
+            {% for e in donos %}<option value="{{ e.id }}" {% if f.empresa == e.id %}selected{% endif %}>{{ e.fantasia or e.nome }}</option>{% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if filtros|reject('equalto', 'visao')|list %}<a href="{{ url_for('estoque.atual', visao=f.visao) }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if linhas %}
+        <div class="tabela-scroll">
+            {% if f.visao == 'produto' %}
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Produto</th><th>Categoria</th><th class="text-end">Quantidade</th><th class="text-end">Paletes</th><th class="text-end">Posições</th><th class="text-end">Lotes</th><th>Validade mais próxima</th><th>Vence em</th><th></th></tr></thead>
+                <tbody>
+                    {% for g in linhas %}
+                    <tr>
+                        <td><strong>{{ g.produto.sku }}</strong> · {{ g.produto.descricao }}</td>
+                        <td>{{ g.produto.categoria or '—' }}</td>
+                        <td class="text-end text-nowrap"><strong>{{ g.quantidade|numero }}</strong> {{ g.produto.unidade }}</td>
+                        <td class="text-end">{{ g.paletes|length }}</td>
+                        <td class="text-end">{{ g.posicoes|length }}</td>
+                        <td class="text-end">{{ g.lotes|length or '—' }}</td>
+                        <td>{{ g.validade.strftime('%d/%m/%Y') if g.validade else '—' }}</td>
+                        <td>{{ dias_vencer(g.dias) }}</td>
+                        <td class="text-end"><a class="btn btn-sm btn-secondary" href="{{ url_for('estoque.atual', **dict(filtros, visao='detalhe', q=g.produto.sku)) }}"><i class="fas fa-arrow-right"></i>Onde está</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Endereço</th><th>Produto</th><th class="text-end">Quantidade</th><th>Lote</th><th>Validade</th><th>Vence em</th><th>Classificação</th><th>Situação</th><th>NF</th><th>Dono</th><th>Palete</th></tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr>
+                        <td class="codigo-mono text-nowrap">{% if l.endereco %}{% if pode_ver('enderecamento') %}<a href="{{ url_for('enderecamento.mapa', camara=l.endereco.camara_id) }}" title="Abrir o mapa da câmara">{{ l.endereco.codigo }}</a>{% else %}{{ l.endereco.codigo }}{% endif %}{% else %}—{% endif %}</td>
+                        <td><strong>{{ l.produto.sku }}</strong> · {{ l.produto.descricao }}</td>
+                        <td class="text-end text-nowrap"><strong>{{ l.conteudo.quantidade|numero }}</strong> {{ l.produto.unidade }}</td>
+                        <td>{{ l.conteudo.lote or '—' }}</td>
+                        <td class="text-nowrap">{{ l.conteudo.validade.strftime('%d/%m/%Y') if l.conteudo.validade else '—' }}</td>
+                        <td class="text-nowrap">{{ dias_vencer(l.dias) }}</td>
+                        <td>{{ selo(l.palete.classificacao) }}</td>
+                        <td>{{ selo(l.palete.status) }}</td>
+                        <td>{% if l.nota %}<a href="{{ url_for('estoque.historico_nf', nf=l.nota.numero) }}" title="Histórico desta NF">{{ l.nota.numero }}</a>{% else %}—{% endif %}</td>
+                        <td>{{ (l.nota.empresa.fantasia or l.nota.empresa.nome) if l.nota and l.nota.empresa else '—' }}</td>
+                        <td class="codigo-mono">{% if pode_ver('movimentacao') %}<a href="{{ url_for('movimentacao.paletes', q=l.palete.etiqueta) }}" title="Controle de palete">{{ l.palete.etiqueta }}</a>{% else %}{{ l.palete.etiqueta }}{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {{ paginacao('estoque.atual', pagina, paginas, total, 'produto(s)' if f.visao == 'produto' else 'linha(s) de estoque', filtros) }}
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center" style="max-width: 520px;">
+                {% if filtros|reject('equalto', 'visao')|list %}
+                <h5>Nada no estoque com esse filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('estoque.atual', visao=f.visao) }}">Limpar os filtros</a></p>
+                {% else %}
+                <h5>O estoque está vazio</h5>
+                <p class="text-muted mb-0">O estoque aparece aqui depois que os paletes forem montados na Entrada e guardados nos endereços.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

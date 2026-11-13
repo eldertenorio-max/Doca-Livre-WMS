@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}{{ camara.nome }} · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('enderecamento') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><span class="camara-numero me-2">{{ '%02d'|format(camara.codigo) }}</span>{{ camara.nome }}</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('enderecamento.camaras') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Câmaras</a>
+        <a href="{{ url_for('enderecamento.mapa', camara=camara.id) }}" class="btn btn-outline-primary"><i class="fas fa-cube"></i>Mapa</a>
+        {% if total_camara %}
+        <a href="{{ url_for('enderecamento.exportar', cid=camara.id) }}" class="btn btn-outline-primary"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-6">
+        <div class="card h-100 mb-0" id="editar">
+            <div class="card-header"><i class="fas fa-warehouse me-2"></i>Dados da câmara</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('enderecamento.camara_salvar', cid=camara.id) }}" autocomplete="off">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    {% include '_camara_campos.html' %}
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+                        <button type="submit" class="btn btn-danger ms-auto" form="formExcluirCamara"><i class="fas fa-trash"></i>Excluir câmara</button>
+                    </div>
+                </form>
+                {# Só confirma digitando o número da câmara (o servidor confere). #}
+                <form method="POST" id="formExcluirCamara" action="{{ url_for('enderecamento.camara_excluir', cid=camara.id) }}"
+                      onsubmit="var n = prompt('A câmara {{ camara.codigo }} e os {{ total_camara }} endereço(s) dela serão apagados para sempre, e as etiquetas já impressas deixam de valer.\n\nPara confirmar, digite o número da câmara:'); if (n === null) return false; this.confirmacao.value = n; return true;">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <input type="hidden" name="confirmacao">
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-wand-magic-sparkles me-2"></i>Gerar endereços em lote</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('enderecamento.gerar_enderecos', cid=camara.id) }}" autocomplete="off" id="formGerar">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="g_ruas">Ruas <span class="obrigatorio">*</span></label>
+                            <input type="text" class="form-control" id="g_ruas" name="ruas" required placeholder="Ex.: A, B" style="text-transform: uppercase;">
+                            <div class="form-text">Separe por vírgula. Cada rua tem de 1 a 3 letras ou números.</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="g_cde">Coluna de</label>
+                            <input type="number" class="form-control" id="g_cde" name="coluna_de" min="1" max="99" value="1" required>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="g_cate">até</label>
+                            <input type="number" class="form-control" id="g_cate" name="coluna_ate" min="1" max="99" value="15" required>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="g_nde">Nível de</label>
+                            <input type="number" class="form-control" id="g_nde" name="nivel_de" min="1" max="99" value="1" required>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="g_nate">até</label>
+                            <input type="number" class="form-control" id="g_nate" name="nivel_ate" min="1" max="99" value="5" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="g_pick">Picking até o nível</label>
+                            <input type="number" class="form-control" id="g_pick" name="picking_ate" min="0" max="99" value="1">
+                            <div class="form-text">Níveis acima ficam como Pulmão. Use 0 para não ter picking.</div>
+                        </div>
+                        <div class="col-12 col-md-6 d-flex align-items-end">
+                            <p class="text-muted small mb-2" id="previaGerar" aria-live="polite"></p>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3"><i class="fas fa-plus"></i>Gerar endereços</button>
+                    <span class="text-muted small ms-2">Os que já existem são mantidos.</span>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <span><i class="fas fa-table-cells me-2"></i>Endereços <span class="text-muted fw-normal">({{ total }}{% if total != total_camara %} de {{ total_camara }}{% endif %})</span></span>
+        <form method="GET" class="d-flex flex-wrap gap-2 ms-auto">
+            <input type="search" class="form-control form-control-sm" style="width: 150px;" name="q" value="{{ busca }}" placeholder="Código" aria-label="Buscar código">
+            <select class="form-select form-select-sm" style="width: auto;" name="rua" aria-label="Rua" onchange="this.form.submit()">
+                <option value="">Todas as ruas</option>
+                {% for r in ruas %}<option value="{{ r }}" {% if rua == r %}selected{% endif %}>Rua {{ r }}</option>{% endfor %}
+            </select>
+            <select class="form-select form-select-sm" style="width: auto;" name="situacao" aria-label="Filtro" onchange="this.form.submit()">
+                <option value="">Todos</option>
+                <option value="bloqueados" {% if situacao == 'bloqueados' %}selected{% endif %}>Bloqueados</option>
+                <option value="picking" {% if situacao == 'picking' %}selected{% endif %}>Picking</option>
+                <option value="destino" {% if situacao == 'destino' %}selected{% endif %}>Com destino</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
+        </form>
+    </div>
+    <div class="card-body">
+        {% if enderecos %}
+        <form method="POST" action="{{ url_for('enderecamento.acao_enderecos', cid=camara.id) }}" id="formAcao">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="barra-acoes mb-3">
+                <span class="text-muted small" id="contagemMarcados" aria-live="polite">Nenhum marcado</span>
+                <button type="submit" name="acao" value="etiquetas" class="btn btn-sm btn-outline-primary" formtarget="_blank"><i class="fas fa-tag"></i>Etiquetas</button>
+                {% if editar %}
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnBloquear"><i class="fas fa-ban"></i>Bloquear</button>
+                <button type="submit" name="acao" value="liberar" class="btn btn-sm btn-outline-secondary"><i class="fas fa-unlock"></i>Liberar</button>
+                <button type="submit" name="acao" value="picking" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-down"></i>Picking</button>
+                <button type="submit" name="acao" value="pulmao" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-up"></i>Pulmão</button>
+                <button type="submit" name="acao" value="excluir" class="btn btn-sm btn-danger"
+                        onclick="return confirm('Excluir os endereços marcados? Esta ação não pode ser desfeita.');"><i class="fas fa-trash"></i>Excluir</button>
+                <input type="hidden" name="motivo" id="motivoBloqueio">
+                {% endif %}
+            </div>
+            <div class="tabela-scroll">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="marcarTodos" aria-label="Marcar todos desta página"></th>
+                            <th>Endereço</th><th>Bipagem</th><th>Rua</th><th>Coluna</th><th>Nível</th><th>Tipo</th><th>Destino</th><th>Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for e in enderecos %}
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input marcar" name="ids" value="{{ e.id }}" aria-label="Marcar {{ e.codigo }}"></td>
+                            <td><strong class="codigo-mono">{{ e.codigo }}</strong></td>
+                            <td class="codigo-mono">{{ bip(e) }}</td>
+                            <td>{{ e.rua }}</td>
+                            <td>{{ e.coluna }}</td>
+                            <td>{{ e.nivel }}</td>
+                            <td><span class="badge bg-{{ 'info' if e.tipo == 'Picking' else 'secondary' }}">{{ e.tipo }}</span></td>
+                            <td>{% if e.destino %}{{ e.destino }}{% if e.destino_fixo %} <span class="badge bg-warning" title="Posição reservada para este destino">Fixo</span>{% endif %}{% else %}—{% endif %}</td>
+                            <td>
+                                {% if e.id in ocupados %}<span class="badge bg-primary">Ocupado</span> <small class="codigo-mono">{{ ocupados[e.id][0].etiqueta }}</small>{% endif %}
+                                {% if e.bloqueado %}<span class="badge bg-danger">Bloqueado</span>{% if e.motivo_bloqueio %} <small>{{ e.motivo_bloqueio }}</small>{% endif %}
+                                {% elif e.id not in ocupados %}<span class="badge bg-success">Livre</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </form>
+        {% if paginas > 1 %}
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <span class="text-muted">Página {{ pagina }} de {{ paginas }}</span>
+            <div class="d-flex gap-2">
+                {% if pagina > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('enderecamento.camara', cid=camara.id, q=busca, rua=rua, situacao=situacao, pagina=pagina - 1) }}"><i class="fas fa-chevron-left"></i>Anterior</a>{% endif %}
+                {% if pagina < paginas %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('enderecamento.camara', cid=camara.id, q=busca, rua=rua, situacao=situacao, pagina=pagina + 1) }}">Próxima<i class="fas fa-chevron-right"></i></a>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center">
+                {% if total_camara == 0 %}
+                <h5>Esta câmara ainda não tem endereços</h5>
+                <p class="text-muted mb-0">{% if editar %}Use <strong>Gerar endereços em lote</strong> acima: informe as ruas, as colunas e os níveis.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+                {% else %}
+                <h5>Nada encontrado com esse filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('enderecamento.camara', cid=camara.id) }}">Ver todos os endereços</a></p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // Marcar todos / contagem dos marcados
+    var todos = document.getElementById('marcarTodos');
+    var caixas = Array.prototype.slice.call(document.querySelectorAll('.marcar'));
+    var contagem = document.getElementById('contagemMarcados');
+    function atualizar() {
+        var n = caixas.filter(function (c) { return c.checked; }).length;
+        if (contagem) contagem.textContent = n ? n + ' marcado(s)' : 'Nenhum marcado';
+        if (todos) todos.checked = n > 0 && n === caixas.length;
+    }
+    if (todos) todos.addEventListener('change', function () {
+        caixas.forEach(function (c) { c.checked = todos.checked; });
+        atualizar();
+    });
+    caixas.forEach(function (c) { c.addEventListener('change', atualizar); });
+
+    // Bloquear: pede o motivo e envia
+    var btnBloquear = document.getElementById('btnBloquear');
+    if (btnBloquear) btnBloquear.addEventListener('click', function () {
+        if (!caixas.some(function (c) { return c.checked; })) { alert('Marque ao menos um endereço na lista.'); return; }
+        var motivo = prompt('Motivo do bloqueio (opcional):', '');
+        if (motivo === null) return;
+        document.getElementById('motivoBloqueio').value = motivo;
+        var form = document.getElementById('formAcao');
+        var campo = document.createElement('input');
+        campo.type = 'hidden'; campo.name = 'acao'; campo.value = 'bloquear';
+        form.appendChild(campo);
+        form.submit();
+    });
+
+    // Prévia de quantos endereços serão gerados
+    var formGerar = document.getElementById('formGerar');
+    if (formGerar) {
+        var previa = document.getElementById('previaGerar');
+        function calcular() {
+            var ruas = formGerar.ruas.value.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+            var unicas = ruas.filter(function (r, i) { return ruas.indexOf(r) === i; });
+            var colunas = formGerar.coluna_ate.value - formGerar.coluna_de.value + 1;
+            var niveis = formGerar.nivel_ate.value - formGerar.nivel_de.value + 1;
+            var total = unicas.length * colunas * niveis;
+            if (unicas.length && colunas > 0 && niveis > 0) {
+                var rua = unicas[0], cam = ('0' + {{ camara.codigo }}).slice(-2);
+                previa.textContent = total + ' endereço(s): de ' + cam + '-' + rua + '-' + ('0' + formGerar.coluna_de.value).slice(-2) + '-' + formGerar.nivel_de.value +
+                    ' até ' + cam + '-' + unicas[unicas.length - 1] + '-' + ('0' + formGerar.coluna_ate.value).slice(-2) + '-' + formGerar.nivel_ate.value + '.';
+            } else {
+                previa.textContent = '';
+            }
+        }
+        formGerar.addEventListener('input', calcular);
+        calcular();
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Painel · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-house me-2"></i>Painel</h2>
+    <span class="text-muted">Olá, {{ usuario.nome }}</span>
+</div>
+
+<ul class="sub-abas" role="tablist" aria-label="Assuntos do painel">
+    {% for chave, nome, icone in abas %}
+    <li role="presentation"><a role="tab" aria-selected="{{ 'true' if aba == chave else 'false' }}" class="{% if aba == chave %}ativo{% endif %}"
+        href="{{ url_for('principal.dashboard', aba=chave) }}"><i class="fas fa-{{ icone }}"></i>{{ nome }}</a></li>
+    {% endfor %}
+</ul>
+
+{% if aba == 'modulos' %}
+{% if cadastros %}
+<div class="row g-3 mb-4">
+    {% for c in cadastros %}
+    <div class="col-6 col-lg-3">
+        <div class="kpi">
+            <span class="kpi-icone"><i class="fas fa-{{ c.icone }}"></i></span>
+            <div><div class="kpi-valor">{{ c.total }}</div><div class="kpi-rotulo">{{ c.titulo }}</div></div>
+            <a href="{{ url_for('cadastros.lista', slug=c.slug) }}" class="stretched-link" aria-label="Abrir {{ c.titulo }}"></a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+<div class="row g-3">
+    {% for m in modulos %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card modulo-card position-relative">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="modulo-icone"><i class="fas fa-{{ m.icone }}"></i></span>
+                    <h5 class="flex-grow-1">{{ m.nome }}</h5>
+                </div>
+                <p class="text-muted mb-0">{{ m.descricao }}</p>
+                <ul>
+                    {% for t in m.telas %}<li>{{ t.nome }}</li>{% endfor %}
+                </ul>
+                <a href="{{ m.url }}" class="stretched-link" aria-label="Abrir {{ m.nome }}"></a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+{% if d.kpis %}
+<div class="row g-3 mb-3">
+    {% for k in d.kpis %}
+    <div class="col-6 col-lg-4 col-xxl-3">
+        <div class="kpi{% if k.alerta %} kpi--alerta{% endif %}">
+            <span class="kpi-icone"><i class="fas fa-{{ k.icone }}"></i></span>
+            <div><div class="kpi-valor">{{ k.valor }}</div><div class="kpi-rotulo">{{ k.rotulo }}</div>{% if k.detalhe %}<div class="kpi-detalhe">{{ k.detalhe }}</div>{% endif %}</div>
+            {% if k.url %}<a href="{{ k.url }}" class="stretched-link" aria-label="Abrir {{ k.rotulo }}"></a>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if d.graficos %}
+<div class="painel-grade">
+    {% for g in d.graficos %}
+    <div class="card mb-0{% if g.tipo == 'linhas' %} painel-largo{% endif %}">
+        <div class="card-header"><i class="fas fa-{{ 'chart-line' if g.tipo == 'linhas' else 'chart-column' }} me-2"></i>{{ g.titulo }}</div>
+        <div class="card-body">
+            <figure class="grafico grafico--solto" data-grafico="{{ g|tojson|forceescape }}">
+                {% if g.ajuda %}<figcaption><span>{{ g.ajuda }}{% if g.links %} Clique para abrir.{% endif %}</span></figcaption>{% endif %}
+                {% if g.series|length > 1 %}
+                <ul class="grafico-legenda" aria-label="Séries">
+                    {% for s in g.series %}<li><i style="background: var({{ s.cor }})"></i>{{ s.nome }}</li>{% endfor %}
+                </ul>
+                {% endif %}
+                <div class="grafico-area"></div>
+                <div class="grafico-dica" hidden></div>
+            </figure>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if aba == 'alertas' %}
+<div class="card mt-3"><div class="card-body">
+    {% if d.alertas %}
+    <ul class="fin-lista">
+        {% for a in d.alertas %}
+        <li><div><span class="badge bg-{{ 'danger' if a.grave else 'warning text-dark' }}">{{ a.tipo }}</span> <strong>{{ a.titulo }}</strong>
+            <small class="d-block text-muted">{{ a.detalhe }}</small></div><a class="btn btn-sm btn-outline-primary" href="{{ a.url }}">Ver</a></li>
+        {% endfor %}
+    </ul>
+    {% if d.alertas_total > d.alertas|length %}<p class="mt-2 mb-0"><a href="{{ url_for('sistema.alertas') }}">Ver os {{ d.alertas_total }} alertas</a></p>{% endif %}
+    {% else %}
+    <div class="bloco-dados-altura"><div class="text-center"><h5>Nenhum alerta</h5><p class="text-muted mb-0">Nada vencendo, nenhum produto abaixo do mínimo e nenhuma câmara fora da faixa.</p></div></div>
+    {% endif %}
+</div></div>
+{% elif not d.kpis and not d.graficos %}
+<div class="card"><div class="card-body"><div class="bloco-dados-altura"><p class="text-muted mb-0">Ainda não há dados para mostrar aqui.</p></div></div></div>
+{% elif not d.graficos %}
+<p class="text-muted">Os gráficos aparecem aqui quando houver movimento.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if aba != 'modulos' and d.graficos %}<script src="{{ url_for('static', filename='graficos.js') }}?v={{ assets_version }}"></script>{% endif %}
+{% endblock %}

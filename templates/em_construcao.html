@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ tela.nome }} · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-{{ tela.icone }} me-2"></i>{{ tela.nome }}</h2>
+    <span class="badge bg-secondary">Em construção</span>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-{{ modulo.icone }} me-2"></i>{{ modulo.nome }} — {{ modulo.descricao }}</div>
+    <div class="card-body">
+        <p>Esta tela ainda não foi construída. O que está previsto para ela:</p>
+        <ul class="escopo-lista">
+            {% for item in tela.escopo %}<li>{{ item }}</li>{% endfor %}
+        </ul>
+        <p class="text-muted mb-0">Quer mudar, tirar ou acrescentar algo? É só avisar antes de o módulo ser feito.</p>
+    </div>
+</div>
+{% endblock %}

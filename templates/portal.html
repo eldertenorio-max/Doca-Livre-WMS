@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Portal do cliente · WMS Doca Livre{% endblock %}
+
+{% macro kg(v) %}{{ v|round(3)|numero }} kg{% endmacro %}
+{% macro dia(d) %}{{ d.strftime('%d/%m/%Y') if d else '—' }}{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-building-user me-2"></i>Portal do cliente</h2>
+    {% if aba == 'estoque' and estoque %}<a class="btn btn-outline-primary" href="{{ url_for('portal.inicio', aba='estoque', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>{% endif %}
+</div>
+
+{% if not todas %}
+<div class="card"><div class="card-body"><div class="bloco-dados-altura"><div class="text-center" style="max-width: 560px;">
+    {% if gestao %}
+    <h5>Ainda não há clientes com nota recebida</h5>
+    <p class="text-muted mb-0">O portal mostra o estoque, as notas e a cobrança de cada cliente (a empresa que emite a nota de entrada).</p>
+    {% else %}
+    <h5>Seu usuário ainda não está ligado a uma empresa</h5>
+    <p class="text-muted mb-0">Peça ao administrador do armazém para vincular o seu usuário à sua empresa na Hierarquia. Depois disso o seu estoque, as suas notas e a sua cobrança aparecem aqui.</p>
+    {% endif %}
+</div></div></div></div>
+{% else %}
+
+{% if gestao or todas|length > 1 %}
+<form method="GET" class="row g-2 mb-3 align-items-end">
+    <input type="hidden" name="aba" value="{{ aba }}">
+    <div class="col-12 col-md-5 col-lg-4">
+        <label class="form-label" for="ptEmpresa">{{ 'Ver o portal como o cliente' if gestao else 'Empresa' }}</label>
+        <select class="form-select" id="ptEmpresa" name="empresa" onchange="this.form.submit()">
+            <option value="">{{ '— escolher o cliente —' if gestao else 'Todas as minhas empresas' }}</option>
+            {% for e in todas %}<option value="{{ e.id }}" {% if filtros.get('empresa') == e.id %}selected{% endif %}>{{ e.nome }}</option>{% endfor %}
+        </select>
+    </div>
+</form>
+{% endif %}
+
+{% if not escolhidas %}
+<div class="card"><div class="card-body"><div class="bloco-dados-altura"><p class="text-muted mb-0">Escolha um cliente para ver o portal como ele vê.</p></div></div></div>
+{% else %}
+<p class="text-muted">{{ escolhidas|map(attribute='nome')|join(' · ') }}</p>
+
+<div class="card mb-3"><div class="card-body">
+    <dl class="fin-grade">
+        <div><dt>Paletes guardados</dt><dd>{{ resumo.paletes }}</dd></div>
+        <div><dt>Posições ocupadas</dt><dd>{{ resumo.posicoes }}</dd></div>
+        <div><dt>Produtos</dt><dd>{{ resumo.produtos }}</dd></div>
+        <div><dt>Peso</dt><dd>{{ kg(resumo.peso) }}</dd></div>
+        <div><dt>Notas armazenadas</dt><dd>{{ resumo.notas }}</dd></div>
+        <div class="fin-destaque"><dt>A cobrar no período</dt><dd>{{ resumo.cobrar|moeda }}</dd></div>
+    </dl>
+</div></div>
+
+<ul class="sub-abas" role="tablist" aria-label="Partes do portal">
+    {% for chave, nome, icone in abas %}
+    <li role="presentation"><a role="tab" aria-selected="{{ 'true' if aba == chave else 'false' }}" class="{% if aba == chave %}ativo{% endif %}"
+        href="{{ url_for('portal.inicio', aba=chave, **filtros) }}"><i class="fas fa-{{ icone }}"></i>{{ nome }}</a></li>
+    {% endfor %}
+</ul>
+
+<div class="card"><div class="card-body">
+{% if aba == 'estoque' %}
+    {% if estoque %}
+    <div class="tabela-scroll">
+        <table class="table table-striped mb-0 align-middle">
+            <thead><tr><th>Código</th><th>Produto</th><th>Lote</th><th>Fabricação</th><th>Validade</th><th class="text-end">Quantidade</th><th class="text-end">Paletes</th></tr></thead>
+            <tbody>
+                {% for l in estoque %}
+                <tr><td class="codigo-mono">{{ l.sku }}</td><td>{{ l.descricao }}</td><td>{{ l.lote or '—' }}</td><td>{{ dia(l.fabricacao) }}</td><td>{{ dia(l.validade) }}</td>
+                    <td class="text-end">{{ l.quantidade|numero }} {{ l.unidade }}</td><td class="text-end">{{ l.paletes }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bloco-dados-altura"><p class="text-muted mb-0">Nenhuma mercadoria guardada no momento.</p></div>
+    {% endif %}
+
+{% elif aba == 'notas' %}
+    {% if notas %}
+    <div class="tabela-scroll">
+        <table class="table table-striped mb-0 align-middle">
+            <thead><tr><th>NF</th><th>Tipo</th><th>Lançada em</th><th>Situação no armazém</th><th class="text-end">Paletes guardados</th><th class="text-end">Saídas</th><th></th></tr></thead>
+            <tbody>
+                {% for n in notas %}{% set r = guardados.get(n.id) %}
+                <tr><td><strong>{{ n.numero }}</strong>{% if n.serie %}<small class="text-muted"> · série {{ n.serie }}</small>{% endif %}</td><td>{{ n.tipo }}</td><td>{{ n.criado_em|datahora }}</td>
+                    <td>{% if r %}{{ selo(r.status) }}{% else %}{{ selo(n.status) }}{% endif %}</td>
+                    <td class="text-end">{{ r.paletes if r else '—' }}</td><td class="text-end">{{ r.saidas|length if r and r.saidas else '—' }}</td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.nota_pdf', nid=n.id) }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>NF em PDF</a></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bloco-dados-altura"><p class="text-muted mb-0">Nenhuma nota lançada ainda.</p></div>
+    {% endif %}
+
+{% else %}
+    <h5 class="mb-3">Meses fechados</h5>
+    {% if fechamentos %}
+    <ul class="fin-lista mb-4">
+        {% for f in fechamentos %}
+        <li><div><strong>{{ nome_do_mes(f.ano, f.mes)|capitalize }}</strong>{% if escolhidas|length > 1 %} · {{ f.empresa.nome }}{% endif %}
+            <small class="d-block text-muted">{{ f.notas }} nota(s) · armazenagem {{ f.armazenagem|moeda }} · entrada {{ f.debitos_entrada|moeda }} · saída {{ f.debitos_saida|moeda }}</small></div>
+            <div class="d-flex align-items-center gap-3"><strong>{{ f.total|moeda }}</strong>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.fechamento_pdf', fid=f.id) }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>Demonstrativo</a></div></li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted">Nenhum mês fechado ainda. O demonstrativo de cada mês aparece aqui quando o armazém fecha a cobrança.</p>
+    {% endif %}
+    <h5 class="mb-1">Período em aberto</h5>
+    <p class="text-muted small">Valor calculado até hoje, ainda sujeito a mudança até o fechamento do mês.</p>
+    {% if linhas %}
+    <div class="tabela-scroll">
+        <table class="table table-striped mb-0 align-middle">
+            <thead><tr><th>NF</th><th>Situação</th><th>Armazenada em</th><th class="text-end">Dias</th><th>Período</th><th class="text-end">Dias no período</th><th class="text-end">Diária</th><th class="text-end">Armazenagem</th><th class="text-end">Entrada</th><th class="text-end">Saída</th><th class="text-end">A cobrar</th></tr></thead>
+            <tbody>
+                {% for l in linhas %}{% set r = l.resumo %}{% set p = l.periodo %}
+                <tr><td><strong>{{ l.nota.numero }}</strong></td><td>{{ selo(r.status) }}</td><td>{{ dia(r.entrada) }}</td><td class="text-end">{{ r.dias }}</td>
+                    <td class="text-nowrap">{{ dia(p.inicio) }} a {{ dia(p.fim) }}</td><td class="text-end">{{ p.dias }}</td><td class="text-end">{{ p.valor_diaria|moeda }}</td>
+                    <td class="text-end">{{ p.armazenagem|moeda }}</td><td class="text-end">{{ p.debitos_entrada|moeda }}</td><td class="text-end">{{ p.debitos_saida|moeda }}</td>
+                    <td class="text-end"><strong>{{ p.total|moeda }}</strong></td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot><tr><th colspan="10">Total em aberto</th><th class="text-end">{{ resumo.cobrar|moeda }}</th></tr></tfoot>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">Nenhuma nota em cobrança.</p>
+    {% endif %}
+{% endif %}
+</div></div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% from '_estoque_partes.html' import paginacao, cartao_filtro %}
+{% block title %}Histórico de movimentação · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-clock-rotate-left me-2"></i>Histórico de movimentação</h2>
+    <a class="btn btn-outline-primary" href="{{ url_for('estoque.historico', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+</div>
+
+{# Contagem por tipo dentro do filtro; clicar filtra o tipo #}
+<div class="cartoes-filtro mb-3" role="navigation" aria-label="Filtrar por tipo de movimento">
+    {% set sem_tipo = dict(filtros) %}{% set _ = sem_tipo.pop('tipo', none) %}
+    {{ cartao_filtro('Todos', contagem.values()|sum if not f.tipo else '•', url_for('estoque.historico', **sem_tipo), not f.tipo) }}
+    {% for t in tipos %}
+    {{ cartao_filtro(t, contagem.get(t, 0) if (not f.tipo or f.tipo == t) else '•', url_for('estoque.historico', **dict(sem_tipo, tipo=t)), f.tipo == t) }}
+    {% endfor %}
+</div>
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    {% if f.tipo %}<input type="hidden" name="tipo" value="{{ f.tipo }}">{% endif %}
+    <div class="col-12 col-lg-4">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ f.q }}" placeholder="Palete, endereço, SKU, lote, NF ou motivo" aria-label="Buscar no histórico">
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <label class="visually-hidden" for="hDe">De</label>
+        <input type="date" class="form-control" id="hDe" name="de" value="{{ f.de }}" title="A partir de">
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <label class="visually-hidden" for="hAte">Até</label>
+        <input type="date" class="form-control" id="hAte" name="ate" value="{{ f.ate }}" title="Até">
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="usuario" aria-label="Usuário">
+            <option value="">Todos os usuários</option>
+            {% for u in usuarios %}<option value="{{ u }}" {% if f.usuario == u %}selected{% endif %}>{{ u }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if filtros %}<a href="{{ url_for('estoque.historico') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if movimentos %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Data e hora</th><th>Tipo</th><th>Palete</th><th>Conteúdo</th><th>NF</th><th>De</th><th>Para</th><th>Motivo / observação</th><th>Usuário</th></tr></thead>
+                <tbody>
+                    {% for m in movimentos %}
+                    <tr>
+                        <td class="text-nowrap">{{ m.criado_em|datahora }}</td>
+                        <td>{{ selo(m.tipo) }}</td>
+                        <td class="codigo-mono">{% if pode_ver('movimentacao') %}<a href="{{ url_for('movimentacao.paletes', q=m.palete.etiqueta) }}" title="Controle de palete">{{ m.palete.etiqueta }}</a>{% else %}{{ m.palete.etiqueta }}{% endif %}</td>
+                        <td>{{ resumo_itens(m.palete) }}</td>
+                        <td>{% if m.palete.nota %}<a href="{{ url_for('estoque.historico_nf', nf=m.palete.nota.numero) }}">{{ m.palete.nota.numero }}</a>{% else %}—{% endif %}</td>
+                        <td class="codigo-mono text-nowrap">{{ m.origem or '—' }}</td>
+                        <td class="codigo-mono text-nowrap">{{ m.destino or '—' }}</td>
+                        <td>{{ m.motivo or '' }}{% if m.motivo and m.observacao %} · {% endif %}{{ m.observacao or '' }}{% if not m.motivo and not m.observacao %}—{% endif %}</td>
+                        <td>{{ m.usuario }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {{ paginacao('estoque.historico', pagina, paginas, total, 'movimento(s)', filtros) }}
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center" style="max-width: 520px;">
+                {% if filtros %}
+                <h5>Nenhum movimento com esse filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('estoque.historico') }}">Limpar os filtros</a></p>
+                {% else %}
+                <h5>Ainda não há movimentos</h5>
+                <p class="text-muted mb-0">Entradas, guardas, transferências, idas ao stage, saídas, retornos e baixas de palete aparecem aqui, em uma só linha do tempo.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

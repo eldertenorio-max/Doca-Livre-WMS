@@ -1,0 +1,92 @@
+{% extends "coletor_base.html" %}
+{% block voltar %}<a href="{{ url_for('coletor.inventario') if inventario else url_for('coletor.inicio') }}" class="coletor-voltar" aria-label="Voltar"><i class="fas fa-arrow-left"></i></a>{% endblock %}
+{% block corpo %}
+{% if not inventario %}
+{% if abertos %}
+<div class="coletor-lista">
+    {% for a in abertos %}
+    <a href="{{ url_for('coletor.inventario_contar', iid=a.inventario.id) }}">
+        <span><strong>{{ a.inventario.descricao }}</strong><small>nº {{ a.inventario.id }}{% if a.inventario.camara %} · {{ a.inventario.camara.nome }}{% endif %}{% if a.inventario.cego %} · contagem cega{% endif %} · {{ a.total - a.pendentes }} de {{ a.total }} contada(s)</small></span>
+        <em>{{ a.pendentes }}</em>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="coletor-vazio">Nenhum inventário aberto. Um inventário é criado em Estoque › Inventário, no sistema completo.</p>
+{% endif %}
+
+{% else %}
+{% set base = url_for('coletor.inventario_contar', iid=inventario.id) %}
+{% set aqui = url_for('coletor.inventario_contar', iid=inventario.id, local=local) if local else base %}
+<div class="coletor-progresso" aria-label="Progresso do inventário"><span style="width: {{ (100 * (total - pendentes) / total)|round|int if total else 0 }}%"></span><b>{{ total - pendentes }} de {{ total }}</b></div>
+<form method="GET" action="{{ base }}" autocomplete="off" class="coletor-form">
+    <label for="ciLocal">Bipe o endereço (longarina) ou o palete</label>
+    <input type="text" id="ciLocal" name="local" class="coletor-campo" required {% if not local %}data-bipar{% endif %} autocapitalize="characters" enterkeyhint="search" placeholder="Endereço ou palete" value="{{ local or '' }}">
+    <button type="submit" class="coletor-acao coletor-acao--leve"><i class="fas fa-magnifying-glass"></i>Ver o que há aqui</button>
+</form>
+
+{% if local %}
+<h2 class="coletor-subtitulo">{{ local }}</h2>
+{% for l in linhas %}
+<section class="coletor-cartao{% if l.status != 'Pendente' %} coletor-feito{% endif %}">
+    <span class="coletor-rotulo">{{ l.status }}{% if l.palete_etiqueta %} · palete {{ l.palete_etiqueta }}{% endif %}</span>
+    {% if inventario.cego and l.status == 'Pendente' %}
+    <p class="coletor-detalhe">Contagem cega: bipe o produto e informe o que você contou.</p>
+    {% else %}
+    <p class="coletor-codigo">{{ l.sku }}</p>
+    <p class="coletor-detalhe">{{ l.descricao }}{% if l.lote %} · lote {{ l.lote }}{% endif %}{% if l.validade %} · val. {{ l.validade.strftime('%d/%m/%Y') }}{% endif %}</p>
+    <p class="coletor-detalhe">{% if l.status == 'Pendente' %}Sistema: <strong>{{ l.quantidade_esperada|numero }} {{ l.unidade }}</strong>{% else %}Contado: <strong>{{ l.bip_quantidade|numero }} {{ l.unidade }}</strong>{% if not inventario.cego %} · sistema {{ l.quantidade_esperada|numero }}{% endif %}{% endif %}</p>
+    {% endif %}
+    {% if l.status == 'Pendente' and editar and aberto %}
+    {% if not inventario.cego %}
+    <form method="POST" action="{{ url_for('inventario.bipar', iid=inventario.id) }}" class="coletor-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
+        <input type="hidden" name="acao" value="confere"><input type="hidden" name="linha_id" value="{{ l.id }}">
+        <button type="submit" class="coletor-acao"><i class="fas fa-check"></i>Confere: {{ l.quantidade_esperada|numero }} {{ l.unidade }}</button>
+    </form>
+    {% endif %}
+    <form method="POST" action="{{ url_for('inventario.bipar', iid=inventario.id) }}" autocomplete="off" class="coletor-form coletor-form--linha">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
+        <input type="hidden" name="linha_id" value="{{ l.id }}"><input type="hidden" name="local" value="{{ local }}">
+        {% if inventario.cego %}
+        <label for="ciCod{{ l.id }}">Produto (bipe)</label>
+        <input type="text" id="ciCod{{ l.id }}" name="codigo" class="coletor-campo" required autocapitalize="characters" placeholder="EAN, DUN ou SKU" {% if loop.first %}data-bipar{% endif %}>
+        {% else %}
+        <input type="hidden" name="codigo" value="{{ l.sku }}"><input type="hidden" name="lote" value="{{ l.lote or '' }}">
+        <input type="hidden" name="fabricacao" value="{{ l.fabricacao.isoformat() if l.fabricacao else '' }}"><input type="hidden" name="validade" value="{{ l.validade.isoformat() if l.validade else '' }}">
+        <input type="hidden" name="up" value="{{ l.up or '' }}">
+        {% endif %}
+        <label for="ciQtd{{ l.id }}">{{ 'Quantidade contada' if inventario.cego else 'Contei diferente' }}</label>
+        <div class="coletor-dupla">
+            <input type="text" inputmode="decimal" id="ciQtd{{ l.id }}" name="quantidade" class="coletor-campo" required placeholder="Quantidade">
+            <button type="submit" class="coletor-acao coletor-acao--leve">Gravar</button>
+        </div>
+    </form>
+    {% endif %}
+</section>
+{% else %}
+<p class="coletor-vazio">O sistema não tem nada neste endereço no inventário. Se há mercadoria aqui, registre abaixo como extra.</p>
+{% endfor %}
+{% if editar and aberto %}
+<details class="coletor-extra">
+    <summary>Achei um produto que não está na lista</summary>
+    <form method="POST" action="{{ url_for('inventario.bipar', iid=inventario.id) }}" autocomplete="off" class="coletor-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}"><input type="hidden" name="local" value="{{ local }}">
+        <label for="ciExCod">Produto (bipe)</label><input type="text" id="ciExCod" name="codigo" class="coletor-campo" required autocapitalize="characters" placeholder="EAN, DUN ou SKU">
+        <label for="ciExQtd">Quantidade</label><input type="text" inputmode="decimal" id="ciExQtd" name="quantidade" class="coletor-campo" required>
+        <label for="ciExLote">Lote</label><input type="text" id="ciExLote" name="lote" class="coletor-campo" maxlength="30">
+        <label for="ciExVal">Validade</label><input type="date" id="ciExVal" name="validade" class="coletor-campo">
+        <button type="submit" class="coletor-acao coletor-acao--leve">Registrar extra</button>
+    </form>
+</details>
+{% endif %}
+{% elif proximos %}
+<h2 class="coletor-subtitulo">Endereços que faltam contar</h2>
+<div class="coletor-lista">
+    {% for e in proximos %}<a href="{{ url_for('coletor.inventario_contar', iid=inventario.id, local=e) }}"><span><strong>{{ e }}</strong></span><em><i class="fas fa-chevron-right"></i></em></a>{% endfor %}
+</div>
+{% elif not pendentes and total %}
+<div class="coletor-aviso coletor-aviso--ok"><i class="fas fa-circle-check"></i><span>Tudo contado. O inventário é finalizado no sistema completo.</span></div>
+{% endif %}
+{% endif %}
+{% endblock %}

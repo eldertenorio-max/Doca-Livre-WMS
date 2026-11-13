@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Retornos e reentregas · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('devolucoes') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-rotate-left me-2"></i>Retornos e reentregas</h2>
+    {% if editar %}
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPlanilha"><i class="fas fa-file-excel"></i>Planilha</button>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalXml"><i class="fas fa-file-code"></i>XML</button>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalManual"><i class="fas fa-keyboard"></i>Manual</button>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalCarga"><i class="fas fa-truck-ramp-box"></i>Retorno de uma carga</button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-hourglass-start"></i></span><div><div class="kpi-valor">{{ contagem.get('Aguardando', 0) }}</div><div class="kpi-rotulo">Aguardando conferência</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-barcode"></i></span><div><div class="kpi-valor">{{ contagem.get('Em conferência', 0) }}</div><div class="kpi-rotulo">Em conferência</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-rotate"></i></span><div><div class="kpi-valor">{{ reentregas }}</div><div class="kpi-rotulo">Paletes esperando reentrega</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-circle-check"></i></span><div><div class="kpi-valor">{{ contagem.get('Finalizada', 0) }}</div><div class="kpi-rotulo">Finalizados</div></div></div></div>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-12 col-md-5">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="NF, dono da mercadoria, carga ou motivo" aria-label="Buscar retorno">
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="situacao" aria-label="Situação" onchange="this.form.submit()">
+            <option value="abertas" {% if situacao == 'abertas' %}selected{% endif %}>Em aberto</option>
+            {% for s in ('Aguardando', 'Em conferência', 'Finalizada', 'Cancelada') %}<option value="{{ s }}" {% if situacao == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            <option value="todas" {% if situacao == 'todas' %}selected{% endif %}>Todos</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca or situacao != 'abertas' %}<a href="{{ url_for('retornos.lista') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if notas %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>NF</th><th>Dono da mercadoria</th><th>Carga</th><th>Motivo</th><th>Itens</th><th>Paletes</th><th>Origem</th><th>Situação</th><th>Aberto em</th><th></th></tr></thead>
+                <tbody>
+                    {% for n in notas %}
+                    <tr>
+                        <td><strong>{{ n.numero }}</strong>{% if n.serie %}<small> / {{ n.serie }}</small>{% endif %}</td>
+                        <td>{{ n.empresa.nome if n.empresa else '—' }}</td>
+                        <td>{{ n.carga.codigo if n.carga else '—' }}</td>
+                        <td>{{ n.motivo_retorno or '—' }}</td>
+                        <td>{{ n.itens|length }}</td>
+                        <td>{{ n.paletes|length }}</td>
+                        <td>{{ n.origem }}</td>
+                        <td>{{ selo(n.status) }}</td>
+                        <td class="text-nowrap">{{ n.criado_em|datahora }}</td>
+                        <td class="text-end text-nowrap">
+                            {% if pode_ver('recebimento') %}
+                            <a href="{{ url_for('entrada.extrato', nid=n.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="Extrato do retorno" aria-label="Extrato do retorno da NF {{ n.numero }}"><i class="fas fa-receipt"></i></a>
+                            <a href="{{ url_for('entrada.nota', nid=n.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-arrow-right"></i>Abrir</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <span class="text-muted">{{ total }} retorno(s){% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+            {% if paginas > 1 %}
+            <div class="d-flex gap-2">
+                {% if pagina > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('retornos.lista', q=busca, situacao=situacao, pagina=pagina - 1) }}"><i class="fas fa-chevron-left"></i>Anterior</a>{% endif %}
+                {% if pagina < paginas %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('retornos.lista', q=busca, situacao=situacao, pagina=pagina + 1) }}">Próxima<i class="fas fa-chevron-right"></i></a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center" style="max-width: 560px;">
+                {% if busca or situacao != 'abertas' %}
+                <h5>Nenhum retorno encontrado com esse filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('retornos.lista', situacao='todas') }}">Ver todos os retornos</a></p>
+                {% else %}
+                <h5>Nenhum retorno em aberto</h5>
+                <p class="text-muted mb-0">{% if editar %}Quando uma mercadoria voltar da rua, use <strong>Retorno de uma carga</strong> para escolher o que voltou. Se a carga não saiu por este sistema, use <strong>XML</strong>, <strong>Planilha</strong> ou <strong>Manual</strong>.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+{# Retorno de uma carga expedida #}
+<div class="modal fade" id="modalCarga" tabindex="-1" aria-labelledby="modalCargaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="GET" action="{{ url_for('retornos.escolher_carga') }}" autocomplete="off">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCargaTitulo"><i class="fas fa-truck-ramp-box me-2"></i>Retorno de uma carga</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                {% if cargas %}
+                <label class="form-label" for="rcCarga">Carga que saiu <span class="obrigatorio">*</span></label>
+                <select class="form-select" id="rcCarga" name="codigo" required>
+                    <option value="">— escolher —</option>
+                    {% for c in cargas %}<option value="{{ c.codigo }}">{{ c.codigo }}{% if c.fim_conferencia %} · saiu em {{ c.fim_conferencia|datahora }}{% endif %}{% if c.placa %} · {{ c.placa }}{% endif %}{% if c.motorista %} · {{ c.motorista }}{% endif %}</option>{% endfor %}
+                </select>
+                <p class="text-muted small mt-3 mb-0">Na tela seguinte você informa quanto voltou de cada item e o motivo.</p>
+                {% else %}
+                <p class="text-muted mb-0">Nenhuma carga foi expedida por este sistema ainda. Para um retorno de carga que saiu por fora, use XML, Planilha ou Manual.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                {% if cargas %}<button type="submit" class="btn btn-primary"><i class="fas fa-arrow-right"></i>Continuar</button>{% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalXml" tabindex="-1" aria-labelledby="modalXmlTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('retornos.importar_xml') }}" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalXmlTitulo"><i class="fas fa-file-code me-2"></i>Retorno por XML de NF-e</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="rxArquivos">Arquivos XML (pode escolher vários)</label>
+                <input type="file" class="form-control mb-3" id="rxArquivos" name="arquivos" accept=".xml,text/xml,application/xml" multiple required>
+                {% with prefixo = 'rx', escolhido = none, outro = none %}{% include '_motivo_retorno.html' %}{% endwith %}
+                <p class="text-muted small mt-3 mb-0">Use o XML da nota que voltou (a de venda ou a de devolução). Os itens entram com a quantidade da nota; na conferência você monta os paletes com o que voltou de fato.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPlanilha" tabindex="-1" aria-labelledby="modalPlanilhaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('retornos.importar_planilha') }}" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPlanilhaTitulo"><i class="fas fa-file-excel me-2"></i>Retorno por planilha</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <ol class="mb-3">
+                    <li>Baixe o {% if pode_ver('recebimento') %}<a href="{{ url_for('entrada.modelo_planilha') }}">modelo de planilha</a>{% else %}modelo de planilha (o mesmo do recebimento){% endif %}.</li>
+                    <li>Preencha uma linha por item que voltou; em "Remetente" vai o dono da mercadoria.</li>
+                    <li>Envie o arquivo aqui.</li>
+                </ol>
+                <input type="file" class="form-control mb-3" name="arquivo" accept=".xlsx" required aria-label="Planilha .xlsx">
+                {% with prefixo = 'rp', escolhido = none, outro = none %}{% include '_motivo_retorno.html' %}{% endwith %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalManual" tabindex="-1" aria-labelledby="modalManualTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('retornos.manual') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalManualTitulo"><i class="fas fa-keyboard me-2"></i>Retorno manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-5">
+                        <label class="form-label" for="rmNumero">NF <span class="obrigatorio">*</span></label>
+                        <input type="text" inputmode="numeric" class="form-control" id="rmNumero" name="numero" maxlength="15" required>
+                    </div>
+                    <div class="col-3">
+                        <label class="form-label" for="rmSerie">Série</label>
+                        <input type="text" class="form-control" id="rmSerie" name="serie" maxlength="5">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label" for="rmEmissao">Emissão</label>
+                        <input type="date" class="form-control" id="rmEmissao" name="data_emissao">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="rmEmpresa">Dono da mercadoria <span class="obrigatorio">*</span></label>
+                        <select class="form-select" id="rmEmpresa" name="empresa_id">
+                            <option value="">— escolher —</option>
+                            {% for e in empresas %}<option value="{{ e.id }}">{{ e.nome }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="rmNova">ou cadastrar uma empresa nova</label>
+                        <input type="text" class="form-control" id="rmNova" name="empresa_nova" maxlength="150" placeholder="Razão social">
+                    </div>
+                    <div class="col-12">
+                        {% with prefixo = 'rm', escolhido = none, outro = none %}{% include '_motivo_retorno.html' %}{% endwith %}
+                    </div>
+                </div>
+                <p class="text-muted small mt-3 mb-0">Os itens que voltaram são incluídos na tela seguinte.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Criar retorno</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

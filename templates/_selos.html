@@ -1,0 +1,24 @@
+{# Selos coloridos de situação, usados nas telas de entrada e movimentação. #}
+{% set CORES = {
+    'Aguardando': 'secondary', 'Em conferência': 'warning', 'Finalizada': 'success', 'Cancelada': 'danger',
+    'Aguardando guarda': 'warning', 'Armazenado': 'success', 'Stage': 'info', 'Fora': 'secondary', 'Baixado': 'danger',
+    'Aberta': 'secondary', 'Em separação': 'info', 'Expedida': 'success', 'Expedido': 'secondary',
+    'Bom': 'success', 'Reentrega': 'info', 'Avaria': 'warning', 'Descarte / Perdas': 'danger', 'Palete bloqueado': 'danger',
+    'Agendado': 'secondary', 'No pátio': 'info', 'Em operação': 'warning', 'Concluído': 'success', 'Não compareceu': 'danger',
+    'Cancelado': 'danger', 'Aberta': 'danger', 'Resolvida': 'success',
+    'Armazenada': 'info',
+    'Ativo': 'secondary', 'Em andamento': 'warning', 'Finalizado': 'success',
+    'Pendente': 'secondary', 'Conferido': 'success', 'Divergente': 'danger', 'Extra': 'warning', 'Inventário': 'info',
+    'Entrada': 'info', 'Guarda': 'success', 'Transferência': 'secondary', 'Saída': 'warning', 'Retorno': 'info', 'Baixa': 'danger'
+} %}
+{% macro selo(texto) %}<span class="badge bg-{{ CORES.get(texto, 'secondary') }}">{{ texto }}</span>{% endmacro %}
+
+{# Formulário de bipagem da longarina para confirmar a guarda de um palete. #}
+{% macro form_guardar(palete) %}
+<form method="POST" action="{{ url_for('entrada.guardar', pid=palete.id) }}" class="d-flex gap-2" autocomplete="off">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="text" class="form-control form-control-sm codigo-mono" name="codigo" required style="width: 170px; text-transform: uppercase;"
+           placeholder="Bipe a longarina" aria-label="Bipar a longarina para guardar o palete {{ palete.etiqueta }}">
+    <button type="submit" class="btn btn-sm btn-primary text-nowrap"><i class="fas fa-check"></i>Guardar</button>
+</form>
+{% endmacro %}

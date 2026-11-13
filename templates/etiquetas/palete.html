@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{ etq_largura_mm }}mm">
+<title>Etiqueta palete {{ etiqueta }}</title>
+<style>
+  :root {
+    --lw: {{ etq_largura_in }}in;
+    --lh: {{ etq_altura_in }}in;
+    --ink: #000;
+    --paper: #fff;
+    --etq-side: 6.5mm;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  @page {
+    size: {{ etq_page_size_in }};
+    size: {{ etq_page_size_mm }};
+    margin: 0;
+  }
+
+  html { background: #eee; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    color: var(--ink);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .toolbar {
+    margin: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: calc(var(--lw) + 16px);
+  }
+  .toolbar button {
+    padding: 8px; font-size: 13px; cursor: pointer;
+    border: none; border-radius: 6px; background: #1976d2; color: #fff;
+  }
+  .toolbar .print-setup-hint {
+    font-size: 11px;
+    color: #555;
+    line-height: 1.4;
+  }
+  @media print { .print-setup-hint { display: none !important; } }
+
+  .etq-page {
+    width: var(--lw);
+    height: var(--lh);
+    margin: 0 0 0 8px;
+    overflow: hidden;
+    background: var(--paper);
+    position: relative;
+  }
+  .etq {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--paper);
+    padding: 0 var(--etq-side);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    container-type: size;
+    container-name: etq;
+  }
+  .ink-block {
+    background: var(--ink) !important;
+    color: var(--paper) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ── Destino (topo compacto) ── */
+  .etq-destino {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    border-top: 0.55mm solid var(--ink);
+    border-bottom: 0.45mm solid var(--ink);
+    min-height: 15cqh;
+    max-height: 19cqh;
+  }
+  .dest-titulo {
+    width: 22mm;
+    min-width: 22mm;
+    max-width: 22mm;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.4mm 3.5mm;
+    font-size: 2.75mm;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    line-height: 1.08;
+    text-align: center;
+    border-right: 0.4mm solid var(--ink);
+    overflow: hidden;
+    word-break: keep-all;
+  }
+  .dest-info {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 2% 3%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .dest-wms {
+    width: 100%;
+    text-align: center;
+    font-size: 8.5cqh;
+    font-weight: 900;
+    font-family: Consolas, 'Courier New', monospace;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .dest-camara {
+    flex-shrink: 0;
+    font-size: 6cqh;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .dest-camara b { font-size: 7.5cqh; font-weight: 900; }
+  .dest-bip {
+    flex-shrink: 0;
+    margin-left: auto;
+    text-align: right;
+    line-height: 1.05;
+  }
+  .dest-bip .lbl {
+    display: block;
+    font-size: 4.5cqh;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .dest-bip .val {
+    display: block;
+    font-size: 6.5cqh;
+    font-weight: 800;
+    font-family: Consolas, monospace;
+  }
+  .dest-loc {
+    flex: 1;
+    min-width: 0;
+    font-size: 5cqh;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Código de barras principal (destaque) ── */
+  .etq-hero-bc {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 44cqh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5% 0 1%;
+    border-bottom: 0.45mm solid var(--ink);
+    gap: 1.5%;
+  }
+  .brand {
+    font-size: 5.5cqh;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .bc-hero-wrap {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    overflow: hidden;
+  }
+  .bc-hero-wrap svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .codigo-hero {
+    flex-shrink: 0;
+    font-size: 6cqh;
+    font-family: Consolas, 'Courier New', monospace;
+    font-weight: 800;
+    text-align: center;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* ── Dados do produto (rodapé) ── */
+  .etq-dados {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    font-size: 5cqh;
+    line-height: 1.15;
+    min-height: 30cqh;
+  }
+  .dados-row {
+    display: flex;
+    flex-direction: row;
+    border-bottom: 0.35mm solid var(--ink);
+    min-height: 13cqh;
+  }
+  .dados-row:last-child { border-bottom: none; min-height: 14cqh; }
+  .dados-cell {
+    padding: 2.5% 2%;
+    border-right: 0.35mm solid var(--ink);
+    overflow: hidden;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .dados-cell:last-child { border-right: none; }
+  .dados-cell .lbl {
+    display: block;
+    font-size: 4.2cqh;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0;
+    margin-bottom: 3%;
+    line-height: 1;
+  }
+  .dados-cell .val {
+    font-weight: 700;
+    font-size: 5cqh;
+    line-height: 1.1;
+  }
+  .dados-cell .val.nowrap {
+    white-space: nowrap;
+    font-size: 4.8cqh;
+    letter-spacing: -0.02em;
+  }
+  .dados-cell.w-sku { width: 28%; }
+  .dados-cell.w-lote { width: 14%; }
+  .dados-cell.w-fab { width: 24%; }
+  .dados-cell.w-val { width: 34%; }
+  .dados-cell.w-up { width: 18%; }
+  .dados-desc {
+    flex: 1;
+    padding: 2.5% 2%;
+    overflow: hidden;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .dados-desc .lbl {
+    font-size: 4.2cqh;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 3%;
+    line-height: 1;
+  }
+  .dados-desc .val {
+    font-size: 4.8cqh;
+    font-weight: 700;
+    line-height: 1.12;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .etq-sem-destino .etq-hero-bc {
+    border-top: 0.55mm solid var(--ink);
+    max-height: 50cqh;
+  }
+  .etq-sem-destino .etq-dados { min-height: 28cqh; }
+
+  @media print {
+    @page { size: {{ etq_page_size_in }}; size: {{ etq_page_size_mm }}; margin: 0; }
+
+    html, body {
+      width: {{ etq_largura_in }}in !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      overflow: hidden !important;
+    }
+    .toolbar { display: none !important; }
+    .etq-page {
+      width: {{ etq_largura_in }}in !important;
+      height: {{ etq_altura_in }}in !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+    }
+    .etq {
+      padding: 0 var(--etq-side) !important;
+    }
+    .ink-block {
+      background: #000 !important;
+      color: #fff !important;
+    }
+  }
+
+  /* Prévia na tela: etiqueta e botões no meio da página (a impressão não usa isto). */
+  @media screen {
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .toolbar { margin: 0 0 16px; width: var(--lw); max-width: 94vw; }
+    .etq-page { margin: 0; box-shadow: 0 8px 32px rgb(0 0 0 / 0.2); }
+  }
+  @media print {
+    body { display: block !important; min-height: 0 !important; padding: 0 !important; }
+    .etq-page { box-shadow: none !important; }
+  }
+</style>
+</head>
+<body
+  data-etq-page="{{ etq_page_size_in }}"
+  data-etq-w="{{ etq_largura_in }}in"
+  data-etq-h="{{ etq_altura_in }}in"
+>
+<div class="toolbar">
+  <button type="button" id="btn-wms-etq-imprimir">Imprimir</button>
+  {% if voltar_guarda %}
+  <a href="{{ voltar_guarda }}" style="padding: 8px; font-size: 13px; border-radius: 6px; background: #2e7d32; color: #fff; text-align: center; text-decoration: none; font-weight: 700;">Etiqueta colada — ir guardar</a>
+  {% endif %}
+  <p class="print-setup-hint">{{ etq_driver_hint | safe }}</p>
+</div>
+
+<div class="etq-page">
+  <div class="etq{% if not (endereco_barcode or destino or codigo_wms) %} etq-sem-destino{% endif %}">
+
+    {% if endereco_barcode or destino or codigo_wms %}
+    <div class="etq-destino">
+      <div class="dest-titulo ink-block">Guardar<br>em</div>
+      <div class="dest-info">
+        {% if codigo_wms %}<div class="dest-wms">{{ codigo_wms }}</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="etq-hero-bc">
+      <div class="brand">Doca Livre · WMS</div>
+      <div class="bc-hero-wrap">
+        <svg id="bc-palete" data-code="{{ etiqueta }}"></svg>
+      </div>
+      <div class="codigo-hero">{{ etiqueta }}</div>
+    </div>
+
+    <div class="etq-dados">
+      <div class="dados-row">
+        <div class="dados-cell w-sku">
+          <span class="lbl">SKU</span>
+          <span class="val nowrap">{{ sku or '—' }}</span>
+        </div>
+        <div class="dados-cell w-lote">
+          <span class="lbl">Lote</span>
+          <span class="val nowrap">{{ lote or '—' }}</span>
+        </div>
+        <div class="dados-cell w-fab">
+          <span class="lbl">Fabric.</span>
+          <span class="val nowrap">{{ data_producao or '—' }}</span>
+        </div>
+        <div class="dados-cell w-val">
+          <span class="lbl">Valid.</span>
+          <span class="val nowrap">{{ data_validade or '—' }}</span>
+        </div>
+      </div>
+      <div class="dados-row">
+        <div class="dados-cell w-up">
+          <span class="lbl">UP</span>
+          <span class="val nowrap">{{ up or '—' }}</span>
+        </div>
+        <div class="dados-desc">
+          <span class="lbl">Descrição</span>
+          <span class="val">{{ descricao or '—' }}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="{{ url_for('static', filename='imprimir-etiqueta.js') }}"></script>
+<script>
+(function() {
+  var LARGURA_MM = {{ etq_largura_mm }};
+  var MM_PX = 96 / 25.4;
+  var SIDE_MM = 6.5;
+
+  function renderPaleteBc() {
+    var el = document.getElementById('bc-palete');
+    var wrap = el && el.parentElement;
+    var code = el && el.getAttribute('data-code');
+    if (!code || !wrap) return;
+    var page = wrap.closest('.etq-page');
+    var w = wrap.clientWidth;
+    var h = wrap.clientHeight;
+    if (w < 20 && page) w = page.clientWidth - Math.round(SIDE_MM * 2 * MM_PX);
+    if (h < 10) h = Math.round(page ? page.clientHeight * 0.36 : LARGURA_MM * MM_PX * 0.32);
+    var modulos = Math.max(11, code.length * 11 + 35);
+    var barW = Math.max(1.2, Math.min(3.6, w / modulos));
+    var barH = Math.max(24, Math.round(h * 0.85));
+    try {
+      JsBarcode(el, code, {
+        format: 'CODE128',
+        width: barW,
+        height: barH,
+        displayValue: false,
+        margin: 0,
+        lineColor: '#000',
+        background: '#fff'
+      });
+      el.style.width = '100%';
+      el.style.height = '100%';
+      el.style.maxWidth = '100%';
+      el.style.maxHeight = '100%';
+      el.removeAttribute('width');
+      el.removeAttribute('height');
+    } catch (e) { console.warn(e); }
+  }
+
+  function renderTodos() {
+    renderPaleteBc();
+  }
+
+  renderTodos();
+  window.addEventListener('resize', renderTodos);
+  window.addEventListener('beforeprint', function() {
+    requestAnimationFrame(function() {
+      requestAnimationFrame(renderTodos);
+    });
+  });
+  document.getElementById('btn-wms-etq-imprimir').addEventListener('click', function() {
+    wmsEtiquetaImprimir(renderTodos);
+  });
+  {% if auto_print %}
+  wmsEtiquetaImprimir(renderTodos);
+  {% endif %}
+})();
+</script>
+</body>
+</html>

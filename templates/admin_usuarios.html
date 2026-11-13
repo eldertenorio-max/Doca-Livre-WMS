@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Usuários · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-users me-2"></i>Usuários</h2>
+    <a href="{{ url_for('admin.usuario_form') }}" class="btn btn-primary"><i class="fas fa-user-plus"></i>Novo usuário</a>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-12 col-md-5">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Buscar por login ou nome" aria-label="Buscar usuário">
+        </div>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca %}<a href="{{ url_for('admin.usuarios') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if usuarios %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr><th>Login</th><th>Nome</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th></th></tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td><strong>{{ u.username }}</strong></td>
+                        <td>{{ u.nome }}{% if u.email %}<br><small>{{ u.email }}</small>{% endif %}</td>
+                        <td><span class="badge bg-{{ 'danger' if u.perfil == 'super' else ('warning' if u.perfil == 'admin' else 'info') }}">{{ perfis.get(u.perfil, u.perfil) }}</span></td>
+                        <td>
+                            {% if u.ativo %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-secondary">Inativo</span>{% endif %}
+                            {% if u.trocar_senha %}<span class="badge bg-primary" title="Vai trocar a senha no próximo acesso">Senha provisória</span>{% endif %}
+                        </td>
+                        <td>{{ u.ultimo_acesso|datahora }}</td>
+                        <td class="text-end">
+                            {% if eh_super or u.perfil not in gestao or u.id == eu.id %}
+                            {% if eh_super and u.perfil not in gestao %}<a href="{{ url_for('admin.permissoes_usuario', usuario=u.id) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-user-gear"></i>Permissões</a>{% endif %}
+                            <a href="{{ url_for('admin.usuario_form', uid=u.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-pen"></i>Editar</a>
+                            {% else %}
+                            <span class="text-muted small" title="Só um Super Usuário edita outro administrador">Só o Super Usuário edita</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="alert alert-info text-center">Nenhum usuário encontrado.</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

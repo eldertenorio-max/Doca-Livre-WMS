@@ -1,0 +1,127 @@
+{% from '_marca.html' import logo %}
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {# Aba do navegador igual à do Faz um Freela: "Doca Livre WMS" primeiro, depois a tela. #}
+    {% set titulo_da_tela %}{% block title %}WMS Doca Livre{% endblock %}{% endset %}
+    {% set titulo_da_tela = titulo_da_tela|replace('· WMS Doca Livre', '')|replace('WMS Doca Livre', '')|trim %}
+    <title>Doca Livre WMS{% if titulo_da_tela %} · {{ titulo_da_tela }}{% endif %}</title>
+    <meta name="theme-color" content="#ffffff" id="metaThemeColor">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/icon-192.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+    <meta name="application-name" content="Doca Livre WMS">
+    <script src="{{ url_for('static', filename='tema-inicial.js') }}?v={{ assets_version }}"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='wms.css') }}?v={{ assets_version }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <header class="top-header">
+        {% if usuario %}
+        <button type="button" class="btn-menu" id="btnMenu" title="Fixar / recolher o menu" aria-label="Menu" aria-controls="sidebar" aria-expanded="false">
+            <i class="fas fa-bars"></i>
+        </button>
+        {% endif %}
+        <a class="marca {% if not usuario %}ms-3{% endif %}" href="{{ url_for('principal.dashboard') if usuario else url_for('principal.login') }}">
+            {{ logo() }}
+            <span class="marca-wms">WMS</span>
+        </a>
+        {% if usuario %}
+        <div class="acoes">
+            {% if pode_ver('estoque') %}{% set alertas_n, alertas_graves = resumo_alertas() %}
+            <a class="btn-icone btn-alertas{% if alertas_graves %} tem-grave{% endif %}" href="{{ url_for('sistema.alertas') }}" title="Alertas" aria-label="Alertas: {{ alertas_n }}">
+                <i class="fas fa-bell"></i>{% if alertas_n %}<span class="alertas-n">{{ '99+' if alertas_n > 99 else alertas_n }}</span>{% endif %}
+            </a>{% endif %}
+            <button type="button" class="btn-icone" id="btnVoz" title="Controle de voz (Alt + V)" aria-label="Controle de voz" aria-pressed="false">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button type="button" class="btn-icone" id="btnTema" title="Tema claro / escuro" aria-label="Alternar tema">
+                <i class="fas fa-moon" id="iconeTema"></i>
+            </button>
+            <div class="topbar-meta" aria-label="Data e hora">
+                <span class="topbar-meta-hora" id="relogioHora">--:--</span>
+                <span class="topbar-meta-data" id="relogioData"></span>
+                <span class="topbar-meta-versao">{{ versao }}</span>
+            </div>
+            <div class="topbar-user-wrap" id="perfilWrap">
+                <button class="topbar-user" type="button" id="btnPerfil" aria-haspopup="dialog" aria-expanded="false" aria-controls="perfilPainel"
+                        data-url="{{ url_for('principal.perfil_painel') }}">
+                    <span class="topbar-user-texto"><strong>{{ usuario.nome }}</strong><span>{{ perfil_nome }}</span></span>
+                    <span class="topbar-avatar" aria-hidden="true">
+                        {% if usuario.avatar %}<img src="{{ url_for('principal.avatar', nome=usuario.avatar) }}" alt="">{% else %}{{ iniciais }}{% endif %}
+                    </span>
+                </button>
+                <div class="topbar-perfil-painel" id="perfilPainel" role="dialog" aria-label="Perfil" hidden></div>
+            </div>
+        </div>
+        {% endif %}
+    </header>
+
+    {% if usuario %}
+    <aside class="sidebar" id="sidebar" aria-label="Menu principal">
+        <ul class="sidebar-nav">
+            <li class="nav-item">
+                <a class="{% if request.endpoint == 'principal.dashboard' and not request.args.get('aba') %}active{% endif %}" href="{{ url_for('principal.dashboard') }}" title="Início">
+                    <i class="fas fa-house icone"></i><span class="link-text">Início</span>
+                </a>
+            </li>
+            {% if usuario.perfil != 'cliente' %}
+            <li class="nav-item">
+                <a class="{% if request.endpoint == 'principal.dashboard' and request.args.get('aba') %}active{% endif %}" href="{{ url_for('principal.dashboard', aba='geral') }}" title="Painel">
+                    <i class="fas fa-gauge-high icone"></i><span class="link-text">Painel</span>
+                </a>
+            </li>
+            {% endif %}
+            {% for grupo in menu %}
+            <li class="nav-item">
+                <button type="button" class="dropdown-btn{% if grupo.ativo %} active aberto{% endif %}" title="{{ grupo.nome }}"
+                        aria-controls="menu-{{ grupo.id }}" aria-expanded="{{ 'true' if grupo.ativo else 'false' }}">
+                    <i class="fas fa-{{ grupo.icone }} icone"></i><span class="link-text">{{ grupo.nome }}</span>
+                    <i class="fas fa-chevron-down arrow"></i>
+                </button>
+                <ul class="dropdown-container{% if grupo.ativo %} show{% endif %}" id="menu-{{ grupo.id }}">
+                    {% for item in grupo.itens %}
+                    <li>
+                        <a class="{% if item.ativo %}active{% endif %}{% if not item.pronto %} em-breve{% endif %}" href="{{ item.url }}"
+                           {% if not item.pronto %}title="Em construção"{% endif %}>
+                            {{ item.nome }}
+                            {% if not item.pronto %}<i class="fas fa-hammer em-breve-ponto" aria-hidden="true"></i>{% endif %}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </li>
+            {% endfor %}
+        </ul>
+        <div class="sidebar-footer"><span class="link-text">WMS Doca Livre</span></div>
+    </aside>
+    <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
+    {% endif %}
+
+    <main class="main-content{% if not usuario %} sem-menu{% endif %}" id="mainContent">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for cat, msg in messages %}
+            <div class="alert alert-{{ 'danger' if cat == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                {{ msg }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+            </div>
+            {% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='wms.js') }}?v={{ assets_version }}"></script>
+    {% if usuario %}<script src="{{ url_for('static', filename='voz.js') }}?v={{ assets_version }}"></script>{% endif %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

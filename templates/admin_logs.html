@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Log de ações · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-clock-rotate-left me-2"></i>Log de ações</h2>
+    <span class="text-muted">Últimos 300 registros</span>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-12 col-md-5">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Buscar por usuário, ação ou detalhe" aria-label="Buscar no log">
+        </div>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca %}<a href="{{ url_for('admin.logs') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if registros %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr><th>Data</th><th>Usuário</th><th>Módulo</th><th>Ação</th><th>Detalhe</th></tr>
+                </thead>
+                <tbody>
+                    {% for r in registros %}
+                    <tr>
+                        <td class="text-nowrap">{{ r.criado_em|datahora }}</td>
+                        <td>{{ r.usuario }}</td>
+                        <td>{{ r.modulo or '—' }}</td>
+                        <td>{{ r.acao }}</td>
+                        <td>{{ r.detalhe or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="alert alert-info text-center">Nenhuma ação registrada ainda.</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

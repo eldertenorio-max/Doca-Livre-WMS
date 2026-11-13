@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if registro else 'Novo' }} · {{ d.titulo }} · WMS Doca Livre{% endblock %}
+
+{% set v_ativo = (form.get('ativo') == '1') if form else (registro.ativo if registro else true) %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-{{ d.icone }} me-2"></i>{{ 'Editar' if registro else 'Novo(a)' }} {{ d.singular }}</h2>
+    <a href="{{ url_for('cadastros.lista', slug=slug) }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Voltar</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" autocomplete="off" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="row g-3">
+                {% for c in d.campos %}
+                {% if form %}
+                    {% set v = form.get(c.nome, '') %}
+                {% elif registro %}
+                    {% set v = registro[c.nome] if registro[c.nome] is not none else '' %}
+                {% else %}
+                    {% set v = c.get('padrao', '') %}
+                {% endif %}
+                <div class="col-12 col-md-{{ c.get('col', 6) }}">
+                    <label class="form-label" for="f_{{ c.nome }}">{{ c.rotulo }}{% if c.obrigatorio %} <span class="obrigatorio" title="Obrigatório">*</span>{% endif %}</label>
+                    {% if c.tipo == 'opcao' %}
+                    <select class="form-select" id="f_{{ c.nome }}" name="{{ c.nome }}" {% if c.obrigatorio %}required{% endif %}>
+                        {% if not c.obrigatorio %}<option value="">—</option>{% endif %}
+                        {% for o in c.opcoes %}<option value="{{ o }}" {% if v == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+                    </select>
+                    {% elif c.tipo == 'empresa' %}
+                    <select class="form-select" id="f_{{ c.nome }}" name="{{ c.nome }}" {% if c.obrigatorio %}required{% endif %}>
+                        <option value="">—</option>
+                        {% for e in empresas %}<option value="{{ e.id }}" {% if v|string == e.id|string %}selected{% endif %}>{{ e.nome }} ({{ e.tipo }})</option>{% endfor %}
+                    </select>
+                    {% elif c.tipo in ('decimal', 'inteiro') %}
+                    <input type="text" inputmode="{{ 'numeric' if c.tipo == 'inteiro' else 'decimal' }}" class="form-control" id="f_{{ c.nome }}" name="{{ c.nome }}"
+                           value="{{ (v|numero) if (v != '' and not form) else v }}" {% if c.obrigatorio %}required{% endif %}>
+                    {% else %}
+                    <input type="text" {% if c.tipo == 'digitos' %}inputmode="numeric"{% endif %} class="form-control" id="f_{{ c.nome }}" name="{{ c.nome }}"
+                           value="{{ v }}" maxlength="{{ c.get('max', 255) + (6 if c.tipo == 'digitos' else 0) }}" {% if c.obrigatorio %}required{% endif %}
+                           {% if c.maiusculo %}style="text-transform: uppercase;"{% endif %} {% if loop.first %}autofocus{% endif %}>
+                    {% endif %}
+                    {% if c.ajuda %}<div class="form-text">{{ c.ajuda }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                {% if d.imagem %}
+                {% set atual = registro[d.imagem] if registro else none %}
+                <div class="col-12 col-md-8">
+                    <label class="form-label" for="f_imagem">Logo <span class="text-muted">(opcional)</span></label>
+                    <div class="d-flex align-items-center gap-3">
+                        {% if atual %}<img src="{{ url_for('cadastros.imagem', nome=atual) }}" alt="Logo atual" class="logo-cadastro">{% endif %}
+                        <input type="file" class="form-control" id="f_imagem" name="{{ d.imagem }}" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp">
+                    </div>
+                    <div class="form-text">JPG, PNG ou WEBP de até 2 MB. Aparece no mapa, em cada posição ocupada por mercadoria desta empresa. Sem logo, o mapa mostra as iniciais.{% if form and atual is none %} Depois de um erro é preciso escolher o arquivo de novo.{% endif %}</div>
+                    {% if atual %}
+                    <div class="form-check mt-1">
+                        <input class="form-check-input" type="checkbox" id="remover_imagem" name="remover_imagem" value="1">
+                        <label class="form-check-label" for="remover_imagem">Remover o logo atual</label>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ativo" name="ativo" value="1" {% if v_ativo %}checked{% endif %}>
+                        <label class="form-check-label" for="ativo">Ativo (aparece para uso nas operações)</label>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <button type="submit" name="acao" value="salvar" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+                {% if not registro %}
+                <button type="submit" name="acao" value="salvar_novo" class="btn btn-outline-primary"><i class="fas fa-plus"></i>Salvar e cadastrar outro</button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

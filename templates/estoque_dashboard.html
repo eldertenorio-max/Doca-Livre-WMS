@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from '_estoque_partes.html' import semaforo, dias_vencer %}
+{% block title %}Dashboard do estoque · WMS Doca Livre{% endblock %}
+
+{# indicador com número grande; "url" torna o cartão inteiro clicável; "alerta" pinta de vermelho quando o valor não é zero #}
+{% macro indicador(icone, valor, rotulo, url=none, alerta=false, detalhe=none) %}
+<div class="kpi{% if alerta and valor %} kpi--alerta{% endif %}"><span class="kpi-icone"><i class="fas fa-{{ icone }}"></i></span>
+    <div><div class="kpi-valor">{{ valor }}</div><div class="kpi-rotulo">{{ rotulo }}</div>{% if detalhe %}<div class="kpi-detalhe">{{ detalhe }}</div>{% endif %}</div>
+    {% if url %}<a href="{{ url }}" class="stretched-link" aria-label="{{ rotulo }}: abrir"></a>{% endif %}</div>
+{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-chart-pie me-2"></i>Dashboard do estoque</h2>
+    <a class="btn btn-outline-primary" href="{{ url_for('relatorios.dashboard', formato='xlsx') }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+</div>
+
+{# Visão geral #}
+<div class="row g-3 mb-3">
+    <div class="col-6 col-xl-3">{{ indicador('warehouse', (('%.1f'|format(d.ocupacao))|replace('.', ',')) ~ '%', 'Taxa de ocupação', url_for('enderecamento.mapa') if pode_ver('enderecamento') else none, false, d.ocupadas ~ ' de ' ~ d.total ~ ' posições') }}</div>
+    <div class="col-6 col-xl-3">{{ indicador('circle-check', d.livres, 'Posições livres', none, false, d.bloqueadas ~ ' bloqueada(s)') }}</div>
+    <div class="col-6 col-xl-3">{{ indicador('pallet', d.paletes, 'Paletes no armazém', url_for('estoque.atual'), false, d.stage ~ ' no stage') }}</div>
+    <div class="col-6 col-xl-3">{{ indicador('hourglass-half', d.aguardando, 'Paletes aguardando guarda', url_for('estoque.atual', situacao='Aguardando guarda'), true) }}</div>
+</div>
+
+{# Classificações: reentregas, avaria, descarte / perdas, palete bloqueado #}
+<h6 class="titulo-secao">Fora do estoque bom</h6>
+<div class="row g-3 mb-3">
+    {% for c in d.classes %}
+    <div class="col-6 col-xl-3">{{ indicador(c.icone, c.paletes, c.nome, url_for('estoque.atual', classificacao=c.nome), false,
+                                              ((c.quantidade|numero) ~ ' unidade(s) · ' ~ c.ajuda) if c.paletes else c.ajuda) }}</div>
+    {% endfor %}
+</div>
+
+{# Alertas #}
+<h6 class="titulo-secao">Atenção</h6>
+<div class="row g-3 mb-3">
+    <div class="col-6 col-xl-3">{{ indicador('shield-halved', d.alertas_seguranca, 'Estoque de segurança em Amarelo ou Vermelho', url_for('estoque.analise', aba='seguranca', status='alerta'), true, d.vermelhos ~ ' abaixo do mínimo') }}</div>
+    <div class="col-6 col-xl-3">{{ indicador('hourglass-end', d.shelf_critico, 'Shelf life em Laranja ou Vermelho', url_for('estoque.analise', aba='shelf'), true, d.vencidos ~ ' vencido(s)') }}</div>
+    <div class="col-6 col-xl-3">{{ indicador('temperature-half', d.temperatura_fora|length, 'Câmaras fora da faixa de temperatura', url_for('temperaturas.lista') if pode_ver('enderecamento') else none, true,
+                                              (d.temperatura_sem_leitura ~ ' sem leitura') if d.temperatura_sem_leitura else none) }}</div>
+    <div class="col-6 col-xl-3">{{ indicador('clipboard-check', d.inventarios_abertos, 'Inventários abertos', url_for('inventario.lista'), false,
+                                              d.retornos_abertos ~ ' retorno(s) em aberto') }}</div>
+</div>
+
+<div class="row g-3">
+    {# Ocupação por câmara: um medidor por linha #}
+    <div class="col-12 col-xl-5">
+        <div class="card h-100 mb-0">
+            <div class="card-header d-flex align-items-center"><span><i class="fas fa-warehouse me-2"></i>Visão geral das câmaras</span>
+                {% if pode_ver('relatorios') %}<a class="btn btn-sm btn-outline-secondary ms-auto" href="{{ url_for('relatorios.relatorio', rid='ocupacao') }}">Por rua</a>{% endif %}</div>
+            <div class="card-body">
+                {% if d.camaras %}
+                <ul class="lista-medidores">
+                    {% for l in d.camaras %}
+                    <li>
+                        <span class="medidor-nome">{% if pode_ver('enderecamento') %}<a href="{{ url_for('enderecamento.mapa', camara=l.camara.id) }}">{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }}</a>{% else %}{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }}{% endif %}</span>
+                        <span class="medidor-barra" role="img" aria-label="{{ l.ocupacao }}% ocupada"><i style="width: {{ l.ocupacao }}%"></i></span>
+                        <span class="medidor-valor"><strong>{{ l.ocupacao }}%</strong> {{ l.ocupados }}/{{ l.total }}{% if l.bloqueados %} · {{ l.bloqueados }} bloq.{% endif %}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}<p class="text-muted mb-0">Nenhuma câmara cadastrada.</p>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Movimento por dia #}
+    <div class="col-12 col-xl-7">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-chart-line me-2"></i>{{ grafico.titulo }}</div>
+            <div class="card-body">
+                <figure class="grafico grafico--solto" data-grafico="{{ grafico|tojson|forceescape }}">
+                    <figcaption><span>{{ grafico.ajuda }}</span></figcaption>
+                    <ul class="grafico-legenda" aria-label="Séries">
+                        {% for s in grafico.series %}<li><i style="background: var({{ s.cor }})"></i>{{ s.nome }}</li>{% endfor %}
+                    </ul>
+                    <div class="grafico-area"></div>
+                    <div class="grafico-dica" hidden></div>
+                </figure>
+            </div>
+        </div>
+    </div>
+
+    {# O que vence primeiro #}
+    <div class="col-12">
+        <div class="card mb-0">
+            <div class="card-header d-flex align-items-center"><span><i class="fas fa-hourglass-half me-2"></i>Vencendo primeiro</span>
+                <a class="btn btn-sm btn-outline-secondary ms-auto" href="{{ url_for('estoque.analise', aba='lotes') }}">Ver todos os lotes</a></div>
+            <div class="card-body">
+                {% if d.vencendo %}
+                <div class="tabela-scroll">
+                    <table class="table table-striped mb-0 align-middle">
+                        <thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th>Vence em</th><th class="text-end">Shelf %</th><th>Status</th><th class="text-end">Quantidade</th><th>Onde está</th></tr></thead>
+                        <tbody>
+                            {% for l in d.vencendo %}
+                            <tr>
+                                <td><strong>{{ l.produto.sku }}</strong> · {{ l.produto.descricao }}</td>
+                                <td>{{ l.lote or '—' }}</td>
+                                <td class="text-nowrap">{{ l.validade.strftime('%d/%m/%Y') }}</td>
+                                <td class="text-nowrap">{{ dias_vencer(l.dias) }}</td>
+                                <td class="text-end">{{ ((('%.2f'|format(l.pct))|replace('.', ',')) ~ '%') if l.pct is not none else '—' }}</td>
+                                <td>{{ semaforo(l.status) }}</td>
+                                <td class="text-end text-nowrap"><strong>{{ l.quantidade|numero }}</strong> {{ l.produto.unidade }}</td>
+                                <td class="codigo-mono">{{ l.enderecos[:4]|join(', ') }}{% if l.enderecos|length > 4 %} +{{ l.enderecos|length - 4 }}{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}<p class="text-muted mb-0">Nenhum lote com validade no estoque disponível.</p>{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='graficos.js') }}?v={{ assets_version }}"></script>
+{% endblock %}

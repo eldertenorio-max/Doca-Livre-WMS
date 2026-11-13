@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% from '_marca.html' import logo %}
+{% block title %}Início · WMS Doca Livre{% endblock %}
+
+{# Primeira tela, como a do Oferta de Carga: a logo ao centro e as boas-vindas. Os indicadores ficam em Painel. #}
+{% block content %}
+<div class="boas-vindas">
+    <div class="boas-vindas-logo" aria-hidden="true">{{ logo() }}</div>
+    <h1>Bem Vindo</h1>
+</div>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Etiqueta longarina · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-tag me-2"></i>Etiqueta longarina</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('enderecamento.etiqueta_modelo') }}" target="_blank" rel="noopener" class="btn btn-outline-secondary"><i class="far fa-eye"></i>Ver modelo</a>
+        <a href="{{ url_for('enderecamento.etiqueta_teste') }}" target="_blank" rel="noopener" class="btn btn-outline-secondary"><i class="fas fa-ruler-combined"></i>Teste da Zebra</a>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <strong>Zebra ZD220 · {{ etq_largura_mm }} × {{ etq_altura_mm }} mm.</strong>
+    Na janela de impressão do Chrome: {{ etq_driver_hint|safe }}
+</div>
+
+{% if not linhas %}
+<div class="card">
+    <div class="card-body bloco-dados-altura">
+        <div class="text-center">
+            <h5>Nenhum endereço cadastrado ainda</h5>
+            <p class="text-muted mb-3">As etiquetas são geradas a partir dos endereços das câmaras.</p>
+            <a href="{{ url_for('enderecamento.camaras') }}" class="btn btn-primary"><i class="fas fa-table-cells"></i>Ir para Câmaras e endereços</a>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-6">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-layer-group me-2"></i>Por câmara, rua ou coluna</div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('enderecamento.etiquetas_imprimir') }}" target="_blank" id="formSelecao">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-5">
+                            <label class="form-label" for="selCamara">Câmara</label>
+                            <select class="form-select" id="selCamara" name="camara" required>
+                                {% for l in linhas %}<option value="{{ l.camara.id }}">{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="selRua">Rua</label>
+                            <select class="form-select" id="selRua" name="rua"></select>
+                        </div>
+                        <div class="col-6 col-md-4">
+                            <label class="form-label" for="selColuna">Coluna</label>
+                            <select class="form-select" id="selColuna" name="coluna"></select>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-print"></i>Abrir etiquetas</button>
+                        <span class="text-muted small" id="previaSelecao" aria-live="polite"></span>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-barcode me-2"></i>Etiqueta avulsa</div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('enderecamento.etiquetas_imprimir') }}" target="_blank" autocomplete="off">
+                    <label class="form-label" for="codAvulso">Código do endereço ou da bipagem</label>
+                    <div class="d-flex gap-2">
+                        <input type="text" class="form-control codigo-mono" id="codAvulso" name="codigo" required placeholder="Ex.: 06-A-01-1" style="text-transform: uppercase;">
+                        <button type="submit" class="btn btn-primary text-nowrap"><i class="fas fa-print"></i>Abrir etiqueta</button>
+                    </div>
+                    <div class="form-text">Aceita o código do endereço (06-A-01-1) ou o código bipado da longarina, com o dígito verificador depois do asterisco.</div>
+                </form>
+                <hr>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <a href="{{ url_for('enderecamento.etiquetas_imprimir', todas=1) }}" target="_blank" rel="noopener" class="btn btn-outline-primary"
+                       onclick="return confirm('Abrir todas as {{ total }} etiquetas de longarina?');"><i class="fas fa-tags"></i>Todas as longarinas</a>
+                    <span class="text-muted small">{{ total }} etiqueta(s) no total.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-list me-2"></i>Resumo por câmara</div>
+    <div class="card-body">
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Câmara</th><th>Ruas</th><th>Etiquetas</th><th></th></tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr>
+                        <td><strong>{{ '%02d'|format(l.camara.codigo) }}</strong> · {{ l.camara.nome }}</td>
+                        <td>{{ l.ruas|join(', ') }}</td>
+                        <td>{{ l.total }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('enderecamento.etiquetas_imprimir', camara=l.camara.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary"><i class="fas fa-print"></i>Câmara inteira</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if linhas %}
+<script type="application/json" id="arvoreEnderecos">{{ arvore|tojson }}</script>
+<script>
+// Seletores encadeados: Câmara -> Rua -> Coluna ("Todas" imprime o conjunto inteiro).
+(function () {
+    var arvore = JSON.parse(document.getElementById('arvoreEnderecos').textContent);
+    var selCamara = document.getElementById('selCamara');
+    var selRua = document.getElementById('selRua');
+    var selColuna = document.getElementById('selColuna');
+    var previa = document.getElementById('previaSelecao');
+
+    function opcoes(select, itens, rotuloTodas) {
+        select.innerHTML = '<option value="">' + rotuloTodas + '</option>' +
+            itens.map(function (i) { return '<option value="' + i + '">' + i + '</option>'; }).join('');
+    }
+    function descrever() {
+        var alvo = selColuna.value ? 'a coluna ' + selColuna.value + ' da rua ' + selRua.value
+                 : selRua.value ? 'a rua ' + selRua.value + ' inteira' : 'a câmara inteira';
+        previa.textContent = 'Vai abrir ' + alvo + '.';
+    }
+    function trocarCamara() {
+        opcoes(selRua, Object.keys(arvore[selCamara.value] || {}), 'Todas');
+        trocarRua();
+    }
+    function trocarRua() {
+        var colunas = selRua.value ? (arvore[selCamara.value][selRua.value] || []) : [];
+        opcoes(selColuna, colunas, 'Todas');
+        selColuna.disabled = !selRua.value;
+        descrever();
+    }
+    selCamara.addEventListener('change', trocarCamara);
+    selRua.addEventListener('change', trocarRua);
+    selColuna.addEventListener('change', descrever);
+    trocarCamara();
+})();
+</script>
+{% endif %}
+{% endblock %}

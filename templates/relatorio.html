@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} · Relatórios · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-{{ icone }} me-2"></i>{{ titulo }}</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('relatorios.lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Relatórios</a>
+        <a class="btn btn-primary" href="{{ url_for('relatorios.relatorio', rid=rid, formato='xlsx', **atuais) }}"><i class="fas fa-file-excel"></i>Baixar Excel ({{ total }})</a>
+    </div>
+</div>
+<p class="text-muted small mb-3">{{ descricao }}</p>
+
+<form method="GET" class="row g-2 mb-3 align-items-end" autocomplete="off">
+    {% if 'periodo' in filtros %}
+    <div class="col-6 col-md-2"><label class="form-label" for="rDe">De</label><input type="date" class="form-control" id="rDe" name="de" value="{{ de }}"></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="rAte">Até</label><input type="date" class="form-control" id="rAte" name="ate" value="{{ ate }}"></div>
+    {% endif %}
+    {% if 'camara' in filtros %}
+    <div class="col-6 col-md-3"><label class="form-label" for="rCamara">Câmara</label>
+        <select class="form-select" id="rCamara" name="camara"><option value="">Todas</option>
+            {% for c in camaras %}<option value="{{ c.id }}" {% if camara == c.id %}selected{% endif %}>{{ '%02d'|format(c.codigo) }} · {{ c.nome }}</option>{% endfor %}</select></div>
+    {% endif %}
+    {% if 'situacao' in filtros %}
+    <div class="col-6 col-md-2"><label class="form-label" for="rSit">Situação</label>
+        <select class="form-select" id="rSit" name="situacao"><option value="">Todas</option>
+            {% for s in ('Livre', 'Ocupado', 'Bloqueado') %}<option value="{{ s }}" {% if situacao == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+    {% endif %}
+    {% if 'classificacao' in filtros %}
+    <div class="col-6 col-md-3"><label class="form-label" for="rCla">Classificação</label>
+        <select class="form-select" id="rCla" name="classificacao"><option value="">Todas</option>
+            {% for s in ('Reentrega', 'Avaria', 'Descarte / Perdas', 'Palete bloqueado') %}<option value="{{ s }}" {% if classificacao == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+    {% endif %}
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Atualizar</button>
+        {% if atuais %}<a href="{{ url_for('relatorios.relatorio', rid=rid) }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if linhas %}
+        <div class="tabela-scroll">
+            <table class="table table-striped table-sm mb-0 tabela-relatorio">
+                <thead><tr>{% for c in colunas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr>{% for v in l %}<td>{% if v is none or v == '' %}—{% elif v is sameas true %}Sim{% elif v is sameas false %}Não{% elif v is number %}{{ v|numero }}{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted mb-0 mt-3">{{ total }} linha(s){% if total > previa %} — a tela mostra as {{ previa }} primeiras; o Excel traz todas{% endif %}.</p>
+        {% else %}
+        <div class="bloco-dados-altura"><div class="text-center">
+            <h5>Nada para mostrar com esses filtros</h5>
+            <p class="text-muted mb-0">{% if 'periodo' in filtros %}Tente um período maior.{% else %}Não há dados para este relatório ainda.{% endif %}</p>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

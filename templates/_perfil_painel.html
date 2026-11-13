@@ -1,0 +1,65 @@
+{# Painel do usuário (canto superior direito), no padrão do Doca Livre Oferta de Carga. #}
+{% set foto = url_for('principal.avatar', nome=usuario.avatar) if usuario.avatar else none %}
+<div class="perfil-tabs" role="tablist">
+    <button type="button" role="tab" class="is-active" aria-selected="true" data-perfil-aba="sobre">Sobre você</button>
+    <button type="button" role="tab" aria-selected="false" data-perfil-aba="conta">Conta</button>
+</div>
+
+<div class="perfil-panel" data-perfil-conteudo="sobre">
+    <div class="perfil-hero">
+        <span class="perfil-hero__avatar" aria-hidden="true">
+            {% if foto %}<img src="{{ foto }}" alt="">{% else %}<span>{{ iniciais }}</span>{% endif %}
+            <i class="perfil-hero__badge" title="Usuário ativo"></i>
+        </span>
+        <span class="perfil-hero__text">
+            <strong>{{ usuario.nome }}</strong>
+            <span>{{ perfil_nome }}</span>
+            <form method="POST" action="{{ url_for('principal.perfil_foto') }}" enctype="multipart/form-data" class="perfil-foto-acoes" id="formPerfilFoto">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="file" name="foto" id="perfilFotoArquivo" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden>
+                <button type="button" class="perfil-foto-acao" data-perfil-foto>{{ 'Alterar' if foto else 'Adicionar foto' }}</button>
+                {% if foto %}
+                <button type="button" class="perfil-foto-acao" data-perfil-foto>Editar</button>
+                <button type="submit" name="acao" value="excluir" class="perfil-foto-acao perfil-foto-acao--danger"
+                        onclick="return confirm('Remover a foto de perfil?');">Excluir</button>
+                {% endif %}
+            </form>
+        </span>
+    </div>
+
+    <div class="perfil-stats">
+        <div><p class="perfil-stats__value">{{ notas }}</p><p class="perfil-stats__label">Notas recebidas</p></div>
+        <div><p class="perfil-stats__value">{{ paletes }}</p><p class="perfil-stats__label">Paletes montados</p></div>
+    </div>
+
+    <div class="perfil-links">
+        <a class="perfil-link" href="{{ url_for('principal.dashboard') }}">Ir para o Painel</a>
+        <button type="button" class="perfil-link" data-perfil-aba="conta">Ver dados pessoais</button>
+    </div>
+
+    <div class="perfil-verified">
+        <h3>Você tem um Perfil Verificado</h3>
+        <ul>
+            <li class="is-ok">Usuário ativo no sistema</li>
+            <li class="{{ 'is-ok' if usuario.email }}">{{ usuario.email or 'E-mail não informado' }}</li>
+            <li class="{{ 'is-ok' if usuario.ultimo_acesso }}">Último acesso: {{ usuario.ultimo_acesso|datahora }}</li>
+        </ul>
+    </div>
+</div>
+
+<div class="perfil-panel" data-perfil-conteudo="conta" hidden>
+    <h3 class="perfil-conta-title">Dados da conta</h3>
+    <dl class="perfil-dl">
+        <div><dt>Nome</dt><dd>{{ usuario.nome }}</dd></div>
+        <div><dt>Usuário</dt><dd>{{ usuario.username }}</dd></div>
+        <div><dt>E-mail</dt><dd>{{ usuario.email or '—' }}</dd></div>
+        <div><dt>Perfil</dt><dd>{{ perfil_nome }}</dd></div>
+        <div><dt>Conta criada em</dt><dd>{{ usuario.criado_em|datahora }}</dd></div>
+    </dl>
+    <div class="perfil-conta-actions">
+        <a class="perfil-btn" href="{{ url_for('principal.senha') }}">Trocar senha</a>
+        {% if pode_ver('admin') %}<a class="perfil-btn perfil-btn--ghost" href="{{ url_for('admin.usuarios') }}">Usuários e permissões</a>{% endif %}
+        <a class="perfil-btn perfil-btn--ghost" href="{{ url_for('principal.logout') }}">Sair</a>
+        <button type="button" class="perfil-btn perfil-btn--ghost" data-perfil-fechar>Fechar</button>
+    </div>
+</div>

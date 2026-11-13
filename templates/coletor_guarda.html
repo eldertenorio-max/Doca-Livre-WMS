@@ -1,0 +1,54 @@
+{% extends "coletor_base.html" %}
+{% block corpo %}
+{% if palete %}
+{% set aqui = url_for('coletor.guarda', palete=palete.etiqueta) %}
+<section class="coletor-cartao">
+    <span class="coletor-rotulo">Palete</span>
+    <p class="coletor-codigo">{{ palete.etiqueta }}</p>
+    <p class="coletor-detalhe">{{ resumo_itens(palete) }}{% if palete.nota %} · NF {{ palete.nota.numero }}{% endif %}{% if palete.classificacao != 'Bom' %} · {{ palete.classificacao }}{% endif %}</p>
+    {% for i in palete.itens %}<p class="coletor-detalhe">{{ i.produto.descricao }}{% if i.lote %} · lote {{ i.lote }}{% endif %}{% if i.validade %} · val. {{ i.validade.strftime('%d/%m/%Y') }}{% endif %}</p>{% endfor %}
+</section>
+{% if palete.sugerido %}
+<section class="coletor-cartao coletor-destaque">
+    <span class="coletor-rotulo">Guardar em</span>
+    <p class="coletor-gigante">{{ palete.sugerido.codigo }}</p>
+    <p class="coletor-detalhe">{{ palete.sugerido.camara.nome }} · {{ palete.sugerido.tipo }}</p>
+</section>
+{% else %}
+<div class="coletor-aviso coletor-aviso--erro"><i class="fas fa-circle-xmark"></i><span>Este palete está sem endereço indicado. Toque em "Indicar outro endereço".</span></div>
+{% endif %}
+{% if editar %}
+<form method="POST" action="{{ url_for('entrada.guardar', pid=palete.id) }}" autocomplete="off" class="coletor-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ url_for('coletor.guarda') }}">
+    <label for="cgLongarina">Bipe a longarina do endereço</label>
+    <input type="text" id="cgLongarina" name="codigo" class="coletor-campo" required data-bipar autocapitalize="characters" enterkeyhint="go" placeholder="Longarina">
+    <button type="submit" class="coletor-acao"><i class="fas fa-check"></i>Confirmar guarda</button>
+</form>
+<form method="POST" action="{{ url_for('entrada.indicar', pid=palete.id) }}" class="coletor-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
+    <button type="submit" class="coletor-acao coletor-acao--leve"><i class="fas fa-rotate"></i>Indicar outro endereço</button>
+</form>
+{% endif %}
+<a class="coletor-acao coletor-acao--leve" href="{{ url_for('coletor.guarda') }}"><i class="fas fa-list"></i>Escolher outro palete</a>
+
+{% else %}
+<form method="GET" action="{{ url_for('coletor.guarda') }}" autocomplete="off" class="coletor-form">
+    <label for="cgPalete">Bipe a etiqueta do palete</label>
+    <input type="text" id="cgPalete" name="palete" class="coletor-campo" required data-bipar autocapitalize="characters" enterkeyhint="search" placeholder="Etiqueta do palete">
+    <button type="submit" class="coletor-acao"><i class="fas fa-magnifying-glass"></i>Buscar palete</button>
+</form>
+<h2 class="coletor-subtitulo">Aguardando guarda ({{ fila|length }})</h2>
+{% if fila %}
+<div class="coletor-lista">
+    {% for p in fila %}
+    <a href="{{ url_for('coletor.guarda', palete=p.etiqueta) }}">
+        <span><strong>{{ resumo_itens(p) }}</strong><small>{{ p.etiqueta }}{% if p.nota %} · NF {{ p.nota.numero }}{% endif %}</small></span>
+        <em>{{ p.sugerido.codigo if p.sugerido else 'sem endereço' }}</em>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="coletor-vazio">Nenhum palete aguardando guarda.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

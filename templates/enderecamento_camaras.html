@@ -1,0 +1,737 @@
+{% extends "base.html" %}
+{% block title %}Câmaras e endereços · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('enderecamento') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-table-cells me-2"></i>Câmaras e endereços</h2>
+    {% if editar %}
+    <div class="d-flex flex-wrap gap-2">
+        {% if linhas %}
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalSalvarLayout"><i class="fas fa-floppy-disk"></i>Salvar layout do CD</button>
+        {% endif %}
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCarregarLayout"><i class="fas fa-download"></i>Carregar layout</button>
+        <button type="button" class="btn btn-primary" id="btnNovaCamara"><i class="fas fa-plus"></i>Nova câmara</button>
+    </div>
+    {% endif %}
+</div>
+
+{% if linhas %}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-warehouse"></i></span><div><div class="kpi-valor">{{ linhas|length }}</div><div class="kpi-rotulo">Câmaras</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-table-cells"></i></span><div><div class="kpi-valor">{{ total_enderecos }}</div><div class="kpi-rotulo">Endereços</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-ban"></i></span><div><div class="kpi-valor">{{ linhas|sum(attribute='bloqueados') }}</div><div class="kpi-rotulo">Bloqueados</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-circle-check"></i></span><div><div class="kpi-valor">{{ linhas|sum(attribute='livres') }}</div><div class="kpi-rotulo">Livres</div></div></div></div>
+</div>
+
+<div class="row g-3">
+    {% for l in linhas %}
+    {% set c = l.camara %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card camara-card h-100 mb-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3 mb-2">
+                    <span class="camara-numero">{{ '%02d'|format(c.codigo) }}</span>
+                    <div class="flex-grow-1 min-w-0">
+                        <h5 class="mb-0">{{ c.nome }}</h5>
+                        <span class="text-muted small">{{ c.tipo }}{% if c.categoria %} · {{ c.categoria }}{% endif %}{% if c.temp_min is not none or c.temp_max is not none %} · {{ c.temp_min|numero }} a {{ c.temp_max|numero }} °C{% endif %}</span>
+                    </div>
+                    {% if not c.ativo %}<span class="badge bg-secondary">Inativa</span>{% endif %}
+                    <span class="ocupacao-pct" title="{{ l.ocupados }} de {{ l.total }} endereços ocupados">{{ l.ocupacao }}%</span>
+                </div>
+                <div class="progress barra-ocupacao mb-3" role="progressbar" aria-label="Ocupação da {{ c.nome }}" aria-valuenow="{{ l.ocupacao }}" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar" style="width: {{ l.ocupacao }}%"></div>
+                </div>
+                <div class="camara-numeros">
+                    <div><strong>{{ l.total }}</strong><span>endereços</span></div>
+                    <div><strong>{{ l.livres }}</strong><span>livres</span></div>
+                    <div><strong>{{ l.bloqueados }}</strong><span>bloqueados</span></div>
+                    <div><strong>{{ l.ruas|join(' · ') or '—' }}</strong><span>ruas</span></div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <a href="{{ url_for('enderecamento.camara', cid=c.id) }}" class="btn btn-sm btn-primary"><i class="fas fa-table-cells"></i>Endereços</a>
+                    <a href="{{ url_for('enderecamento.mapa', camara=c.id) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-cube"></i>Mapa</a>
+                    {% if l.total %}<a href="{{ url_for('enderecamento.etiquetas_imprimir', camara=c.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"><i class="fas fa-tag"></i>Etiquetas</a>{% endif %}
+                    {% if editar %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" title="Editar câmara (dados, ruas e desenho)" aria-label="Editar a {{ c.nome }}"
+                            data-editar-camara="{{ url_for('enderecamento.camara_desenho', cid=c.id) }}"><i class="fas fa-pen"></i></button>
+                    <button type="button" class="btn btn-sm btn-danger" title="Excluir câmara" aria-label="Excluir a {{ c.nome }}"
+                            data-excluir="{{ url_for('enderecamento.camara_excluir', cid=c.id) }}" data-codigo="{{ c.codigo }}" data-nome="{{ c.nome }}"
+                            data-enderecos="{{ l.total }}" data-ocupados="{{ l.ocupados }}"><i class="fas fa-trash"></i></button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body bloco-dados-altura">
+        <div class="text-center" style="max-width: 520px;">
+            <h5>Nenhuma câmara cadastrada ainda</h5>
+            <p class="text-muted">
+                {% if editar %}Use <strong>Carregar layout</strong> para trazer as câmaras 6, 7, 14, 15, 16 e as áreas especiais com os mesmos endereços do WMS Pro, ou <strong>Nova câmara</strong> para montar do zero.
+                {% else %}Seu perfil só visualiza esta tela.{% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if editar %}
+<div class="modal fade" id="modalCamara" tabindex="-1" aria-labelledby="modalCamaraTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <form class="modal-content" method="POST" action="{{ url_for('enderecamento.camara_nova') }}" autocomplete="off" id="formNovaCamara"
+              data-numeros="{{ linhas|map(attribute='camara.codigo')|list|tojson|forceescape }}"
+              data-ruas="{{ ruas_em_uso|tojson|forceescape }}"
+              data-reabrir="{{ (reabrir or none)|tojson|forceescape }}"
+              data-empresas="{{ empresas|tojson|forceescape }}"
+              data-cadastro-empresa="{{ url_for('cadastros.empresa_rapida') if pode_cadastrar_empresa else '' }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="ativo" value="1">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCamaraTitulo"><i class="fas fa-warehouse me-2"></i><span id="modalCamaraNome">Nova câmara</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger" id="novaErros" role="alert" hidden></div>
+                <div class="row g-4">
+                    <div class="col-12 col-lg-5">
+                        <h6 class="nova-passo"><span>1</span>Identificação</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-4">
+                                <label class="form-label" for="nCodigo">Número <span class="obrigatorio">*</span></label>
+                                <input type="number" class="form-control" id="nCodigo" name="codigo" min="1" max="99" required>
+                            </div>
+                            <div class="col-8">
+                                <label class="form-label" for="nNome">Nome <span class="obrigatorio">*</span></label>
+                                <input type="text" class="form-control" id="nNome" name="nome" maxlength="80" required>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="nTipo">Tipo</label>
+                                <select class="form-select" id="nTipo" name="tipo">
+                                    {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="nCategoria">Categoria</label>
+                                <select class="form-select" id="nCategoria" name="categoria">
+                                    <option value="">—</option>
+                                    {% for cat in categorias %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="nTmin">Temp. mínima (°C)</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="nTmin" name="temp_min" placeholder="Ex.: -22">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label" for="nTmax">Temp. máxima (°C)</label>
+                                <input type="text" inputmode="decimal" class="form-control" id="nTmax" name="temp_max" placeholder="Ex.: -18">
+                            </div>
+                        </div>
+
+                        <h6 class="nova-passo"><span>2</span>Ruas da câmara</h6>
+                        <p class="text-muted small mb-2">Cada rua tem a sua própria quantidade de colunas (prédios), de níveis e de picking.</p>
+                        <div class="rua-linha rua-linha--titulos" aria-hidden="true">
+                            <span>Rua</span><span>Colunas</span><span>Níveis</span><span>Picking até</span><span></span>
+                        </div>
+                        <div id="ruasLista"></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAdicionarRua"><i class="fas fa-plus"></i>Adicionar rua</button>
+                        <div class="form-text" id="ruasAjuda">Sem nenhuma rua, a câmara é criada vazia e você gera os endereços depois.</div>
+                    </div>
+
+                    <div class="col-12 col-lg-7">
+                        <h6 class="nova-passo"><span>3</span>Como a câmara vai ficar</h6>
+                        <div class="nova-resumo" id="novaResumo"></div>
+                        <div class="nova-ferramentas" role="radiogroup" aria-label="O que marcar no desenho">
+                            <span class="form-label mb-0">Clique ou arraste no desenho para marcar:</span>
+                            <input type="radio" class="btn-check" name="ferramenta" id="ferrPosicao" value="" checked>
+                            <label class="btn btn-sm btn-outline-secondary" for="ferrPosicao"><i class="swatch swatch--disp"></i>Posição</label>
+                            <input type="radio" class="btn-check" name="ferramenta" id="ferrPorta" value="P">
+                            <label class="btn btn-sm btn-outline-secondary" for="ferrPorta"><i class="swatch swatch--porta"></i>Porta</label>
+                            <input type="radio" class="btn-check" name="ferramenta" id="ferrSem" value="S">
+                            <label class="btn btn-sm btn-outline-secondary" for="ferrSem"><i class="swatch swatch--nv5"></i>Sem posição</label>
+                            <input type="radio" class="btn-check" name="ferramenta" id="ferrCliente" value="C">
+                            <label class="btn btn-sm btn-outline-secondary" for="ferrCliente"><i class="fas fa-building"></i>Espaço de cliente</label>
+                        </div>
+                        {# Espaço por cliente: escolhe a empresa e pinta as posições reservadas para ela #}
+                        <div class="nova-cliente" id="clienteBarra" hidden>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <label class="form-label mb-0" for="clienteSel">Reservar para</label>
+                                <select class="form-select form-select-sm" id="clienteSel" style="width: auto; min-width: 220px; max-width: 100%;"></select>
+                                {% if pode_cadastrar_empresa %}
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="btnNovaEmpresa"><i class="fas fa-plus"></i>Nova empresa</button>
+                                {% endif %}
+                            </div>
+                            {% if pode_cadastrar_empresa %}
+                            <div class="nova-empresa" id="novaEmpresa" hidden>
+                                <input type="text" class="form-control form-control-sm" id="neNome" maxlength="150" placeholder="Nome da empresa" aria-label="Nome da empresa">
+                                <input type="text" class="form-control form-control-sm" id="neCnpj" inputmode="numeric" maxlength="18" placeholder="CNPJ (opcional)" aria-label="CNPJ (opcional)">
+                                <button type="button" class="btn btn-sm btn-primary" id="neSalvar"><i class="fas fa-check"></i>Cadastrar</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="neCancelar">Cancelar</button>
+                                <span class="small text-danger w-100" id="neErro" role="alert"></span>
+                            </div>
+                            {% endif %}
+                            <div class="form-text">Escolha a empresa e clique ou arraste nas posições dela. Mercadoria dessa empresa é guardada primeiro no espaço dela; a de outras empresas não entra ali. Para liberar, escolha "Uso livre" e pinte de novo.</div>
+                        </div>
+                        <div class="nova-previa" id="novaPrevia" aria-live="polite"></div>
+                        <p class="small mb-0 mt-2" id="novaAviso" role="status"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnCriarCamara"><i class="fas fa-check"></i>Criar câmara</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Salvar o layout de agora com um nome (fica para o grupo de quem salvou) #}
+<div class="modal fade" id="modalSalvarLayout" tabindex="-1" aria-labelledby="modalSalvarLayoutTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('enderecamento.layout_salvar') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalSalvarLayoutTitulo"><i class="fas fa-floppy-disk me-2"></i>Salvar layout do CD</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Guarda as {{ linhas|length }} câmara(s) e os {{ total_enderecos }} endereço(s) como estão agora: ruas, portas, pontos sem posição, picking e espaços de cliente. Paletes e bloqueios não entram.</p>
+                <label class="form-label" for="slNome">Nome do layout <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="slNome" name="nome" maxlength="60" required placeholder="Ex.: CD Guarulhos — novembro" list="slNomes">
+                <datalist id="slNomes">{% for l in layouts %}<option value="{{ l.nome }}">{% endfor %}</datalist>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="slSubstituir" name="substituir" value="1">
+                    <label class="form-check-label" for="slSubstituir">Substituir, se já existir um layout salvo com este nome</label>
+                </div>
+                <div class="form-text mt-2">Fica salvo só para o seu grupo ({{ perfil_nome }}): só quem é desse grupo vê e carrega este layout.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk"></i>Salvar layout</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Carregar layout: escolhe qual (o padrão do CD ou um salvo pelo grupo) #}
+<div class="modal fade" id="modalCarregarLayout" tabindex="-1" aria-labelledby="modalCarregarLayoutTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCarregarLayoutTitulo"><i class="fas fa-download me-2"></i>Carregar layout</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Escolha qual layout carregar. Só é criado o que ainda não existe: câmaras e endereços que já estão cadastrados não são alterados nem apagados.</p>
+                <div class="lista-layouts" role="radiogroup" aria-label="Layouts disponíveis">
+                    <label class="layout-opcao">
+                        <input class="form-check-input" type="radio" name="layoutEscolhido" value="{{ url_for('enderecamento.layout_padrao') }}" checked>
+                        <span><strong>Layout padrão do CD</strong><small>Câmaras 6, 7, 14, 15, 16, áreas especiais e stage — o mesmo do WMS Pro</small></span>
+                    </label>
+                    {% for l in layouts %}
+                    <div class="layout-opcao">
+                        <input class="form-check-input" type="radio" name="layoutEscolhido" id="layout{{ l.id }}" value="{{ url_for('enderecamento.layout_carregar', lid=l.id) }}">
+                        <label for="layout{{ l.id }}"><strong>{{ l.nome }}</strong><small>{{ l.camaras }} câmara(s) · {{ l.enderecos }} endereço(s) · salvo por {{ l.criado_por }} em {{ l.criado_em|datahora }}</small></label>
+                        <form method="POST" action="{{ url_for('enderecamento.layout_excluir', lid=l.id) }}" onsubmit="return confirm('Excluir o layout salvo &quot;{{ l.nome }}&quot;? As câmaras do sistema não são alteradas.');">
+                            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-danger" title="Excluir este layout salvo" aria-label="Excluir o layout salvo {{ l.nome }}"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if not layouts %}<p class="text-muted small mb-0 mt-3">Seu grupo ({{ perfil_nome }}) ainda não salvou nenhum layout. Use <strong>Salvar layout do CD</strong> para guardar o de agora.</p>{% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="POST" id="formCarregarLayout">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-download"></i>Carregar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Excluir câmara: só confirma digitando o número dela. #}
+<div class="modal fade" id="modalExcluirCamara" tabindex="-1" aria-labelledby="modalExcluirCamaraTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" id="formExcluirCamara" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalExcluirCamaraTitulo"><i class="fas fa-trash me-2"></i>Excluir <span id="excNome"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger" id="excAviso"></div>
+                <div id="excBloco">
+                    <label class="form-label" for="excConfirmacao">Para confirmar, digite o número da câmara: <strong id="excNumero"></strong></label>
+                    <input type="text" inputmode="numeric" class="form-control" id="excConfirmacao" name="confirmacao" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-danger" id="excBotao" disabled><i class="fas fa-trash"></i>Excluir câmara</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Carregar layout: o botão envia para o layout marcado na lista.
+(function () {
+    var form = document.getElementById('formCarregarLayout');
+    if (!form) return;
+    form.addEventListener('submit', function () {
+        form.action = document.querySelector('input[name="layoutEscolhido"]:checked').value;
+    });
+})();
+</script>
+<script>
+// Excluir câmara: o botão só libera quando o número digitado é o da câmara.
+(function () {
+    var modalEl = document.getElementById('modalExcluirCamara');
+    if (!modalEl) return;
+    var modal = new bootstrap.Modal(modalEl), campo = document.getElementById('excConfirmacao'), botao = document.getElementById('excBotao');
+    var esperado = null;
+    document.querySelectorAll('[data-excluir]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var enderecos = Number(b.getAttribute('data-enderecos')), ocupados = Number(b.getAttribute('data-ocupados'));
+            esperado = Number(b.getAttribute('data-codigo'));
+            document.getElementById('formExcluirCamara').action = b.getAttribute('data-excluir');
+            document.getElementById('excNome').textContent = b.getAttribute('data-nome');
+            document.getElementById('excNumero').textContent = esperado;
+            document.getElementById('excAviso').textContent = ocupados
+                ? 'Esta câmara tem ' + ocupados + ' posição(ões) com palete guardado e não pode ser excluída. Tire os paletes (Movimentação) ou inative a câmara.'
+                : 'A câmara e os ' + enderecos + ' endereço(s) dela serão apagados para sempre. As etiquetas de longarina já impressas deixam de valer. Esta ação não pode ser desfeita.';
+            document.getElementById('excBloco').hidden = ocupados > 0;
+            campo.value = '';
+            botao.disabled = true;
+            modal.show();
+        });
+    });
+    campo.addEventListener('input', function () { botao.disabled = Number(campo.value) !== esperado || campo.value.trim() === ''; });
+    modalEl.addEventListener('shown.bs.modal', function () { campo.focus(); });
+})();
+</script>
+<script>
+// Nova câmara: sugere o número e as letras de rua livres; cada rua tem a sua configuração; o desenho muda ao digitar.
+(function () {
+    var form = document.getElementById('formNovaCamara');
+    if (!form) return;
+    var numerosEmUso = JSON.parse(form.getAttribute('data-numeros'));
+    var ruasEmUso = JSON.parse(form.getAttribute('data-ruas'));
+    var lista = document.getElementById('ruasLista');
+    var resumo = document.getElementById('novaResumo'), previa = document.getElementById('novaPrevia');
+    var aviso = document.getElementById('novaAviso'), botao = document.getElementById('btnCriarCamara');
+    var nomeAutomatico = true;
+    // Espaço por cliente
+    var empresas = JSON.parse(form.getAttribute('data-empresas'));
+    var urlCadastroEmpresa = form.getAttribute('data-cadastro-empresa');
+    var clienteSel = document.getElementById('clienteSel'), clienteBarra = document.getElementById('clienteBarra');
+    var CORES_CLIENTE = ['#0f766e', '#b45309', '#7c3aed', '#be123c', '#15803d', '#0369a1', '#a21caf', '#4d7c0f', '#c2410c', '#475569'];
+    function escaparHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function empresaDe(id) { for (var i = 0; i < empresas.length; i++) if (empresas[i].id === Number(id)) return { nome: empresas[i].nome, cor: CORES_CLIENTE[i % CORES_CLIENTE.length] }; return null; }
+    function iniciaisDe(nome) { var p = nome.split(/\s+/).filter(Boolean); return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[1].charAt(0) : '')).toUpperCase(); }
+    function listarEmpresas(escolhida) {
+        clienteSel.innerHTML = '<option value="">Uso livre (tirar a reserva)</option>' +
+            empresas.map(function (e) { return '<option value="' + e.id + '">' + escaparHtml(e.nome) + '</option>'; }).join('');
+        clienteSel.value = escolhida || (empresas.length ? String(empresas[0].id) : '');
+    }
+    listarEmpresas();
+    var modalCamara = new bootstrap.Modal(document.getElementById('modalCamara'));
+    var acaoNova = form.getAttribute('action');
+    // edicao: preenchido quando a janela está alterando uma câmara que já existe (lápis do cartão).
+    //   numero/ruas: os dela mesma (não contam como "já em uso"); apagadas: posições de ruas removidas na janela.
+    var edicao = null;
+    function numerosOcupados() { return edicao ? numerosEmUso.filter(function (n) { return n !== edicao.numero; }) : numerosEmUso; }
+    function ruasDeOutras() { return edicao ? ruasEmUso.filter(function (r) { return edicao.ruas.indexOf(r) === -1; }) : ruasEmUso; }
+    // Posições que viram endereço numa rua: a grade menos o que está marcado como porta ou sem posição.
+    function posicoes(colunas, niveis, vaos) {
+        var p = {};
+        for (var c = 1; c <= colunas; c++) for (var n = 1; n <= niveis; n++) if (!vaos[c + '|' + n]) p[c + '|' + n] = true;
+        return p;
+    }
+    function dois(n) { return ('0' + n).slice(-2); }
+    function inteiro(campo) { var n = parseInt(campo.value, 10); return isNaN(n) ? 0 : n; }
+
+    // Próximo número livre depois do maior número de câmara de estante (as áreas 98 e 99 ficam de fora).
+    function proximoNumero() {
+        var estantes = numerosEmUso.filter(function (n) { return n < 90; });
+        var n = (estantes.length ? Math.max.apply(null, estantes) : 0) + 1;
+        while (numerosEmUso.indexOf(n) !== -1 && n < 99) n++;
+        return n;
+    }
+    function linhas() { return Array.prototype.slice.call(lista.querySelectorAll('.rua-linha')); }
+    function lerRuas() {
+        return linhas().map(function (l) {
+            // vaos: o que foi marcado no desenho desta rua — "coluna|nivel" -> 'P' (porta) ou 'S' (sem posição).
+            return { clientes: l.clientes || (l.clientes = {}), vaos: l.vaos || (l.vaos = {}), ocupadas: l.ocupadas || {}, original: l.original || null, existente: !!l.existente,
+                     nome: l.querySelector('[name="rua"]').value.trim().toUpperCase(), colunas: inteiro(l.querySelector('[name="rua_colunas"]')),
+                     niveis: inteiro(l.querySelector('[name="rua_niveis"]')), picking: inteiro(l.querySelector('[name="rua_picking"]')) };
+        });
+    }
+    // Próxima letra que nenhuma câmara usa e que ainda não está na lista (A..Z, depois AA..AZ).
+    function proximaRua() {
+        var usadas = ruasDeOutras().concat(lerRuas().map(function (r) { return r.nome; }));
+        var letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), candidatas = letras.slice();
+        letras.forEach(function (l) { candidatas.push('A' + l); });
+        return candidatas.filter(function (c) { return usadas.indexOf(c) === -1; })[0] || '';
+    }
+
+    // "valores": preenche a linha com o que veio (ao reabrir depois de um erro); sem isso, sugere.
+    function adicionarRua(valores) {
+        var anteriores = lerRuas(), base = anteriores[anteriores.length - 1];
+        var chao = form.tipo.value !== 'Armazenagem';     // stage e área especial ficam no chão: um nível, sem picking
+        var linha = document.createElement('div');
+        linha.className = 'rua-linha';
+        linha.innerHTML =
+            '<input type="text" class="form-control" name="rua" maxlength="3" aria-label="Letra da rua" style="text-transform: uppercase;">' +
+            '<input type="number" class="form-control" name="rua_colunas" min="1" max="99" aria-label="Colunas (prédios) da rua">' +
+            '<input type="number" class="form-control" name="rua_niveis" min="1" max="99" aria-label="Níveis da rua">' +
+            '<input type="number" class="form-control" name="rua_picking" min="0" max="99" aria-label="Picking até o nível">' +
+            '<button type="button" class="btn btn-sm btn-danger" data-remover-rua title="Remover esta rua" aria-label="Remover esta rua"><i class="fas fa-xmark"></i></button>';
+        linha.querySelector('[name="rua"]').value = proximaRua();
+        linha.querySelector('[name="rua_colunas"]').value = base ? base.colunas : 15;
+        linha.querySelector('[name="rua_niveis"]').value = base ? base.niveis : (chao ? 1 : 5);
+        linha.querySelector('[name="rua_picking"]').value = base ? base.picking : (chao ? 0 : 1);
+        if (valores) {
+            linha.querySelector('[name="rua"]').value = valores.nome;
+            linha.querySelector('[name="rua_colunas"]').value = valores.colunas;
+            linha.querySelector('[name="rua_niveis"]').value = valores.niveis;
+            linha.querySelector('[name="rua_picking"]').value = valores.picking;
+            linha.vaos = valores.vaos || {};
+            linha.clientes = {};
+            Object.keys(valores.clientes || {}).forEach(function (chave) { linha.clientes[chave] = valores.clientes[chave]; });
+            if (valores.existente) {
+                // Rua que já existe: a letra não muda (ela faz parte do código e da etiqueta de cada endereço).
+                linha.existente = true;
+                linha.querySelector('[name="rua"]').readOnly = true;
+                linha.querySelector('[name="rua"]').title = 'A letra de uma rua que já existe não muda. Para trocar, remova a rua e adicione outra.';
+                linha.ocupadas = {};
+                (valores.ocupadas || []).forEach(function (chave) { linha.ocupadas[chave] = true; });
+                if (valores.original) linha.original = posicoes(valores.original.colunas, valores.original.niveis, valores.original.vaos);
+            }
+        }
+        lista.appendChild(linha);
+        return linha;
+    }
+
+    function desenhar() {
+        var ruas = lerRuas(), numero = inteiro(form.codigo), problemas = [];
+        if (form.codigo.value !== '' && (numero < 1 || numero > 99)) problemas.push('O número da câmara precisa estar entre 1 e 99.');
+        else if (numerosOcupados().indexOf(numero) !== -1) problemas.push('Já existe uma câmara com o número ' + numero + '.');
+        // Temperaturas: aceita vírgula; a mínima não pode passar da máxima (ex.: mínima -25, máxima -5).
+        var tMin = parseFloat(form.temp_min.value.replace(',', '.')), tMax = parseFloat(form.temp_max.value.replace(',', '.'));
+        if (form.temp_min.value.trim() !== '' && isNaN(tMin)) problemas.push('Temperatura mínima: número inválido.');
+        if (form.temp_max.value.trim() !== '' && isNaN(tMax)) problemas.push('Temperatura máxima: número inválido.');
+        if (!isNaN(tMin) && !isNaN(tMax) && tMin > tMax) problemas.push('A temperatura mínima (' + form.temp_min.value + ') não pode ser maior que a máxima (' + form.temp_max.value + '). Em câmara fria a mínima é o número mais negativo.');
+        if (form.nome.value.trim() === '') problemas.push('Informe o nome da câmara.');
+        var nomes = ruas.map(function (r) { return r.nome; });
+        ruas.forEach(function (r, i) {
+            var rotulo = 'Rua ' + (r.nome || (i + 1) + 'ª') + ': ';
+            if (!/^[A-Z0-9]{1,3}$/.test(r.nome)) problemas.push(rotulo + 'informe de 1 a 3 letras ou números.');
+            else if (nomes.indexOf(r.nome) !== i) problemas.push(rotulo + 'está repetida na lista.');
+            if (r.colunas < 1 || r.colunas > 99) problemas.push(rotulo + 'colunas de 1 a 99.');
+            if (r.niveis < 1 || r.niveis > 99) problemas.push(rotulo + 'níveis de 1 a 99.');
+            // Posição com palete não pode sair do desenho (nem pela redução de colunas ou níveis).
+            var fora = Object.keys(r.ocupadas).filter(function (chave) {
+                var partes = chave.split('|');
+                return Number(partes[0]) > r.colunas || Number(partes[1]) > r.niveis;
+            });
+            if (fora.length) problemas.push(rotulo + fora.length + ' posição(ões) com palete ficariam fora do desenho (ex.: coluna ' + fora[0].split('|')[0] + ', nível ' + fora[0].split('|')[1] + '). Tire os paletes antes de diminuir a rua.');
+        });
+        var repetidas = nomes.filter(function (n) { return n && ruasDeOutras().indexOf(n) !== -1; });
+        // Edição: quantos endereços nascem e quantos somem em relação ao que existe hoje.
+        var novos = 0, apagados = edicao ? edicao.apagadas : 0, comparavel = !!edicao;
+        if (edicao) ruas.forEach(function (r) {
+            var agora = posicoes(Math.min(Math.max(r.colunas, 0), 99), Math.min(Math.max(r.niveis, 0), 99), r.vaos);
+            if (!r.existente) { novos += Object.keys(agora).length; return; }
+            if (!r.original) { comparavel = false; return; }
+            Object.keys(agora).forEach(function (chave) { if (!r.original[chave]) novos++; });
+            Object.keys(r.original).forEach(function (chave) { if (!agora[chave]) apagados++; });
+        });
+
+        if (!ruas.length) {
+            resumo.innerHTML = '';
+            previa.innerHTML = '<p class="text-muted mb-0">Adicione ao menos uma rua para ver o desenho da câmara.' + (edicao ? '' : ' Sem ruas, a câmara é criada vazia e você gera os endereços depois.') + '</p>';
+            botao.innerHTML = '<i class="fas fa-check"></i>' + (edicao ? 'Salvar câmara' : 'Criar câmara');
+        } else {
+            var codigo = numero >= 1 && numero <= 99 ? dois(numero) : '??';
+            var total = 0, nPicking = 0, nPortas = 0, nSem = 0, maiorColunas = 1, porCliente = {};
+            ruas.forEach(function (r) {
+                var c = Math.min(Math.max(r.colunas, 0), 99), n = Math.min(Math.max(r.niveis, 0), 99);
+                maiorColunas = Math.max(maiorColunas, c);
+                for (var col = 1; col <= c; col++) for (var nivel = 1; nivel <= n; nivel++) {
+                    var marca = r.vaos[col + '|' + nivel];
+                    if (marca === 'P') nPortas++;
+                    else if (marca === 'S') nSem++;
+                    else {
+                        total++; if (nivel <= r.picking) nPicking++;
+                        var dono = r.clientes[col + '|' + nivel];
+                        if (dono && empresaDe(dono)) porCliente[dono] = (porCliente[dono] || 0) + 1;
+                    }
+                }
+            });
+            function cartao(valor, rotulo) { return '<div><strong>' + valor + '</strong><span>' + rotulo + '</span></div>'; }
+            resumo.innerHTML = cartao(total, 'posições') + cartao(nPicking, 'picking') + cartao(total - nPicking, 'pulmão') +
+                               cartao(nPortas + ' / ' + nSem, 'porta / sem posição');
+            // Desenho no mesmo estilo de estante do mapa; com muitas colunas o quadrado diminui para caber.
+            var tamanho = Math.max(12, Math.min(34, Math.floor(780 / (Math.min(maiorColunas, 99) + 2))));
+            var html = '<div class="nova-previa-ruas" style="--cel:' + tamanho + 'px;--cel-fonte:' + (tamanho >= 28 ? 11 : tamanho >= 20 ? 10 : 8) + 'px">';
+            ruas.forEach(function (r, indice) {
+                var c = Math.min(Math.max(r.colunas, 0), 99), n = Math.min(Math.max(r.niveis, 0), 99), nome = r.nome.replace(/[^A-Z0-9]/g, '');
+                html += '<div class="rua-block"><div class="rua-title">Rua ' + (nome || '?') + ' <span>' + c + ' col. × ' + n + ' nív.' +
+                        (c && n && nome ? ' · ' + codigo + '-' + nome + '-01-1 a ' + codigo + '-' + nome + '-' + dois(c) + '-' + n : '') + '</span></div>';
+                if (c && n) {
+                    // Em volta do desenho, o endereço: colunas em cima e níveis à esquerda (câmara-rua-coluna-nível).
+                    var modelo = 'grid-template-columns:repeat(' + c + ', var(--cel))';
+                    html += '<div class="rua-grid-inner"><div class="col-headers" style="' + modelo + '">';
+                    for (var k = 1; k <= c; k++) html += '<span class="axis-label">' + dois(k) + '</span>';
+                    html += '</div><div class="rua-body"><div class="row-labels">';
+                    for (var m = n; m >= 1; m--) html += '<span class="axis-label row-axis">' + m + '</span>';
+                    html += '</div><div class="cells-area"><div class="cells-stack">';
+                    for (var nivel = n; nivel >= 1; nivel--) {
+                        html += '<div class="cells-row" style="grid-template-columns:repeat(' + c + ', var(--cel))">';
+                        for (var col = 1; col <= c; col++) {
+                            var marca = r.vaos[col + '|' + nivel];
+                            var comPalete = !marca && r.ocupadas[col + '|' + nivel];
+                            var classe = marca === 'P' ? ' cell--previa-porta' : marca === 'S' ? ' cell--sem-nivel5' : comPalete ? ' cell--ocupado' : nivel <= r.picking ? ' cell--previa-picking' : '';
+                            var cliente = !marca && r.clientes[col + '|' + nivel] ? empresaDe(r.clientes[col + '|' + nivel]) : null;
+                            var estilo = '', miolo = '';
+                            if (cliente) {
+                                // Reservada: cor do cliente; com palete fica só a borda, para o azul de "ocupado" continuar visível.
+                                estilo = comPalete ? ' style="outline:3px solid ' + cliente.cor + ';outline-offset:-3px"' : ' style="background-color:' + cliente.cor + '"';
+                                if (!comPalete) { classe = ' cell--cliente'; if (tamanho >= 22) miolo = escaparHtml(iniciaisDe(cliente.nome)); }
+                            }
+                            var dica = codigo + '-' + (nome || '?') + '-' + dois(col) + '-' + nivel + ' · rua ' + nome + ', coluna ' + col + ', nível ' + nivel + (marca === 'P' ? ' — porta' : marca === 'S' ? ' — sem posição' : comPalete ? ' — com palete (não pode virar porta nem sair)' : '') + (cliente ? ' — reservada para ' + escaparHtml(cliente.nome) : '');
+                            html += '<button type="button" class="cell' + classe + '"' + estilo + ' data-rua="' + indice + '" data-celula="' + col + '|' + nivel + '" title="' + dica + '" aria-label="' + dica + '">' + miolo + '</button>';
+                        }
+                        html += '</div>';
+                    }
+                    html += '</div></div></div></div>';
+                }
+                html += '</div>';
+            });
+            var legenda = Object.keys(porCliente).map(function (id) {
+                var c = empresaDe(id);
+                return '<span class="legenda-cliente"><i style="background:' + c.cor + '"></i>' + escaparHtml(c.nome) + ' · ' + porCliente[id] + ' posição(ões)</span>';
+            }).join('');
+            previa.innerHTML = html + '</div>' + (nPicking ? '<p class="text-muted small mb-0 mt-2"><span class="legenda-picking"></span> picking · em branco, pulmão</p>' : '') +
+                               (legenda ? '<p class="small mb-0 mt-2 legenda-clientes">' + legenda + '</p>' : '');
+            botao.innerHTML = '<i class="fas fa-check"></i>' + (edicao ? 'Salvar câmara e abrir o mapa' : 'Criar câmara e abrir o mapa');
+        }
+        var mudanca = '';
+        if (edicao && comparavel && (novos || apagados)) {
+            mudanca = 'Ao salvar: ' + [novos ? novos + ' endereço(s) novo(s)' : '', apagados ? apagados + ' endereço(s) apagado(s) — as etiquetas de longarina deles deixam de valer' : ''].filter(Boolean).join(' e ') + '. ';
+        }
+        aviso.className = 'small mb-0 mt-2 ' + (problemas.length ? 'text-danger fw-semibold' : 'text-muted');
+        aviso.textContent = problemas.length ? problemas.join(' ')
+            : repetidas.length ? mudanca + 'Atenção: a rua ' + repetidas.join(', ') + ' já existe em outra câmara. Pode repetir (o número da câmara diferencia os endereços), mas letras únicas no CD evitam confusão.' : mudanca;
+        botao.disabled = problemas.length > 0;
+    }
+
+    form.nome.addEventListener('input', function () { nomeAutomatico = form.nome.value.trim() === ''; });
+    form.codigo.addEventListener('input', function () {
+        if (nomeAutomatico) form.nome.value = inteiro(form.codigo) ? 'Câmara ' + inteiro(form.codigo) : '';
+    });
+    form.tipo.addEventListener('change', function () {
+        if (form.tipo.value !== 'Armazenagem') {
+            linhas().forEach(function (l) { l.querySelector('[name="rua_niveis"]').value = 1; l.querySelector('[name="rua_picking"]').value = 0; });
+        }
+        desenhar();
+    });
+    document.getElementById('btnAdicionarRua').addEventListener('click', function () {
+        adicionarRua().querySelector('[name="rua_colunas"]').focus();
+        desenhar();
+    });
+    lista.addEventListener('click', function (ev) {
+        var remover = ev.target.closest('[data-remover-rua]');
+        if (!remover) return;
+        var linha = remover.closest('.rua-linha');
+        if (linha.ocupadas && Object.keys(linha.ocupadas).length) {
+            alert('Esta rua tem ' + Object.keys(linha.ocupadas).length + ' posição(ões) com palete e não pode ser removida. Tire os paletes (Movimentação) antes.');
+            return;
+        }
+        if (edicao && linha.original) edicao.apagadas += Object.keys(linha.original).length;
+        linha.remove();
+        desenhar();
+    });
+    form.addEventListener('input', desenhar);
+
+    // Marcar no desenho: com a ferramenta escolhida, clicar (ou arrastar) pinta os quadrados.
+    var pintando = false;
+    function pintar(alvo) {
+        var quadro = alvo && alvo.closest ? alvo.closest('button[data-celula]') : null;
+        if (!quadro) return;
+        var linha = linhas()[Number(quadro.getAttribute('data-rua'))];
+        if (!linha) return;
+        var ferramenta = form.ferramenta.value, chave = quadro.getAttribute('data-celula');
+        linha.vaos = linha.vaos || {};
+        linha.clientes = linha.clientes || {};
+        if (ferramenta === 'C') {
+            // Espaço de cliente: só em posição de palete (porta e sem posição não guardam nada).
+            if (linha.vaos[chave]) return;
+            var escolhido = clienteSel.value ? Number(clienteSel.value) : null;
+            if ((linha.clientes[chave] || null) === escolhido) return;
+            if (escolhido) linha.clientes[chave] = escolhido; else delete linha.clientes[chave];
+            desenhar();
+            return;
+        }
+        if (ferramenta && linha.ocupadas && linha.ocupadas[chave]) return;     // posição com palete continua posição
+        if (ferramenta) delete linha.clientes[chave];
+        if ((linha.vaos[chave] || '') === ferramenta) return;
+        if (ferramenta) linha.vaos[chave] = ferramenta; else delete linha.vaos[chave];
+        desenhar();
+    }
+    previa.addEventListener('pointerdown', function (ev) { if (ev.button === 0) { pintando = true; pintar(ev.target); ev.preventDefault(); } });
+    previa.addEventListener('pointerover', function (ev) { if (pintando) pintar(ev.target); });
+    window.addEventListener('pointerup', function () { pintando = false; });
+    // Teclado: Enter ou espaço no quadrado também marca.
+    previa.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pintar(ev.target); } });
+
+    // Ao enviar: as marcações que cabem no tamanho de cada rua vão como campos "vao" (RUA|coluna|nível|P ou S).
+    form.addEventListener('submit', function () {
+        form.querySelectorAll('input[name="vao"], input[name="cliente"]').forEach(function (c) { c.remove(); });
+        lerRuas().forEach(function (r) {
+            Object.keys(r.vaos).forEach(function (chave) {
+                var partes = chave.split('|');
+                if (Number(partes[0]) > r.colunas || Number(partes[1]) > r.niveis) return;
+                var campo = document.createElement('input');
+                campo.type = 'hidden'; campo.name = 'vao'; campo.value = r.nome + '|' + chave + '|' + r.vaos[chave];
+                form.appendChild(campo);
+            });
+            Object.keys(r.clientes).forEach(function (chave) {
+                var partes = chave.split('|');
+                if (Number(partes[0]) > r.colunas || Number(partes[1]) > r.niveis || r.vaos[chave]) return;
+                var campo = document.createElement('input');
+                campo.type = 'hidden'; campo.name = 'cliente'; campo.value = r.nome + '|' + chave + '|' + r.clientes[chave];
+                form.appendChild(campo);
+            });
+        });
+    });
+
+    // Ao abrir: já propõe o próximo número, o nome e duas ruas livres.
+    document.getElementById('modalCamara').addEventListener('show.bs.modal', function () {
+        if (form.codigo.value === '') {
+            form.codigo.value = proximoNumero();
+            form.nome.value = 'Câmara ' + form.codigo.value;
+            nomeAutomatico = true;
+        }
+        if (!linhas().length && !edicao) { adicionarRua(); adicionarRua(); }
+        desenhar();
+    });
+    document.getElementById('modalCamara').addEventListener('shown.bs.modal', function () {
+        var campo = form.codigo.readOnly ? form.nome : form.codigo;
+        campo.focus(); campo.select();
+    });
+
+    // Ferramenta "Espaço de cliente": mostra a escolha da empresa.
+    form.addEventListener('change', function (ev) {
+        if (ev.target.name === 'ferramenta') clienteBarra.hidden = form.ferramenta.value !== 'C';
+    });
+    // Nova empresa sem sair da janela (só aparece para quem pode editar Cadastros).
+    (function () {
+        var abrir = document.getElementById('btnNovaEmpresa');
+        if (!abrir) return;
+        var caixa = document.getElementById('novaEmpresa'), nome = document.getElementById('neNome'), cnpj = document.getElementById('neCnpj');
+        var erro = document.getElementById('neErro'), salvar = document.getElementById('neSalvar');
+        function fechar() { caixa.hidden = true; nome.value = ''; cnpj.value = ''; erro.textContent = ''; }
+        abrir.addEventListener('click', function () { caixa.hidden = false; nome.focus(); });
+        document.getElementById('neCancelar').addEventListener('click', fechar);
+        function cadastrar() {
+            if (!nome.value.trim()) { erro.textContent = 'Informe o nome da empresa.'; nome.focus(); return; }
+            salvar.disabled = true;
+            var corpo = new URLSearchParams({ _csrf: form._csrf.value, nome: nome.value, cnpj: cnpj.value, tipo: 'Cliente' });
+            fetch(urlCadastroEmpresa, { method: 'POST', body: corpo, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (!d.ok) { erro.textContent = d.erro || 'Não foi possível cadastrar.'; return; }
+                    empresas.push({ id: d.id, nome: d.nome });
+                    listarEmpresas(String(d.id));
+                    fechar();
+                })
+                .catch(function () { erro.textContent = 'Não foi possível cadastrar. Tente de novo.'; })
+                .then(function () { salvar.disabled = false; });
+        }
+        salvar.addEventListener('click', cadastrar);
+        // Enter nos campos cadastra a empresa (e não envia a câmara).
+        [nome, cnpj].forEach(function (c) { c.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); cadastrar(); } }); });
+    })();
+
+    // Deixa a janela em branco, pronta para uma câmara nova.
+    function limpar() {
+        edicao = null;
+        form.setAttribute('action', acaoNova);
+        ['codigo', 'nome', 'categoria', 'temp_min', 'temp_max'].forEach(function (c) { form[c].value = ''; });
+        form.tipo.selectedIndex = 0;
+        form.ativo.value = '1';
+        form.codigo.readOnly = false;
+        form.ferramenta.value = '';
+        clienteBarra.hidden = true;
+        lista.innerHTML = '';
+        nomeAutomatico = true;
+        document.getElementById('novaErros').hidden = true;
+        document.getElementById('modalCamaraNome').textContent = 'Nova câmara';
+        document.getElementById('ruasAjuda').textContent = 'Sem nenhuma rua, a câmara é criada vazia e você gera os endereços depois.';
+    }
+    // Põe a janela em modo de edição de uma câmara que já existe.
+    function entrarEdicao(acao, campos, ruas) {
+        limpar();
+        edicao = { acao: acao, numero: Number(campos.codigo), apagadas: 0,
+                   ruas: ruas.filter(function (r) { return r.existente; }).map(function (r) { return r.nome; }) };
+        form.setAttribute('action', acao);
+        Object.keys(campos).forEach(function (campo) { if (form[campo]) form[campo].value = campos[campo]; });
+        nomeAutomatico = false;
+        ruas.forEach(adicionarRua);
+        // Com endereços criados, o número não muda: ele faz parte do código e da etiqueta de cada endereço.
+        form.codigo.readOnly = edicao.ruas.length > 0;
+        document.getElementById('modalCamaraNome').textContent = 'Editar ' + campos.nome;
+        document.getElementById('ruasAjuda').textContent = 'Aumentar uma rua cria os endereços que faltam; diminuir ou marcar porta / sem posição apaga os que saem do desenho. Posição com palete (azul) não pode sair.';
+    }
+    document.getElementById('btnNovaCamara').addEventListener('click', function () {
+        if (edicao) limpar();
+        modalCamara.show();
+    });
+    document.querySelectorAll('[data-editar-camara]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            b.disabled = true;
+            fetch(b.getAttribute('data-editar-camara'), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                .then(function (d) {
+                    // "original": como a rua está hoje, para avisar quantos endereços nascem e somem ao salvar.
+                    d.ruas.forEach(function (r) { r.original = { colunas: r.colunas, niveis: r.niveis, vaos: JSON.parse(JSON.stringify(r.vaos)) }; });
+                    entrarEdicao(d.acao, d.campos, d.ruas);
+                    modalCamara.show();
+                })
+                .catch(function () { alert('Não foi possível abrir a câmara para edição. Recarregue a página e tente de novo.'); })
+                .then(function () { b.disabled = false; });
+        });
+    });
+
+    // O servidor recusou a criação: a janela volta aberta com tudo o que estava preenchido e o erro no topo.
+    var reabrir = JSON.parse(form.getAttribute('data-reabrir'));
+    if (reabrir) {
+        if (reabrir.editar) {
+            entrarEdicao(reabrir.acao, reabrir.campos, reabrir.ruas);
+        } else {
+            Object.keys(reabrir.campos).forEach(function (campo) { if (form[campo]) form[campo].value = reabrir.campos[campo]; });
+            nomeAutomatico = false;
+            reabrir.ruas.forEach(adicionarRua);
+        }
+        var caixa = document.getElementById('novaErros');
+        caixa.textContent = (reabrir.editar ? 'A câmara não foi salva. ' : 'A câmara não foi criada. ') + reabrir.erros.join(' ');
+        caixa.hidden = false;
+        // O aviso do servidor some assim que a pessoa mexe em algo; a partir daí vale o aviso ao vivo, embaixo do desenho.
+        form.addEventListener('input', function () { caixa.hidden = true; }, { once: true });
+        modalCamara.show();
+    }
+})();
+</script>
+{% endblock %}

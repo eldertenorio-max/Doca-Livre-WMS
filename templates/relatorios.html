@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Relatórios · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-chart-column me-2"></i>Relatórios</h2>
+</div>
+<p class="text-muted mb-3">Todos abrem na tela com filtros e têm <strong>Baixar Excel</strong>. Os de período começam nos últimos 30 dias.</p>
+
+<div class="row g-3 mb-4">
+    {% for rid, (titulo, descricao, icone, filtros, funcao) in relatorios.items() %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <div class="card modulo-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="modulo-icone"><i class="fas fa-{{ icone }}"></i></span>
+                    <h5 class="mb-0">{{ titulo }}</h5>
+                </div>
+                <p class="text-muted small mb-2">{{ descricao }}</p>
+                <div class="d-flex flex-wrap gap-2 mt-auto">
+                    <a class="btn btn-sm btn-primary" href="{{ url_for('relatorios.relatorio', rid=rid) }}"><i class="fas fa-eye"></i>Abrir</a>
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('relatorios.relatorio', rid=rid, formato='xlsx') }}"><i class="fas fa-file-excel"></i>Excel</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if outros %}
+<h6 class="titulo-secao">Também com Excel, em outras telas</h6>
+<div class="row g-3">
+    {% for nome, texto, icone, url in outros %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <a class="atalho-relatorio" href="{{ url }}"><i class="fas fa-{{ icone }}"></i><span><strong>{{ nome }}</strong><small>{{ texto }}</small></span><i class="fas fa-arrow-right ms-auto"></i></a>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

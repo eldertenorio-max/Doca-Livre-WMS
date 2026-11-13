@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Doca Livre">
+  <style>
+    .contorno { fill: #043460; }
+    @media (prefers-color-scheme: dark) {
+      .contorno { fill: #ffffff; }
+    }
+  </style>
+  <g transform="translate(25.599999999999994 109.3144694533762) scale(1.4816720257234728) translate(-54 -110)">
+    <g id="metade">
+    <path class="contorno" d="M200 110H76a22 22 0 0 0-22 22v154a22 22 0 0 0 22 22h124v-19H78a5 5 0 0 1-5-5V135a5 5 0 0 1 5-5h122z"/>
+    <path fill="#f9db00" d="M89.5 209.5 141 173.5v72z" stroke="#f9db00" stroke-width="10" stroke-linejoin="round"/>
+    <rect fill="#f9db00" x="141" y="189" width="59" height="41"/>
+    </g>
+    <use href="#metade" transform="translate(419 0) scale(-1 1)"/>
+  </g>
+</svg>

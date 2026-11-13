@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doca Livre WMS</title>
+    <meta name="theme-color" content="#ffffff">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/icon-192.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+    <meta name="application-name" content="Doca Livre WMS">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}?v={{ assets_version }}">
+</head>
+<body class="login-page-body">
+    {# Intro do WMS (a mesma do WMS Pro, sem o "Pro"). Some sozinha ao terminar. #}
+    <div id="wms-splash" class="intro-splash" role="status" aria-label="Carregando WMS Doca Livre">
+        <div class="intro-content">
+            <div class="intro-marca">
+                <img src="{{ url_for('static', filename='img/logo-doca-livre-claro.png') }}" alt="Doca Livre" class="intro-logo">
+                <strong class="intro-wms">WMS</strong>
+            </div>
+            <div class="intro-progress-wrap">
+                <div class="intro-progress-track"><div class="intro-progress-bar" id="splashBarra"></div></div>
+                <span class="intro-progress-label">Carregando… <span id="splashPct">0</span>%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="login-page">
+        <div class="login-bg">
+            <img src="{{ url_for('static', filename='img/login-bg.svg') }}?v={{ assets_version }}" alt="" loading="eager">
+            <div class="login-bg-overlay"></div>
+        </div>
+
+        <main class="login-card">
+            <div class="login-logo">
+                <img src="{{ url_for('static', filename='img/logo-doca-livre-claro.png') }}" alt="Doca Livre">
+                <strong class="login-wms">WMS</strong>
+            </div>
+            <div class="login-heading">
+                <h1>Acessar Sistema</h1>
+                <p>Gestão de armazém: recebimento, estoque e expedição</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for cat, msg in messages %}
+                <div class="{{ 'error-message' if cat == 'error' else 'ok-message' }}" role="alert">
+                    <i class="fas fa-{{ 'circle-exclamation' if cat == 'error' else 'circle-check' }}"></i>{{ msg }}
+                </div>
+                {% endfor %}
+            {% endwith %}
+
+            <form method="POST" class="login-form" autocomplete="on">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                {% if request.args.get('next') %}
+                <input type="hidden" name="next" value="{{ request.args.get('next') }}">
+                {% endif %}
+                <div class="input-group">
+                    <label for="username">Seu usuário</label>
+                    <div class="input-wrapper">
+                        <i class="far fa-user input-icon"></i>
+                        <input id="username" type="text" name="username" placeholder="Digite seu usuário" required autofocus
+                               autocomplete="username" value="{{ request.form.get('username', '') }}">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="password">Sua senha</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input id="password" type="password" name="password" placeholder="Digite sua senha" required autocomplete="current-password">
+                        <button type="button" class="btn-toggle-password" id="btnVerSenha" aria-label="Mostrar senha">
+                            <i class="far fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="btn-login">Entrar</button>
+            </form>
+
+            <div class="login-footer">
+                <p>© DocaLivre. Todos os direitos reservados.</p>
+            </div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='login.js') }}?v={{ assets_version }}"></script>
+</body>
+</html>

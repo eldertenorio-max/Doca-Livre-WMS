@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Extrato de {{ 'retorno' if nota.tipo == 'Retorno' else 'recebimento' }} · NF {{ nota.numero }}</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #e5e7eb; font-size: 9.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .toolbar { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid #ccc; padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar button, .toolbar a { padding: 8px 18px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; border-radius: 6px; background: #1a237e; color: #fff; text-decoration: none; }
+  .toolbar .sec { background: #555; }
+  .toolbar span { font-size: 12px; color: #555; }
+  .folha { background: #fff; margin: 14px auto; padding: 12mm; width: 210mm; min-height: 297mm; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-end; gap: 10mm; border-bottom: 2px solid #000; padding-bottom: 3mm; margin-bottom: 4mm; }
+  .topo img { height: 12mm; }
+  .topo h1 { font-size: 15pt; }
+  .topo .nf { text-align: right; }
+  .topo .nf strong { font-size: 14pt; display: block; }
+  .situacao { display: inline-block; border: 0.4mm solid #000; padding: 0.6mm 2.5mm; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; margin-top: 1mm; }
+  .parcial { border: 0.4mm solid #000; background: #eee; padding: 2mm 3mm; margin-bottom: 4mm; font-weight: 700; }
+  .dados { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm 5mm; margin-bottom: 5mm; }
+  .dados div { min-width: 0; }
+  .dados .larga { grid-column: span 2; }
+  .dados .total { grid-column: span 4; }
+  .dados dt { font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #444; }
+  .dados dd { font-size: 9.5pt; overflow-wrap: anywhere; }
+  h2 { font-size: 10.5pt; margin: 5mm 0 2mm; text-transform: uppercase; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 0.25mm solid #000; padding: 1.2mm 1.6mm; text-align: left; vertical-align: top; font-size: 8.5pt; }
+  thead th { background: #000; color: #fff; font-size: 7.5pt; text-transform: uppercase; }
+  td.n, th.n { text-align: right; white-space: nowrap; }
+  td.mono { font-family: Consolas, 'Courier New', monospace; font-size: 8pt; white-space: nowrap; }
+  tr.diverge td { background: #eee; font-weight: 700; }
+  tfoot td { font-weight: 700; background: #f3f3f3; }
+  tr { break-inside: avoid; }
+  .resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-top: 5mm; }
+  .resumo div { border: 0.3mm solid #000; padding: 2mm 3mm; }
+  .resumo span { display: block; font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #444; }
+  .resumo strong { font-size: 13pt; }
+  .assinaturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10mm; margin-top: 18mm; break-inside: avoid; }
+  .assinaturas div { border-top: 0.3mm solid #000; padding-top: 1.5mm; text-align: center; font-size: 8.5pt; }
+  .assinaturas small { display: block; color: #444; }
+  .rodape { margin-top: 6mm; font-size: 7.5pt; color: #444; text-align: right; }
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .folha { margin: 0; padding: 0; width: auto; min-height: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Imprimir / salvar em PDF</button>
+  <a href="{{ url_for('entrada.extrato', nid=nota.id, formato='xlsx') }}">Baixar em Excel</a>
+  <button type="button" class="sec" onclick="window.close()">Fechar</button>
+  <span>Folha A4 retrato. Para PDF, escolha "Salvar como PDF" na janela de impressão.</span>
+</div>
+
+<div class="folha">
+  <div class="topo">
+    <div>
+      <img src="{{ url_for('static', filename='img/logo-doca-livre-claro.png') }}" alt="Doca Livre">
+      <h1>Extrato de {{ 'retorno' if nota.tipo == 'Retorno' else 'recebimento' }}</h1>
+    </div>
+    <div class="nf">
+      <strong>NF {{ nota.numero }}{% if nota.serie %} / {{ nota.serie }}{% endif %}</strong>
+      <span class="situacao">{{ nota.status }}</span>
+    </div>
+  </div>
+
+  {% if nota.status in ('Aguardando', 'Em conferência') %}
+  <div class="parcial">Extrato parcial: o recebimento desta nota ainda não foi finalizado.</div>
+  {% elif nota.status == 'Cancelada' %}
+  <div class="parcial">Entrada cancelada. Motivo: {{ nota.motivo_cancelamento }}</div>
+  {% endif %}
+
+  <dl class="dados">
+    <div class="larga"><dt>{{ 'Dono da mercadoria' if nota.tipo == 'Retorno' else 'Remetente' }}</dt><dd>{{ nota.empresa.nome if nota.empresa else '—' }}</dd></div>
+    {% if nota.tipo == 'Retorno' %}
+    <div><dt>Motivo do retorno</dt><dd>{{ nota.motivo_retorno or '—' }}</dd></div>
+    <div><dt>Carga de origem</dt><dd>{{ nota.carga.codigo if nota.carga else '—' }}</dd></div>
+    {% endif %}
+    <div><dt>CNPJ</dt><dd>{{ nota.empresa.cnpj or '—' if nota.empresa else '—' }}</dd></div>
+    <div><dt>Emissão</dt><dd>{{ nota.data_emissao.strftime('%d/%m/%Y') if nota.data_emissao else '—' }}</dd></div>
+    {% if nota.chave %}<div class="total"><dt>Chave de acesso</dt><dd>{{ nota.chave }}</dd></div>{% endif %}
+    <div><dt>Entrada no sistema</dt><dd>{{ nota.criado_em|datahora }}</dd></div>
+    <div><dt>Finalizado em</dt><dd>{{ nota.finalizado_em|datahora }}</dd></div>
+    <div><dt>Doca</dt><dd>{{ nota.doca or '—' }}</dd></div>
+    <div><dt>Placa</dt><dd>{{ nota.placa or '—' }}</dd></div>
+    <div class="larga"><dt>Motorista</dt><dd>{{ nota.motorista or '—' }}</dd></div>
+    <div class="larga"><dt>Conferente</dt><dd>{{ nota.conferente or '—' }}</dd></div>
+    {% if nota.observacao %}<div class="total"><dt>Observação</dt><dd>{{ nota.observacao }}</dd></div>{% endif %}
+  </dl>
+
+  <h2>Itens da nota</h2>
+  <table>
+    <thead><tr><th>SKU</th><th>Descrição</th><th>Un.</th><th class="n">Qtd NF</th><th class="n">Conferido</th><th class="n">Diferença</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for l in itens %}
+      <tr class="{{ 'diverge' if l.diferenca != 0 and l.conferido }}">
+        <td>{{ l.item.produto.sku }}</td>
+        <td>{{ l.item.produto.descricao }}{% if l.item.motivo_divergencia %}<br>Motivo: {{ l.item.motivo_divergencia }}{% endif %}</td>
+        <td>{{ l.item.unidade }}</td>
+        <td class="n">{{ l.item.quantidade|numero }}</td>
+        <td class="n">{{ l.conferido|numero }}</td>
+        <td class="n">{{ ('+' if l.diferenca > 0 else '') ~ (l.diferenca|numero) if l.diferenca != 0 else '—' }}</td>
+        <td>{{ l.situacao }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Nota sem itens.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if itens %}
+    <tfoot><tr><td colspan="3">Total ({{ itens|length }} itens)</td><td class="n">{{ total_nota|numero }}</td><td class="n">{{ total_conferido|numero }}</td>
+      <td class="n">{{ ((total_conferido - total_nota)|round(3)|numero) if total_conferido != total_nota else '—' }}</td><td></td></tr></tfoot>
+    {% endif %}
+  </table>
+
+  <h2>Paletes recebidos</h2>
+  <table>
+    <thead><tr><th>Etiqueta</th><th>Produto</th><th class="n">Qtd</th><th>Lote</th><th>Validade</th><th>Classificação</th><th>Endereço</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for p in paletes %}{% for it in p.itens %}
+      <tr>
+        <td class="mono">{{ p.etiqueta }}</td>
+        <td>{{ it.produto.sku }} · {{ it.produto.descricao }}</td>
+        <td class="n">{{ it.quantidade|numero }} {{ it.produto.unidade }}</td>
+        <td>{{ it.lote or '—' }}</td>
+        <td>{{ it.validade.strftime('%d/%m/%Y') if it.validade else '—' }}</td>
+        <td>{{ p.classificacao }}</td>
+        <td class="mono">{{ p.endereco.codigo if p.endereco else (p.sugerido.codigo ~ ' (indicado)' if p.sugerido else '—') }}</td>
+        <td>{{ p.status }}</td>
+      </tr>
+      {% endfor %}{% else %}
+      <tr><td colspan="8">Nenhum palete montado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if baixados %}
+  <p style="margin-top: 2mm; font-size: 8pt;">Não entram no extrato {{ baixados|length }} palete(s) removido(s) do estoque:
+    {% for p in baixados %}{{ p.etiqueta }} ({{ p.motivo }}){{ ', ' if not loop.last }}{% endfor %}.</p>
+  {% endif %}
+
+  <div class="resumo">
+    <div><span>Itens</span><strong>{{ itens|length }}</strong></div>
+    <div><span>Itens com divergência</span><strong>{{ divergentes }}</strong></div>
+    <div><span>Paletes</span><strong>{{ paletes|length }}</strong></div>
+    <div><span>Quantidade conferida</span><strong>{{ total_conferido|numero }}</strong></div>
+  </div>
+
+  <div class="assinaturas">
+    <div>Conferente<small>{{ nota.conferente or ' ' }}</small></div>
+    <div>Motorista<small>{{ nota.motorista or ' ' }}</small></div>
+    <div>Responsável pelo armazém<small>&nbsp;</small></div>
+  </div>
+
+  <p class="rodape">WMS Doca Livre · emitido em {{ emitido_em|datahora }} por {{ emitido_por }}</p>
+</div>
+</body>
+</html>

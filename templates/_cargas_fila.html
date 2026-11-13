@@ -1,0 +1,36 @@
+{# Fila de cargas em aberto (Separação e Conferência). Espera: cargas [(carga, resumo)], destino (endpoint), rotulo, icone. #}
+{% from '_selos.html' import selo %}
+{% if cargas %}
+<div class="tabela-scroll">
+    <table class="table table-striped mb-0">
+        <thead><tr><th>Carga</th><th>Notas</th><th>Itens</th><th>Placa</th><th>Doca</th><th>Situação</th><th style="min-width: 150px;">Conferido</th><th></th></tr></thead>
+        <tbody>
+            {% for c, r in cargas %}
+            <tr>
+                <td><strong>{{ c.codigo }}</strong></td>
+                <td>{{ r.notas|join(', ') or '—' }}</td>
+                <td>{{ c.itens|length }}</td>
+                <td>{{ c.placa or '—' }}</td>
+                <td>{{ c.doca or '—' }}</td>
+                <td>{{ selo(c.status) }}</td>
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="progress barra-ocupacao flex-grow-1" role="progressbar" aria-label="Conferido da carga {{ c.codigo }}" aria-valuenow="{{ r.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ r.pct }}%"></div></div>
+                        <span class="small">{{ r.pct }}%</span>
+                    </div>
+                </td>
+                <td class="text-end"><a href="{{ url_for(destino, cid=c.id) }}" class="btn btn-sm btn-primary"><i class="fas fa-{{ icone }}"></i>{{ rotulo }}</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="bloco-dados-altura">
+    <div class="text-center">
+        <h5>Nenhuma carga em aberto</h5>
+        <p class="text-muted mb-3">As cargas aparecem aqui depois de importadas em Saída por XML.</p>
+        <a href="{{ url_for('saida.cargas') }}" class="btn btn-primary"><i class="fas fa-file-export"></i>Ir para Saída por XML</a>
+    </div>
+</div>
+{% endif %}

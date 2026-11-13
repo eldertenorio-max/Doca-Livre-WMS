@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Recebimento · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('recebimento') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-file-import me-2"></i>Recebimento</h2>
+    {% if editar %}
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPlanilha"><i class="fas fa-file-excel"></i>Importar planilha</button>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalManual"><i class="fas fa-keyboard"></i>NF manual</button>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalXml"><i class="fas fa-file-code"></i>Importar XML</button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-hourglass-start"></i></span><div><div class="kpi-valor">{{ contagem.get('Aguardando', 0) }}</div><div class="kpi-rotulo">Aguardando</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-barcode"></i></span><div><div class="kpi-valor">{{ contagem.get('Em conferência', 0) }}</div><div class="kpi-rotulo">Em conferência</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-pallet"></i></span><div><div class="kpi-valor">{{ aguardando_guarda }}</div><div class="kpi-rotulo">Paletes aguardando guarda</div></div><a href="{{ url_for('entrada.conferencia') }}" class="stretched-link" aria-label="Ver paletes aguardando guarda"></a></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-circle-check"></i></span><div><div class="kpi-valor">{{ contagem.get('Finalizada', 0) }}</div><div class="kpi-rotulo">Finalizadas</div></div></div></div>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-12 col-md-5">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Número da NF, remetente ou chave" aria-label="Buscar nota">
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="situacao" aria-label="Situação" onchange="this.form.submit()">
+            <option value="abertas" {% if situacao == 'abertas' %}selected{% endif %}>Em aberto</option>
+            {% for s in ('Aguardando', 'Em conferência', 'Finalizada', 'Cancelada') %}<option value="{{ s }}" {% if situacao == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            <option value="todas" {% if situacao == 'todas' %}selected{% endif %}>Todas</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca or situacao != 'abertas' %}<a href="{{ url_for('entrada.notas') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if notas %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>NF</th><th>Remetente</th><th>Emissão</th><th>Itens</th><th>Paletes</th><th>Origem</th><th>Situação</th><th>Entrada</th><th></th></tr></thead>
+                <tbody>
+                    {% for n in notas %}
+                    <tr>
+                        <td><strong>{{ n.numero }}</strong>{% if n.serie %}<small> / {{ n.serie }}</small>{% endif %}</td>
+                        <td>{{ n.empresa.nome if n.empresa else '—' }}</td>
+                        <td>{{ n.data_emissao.strftime('%d/%m/%Y') if n.data_emissao else '—' }}</td>
+                        <td>{{ n.itens|length }}</td>
+                        <td>{{ n.paletes|length }}</td>
+                        <td>{{ n.origem }}</td>
+                        <td>{{ selo(n.status) }}</td>
+                        <td class="text-nowrap">{{ n.criado_em|datahora }}</td>
+                        <td class="text-end text-nowrap">
+                            <a href="{{ url_for('entrada.extrato', nid=n.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="Extrato de recebimento" aria-label="Extrato de recebimento da NF {{ n.numero }}"><i class="fas fa-receipt"></i></a>
+                            <a href="{{ url_for('entrada.nota', nid=n.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-arrow-right"></i>Abrir</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <span class="text-muted">{{ total }} nota(s){% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+            {% if paginas > 1 %}
+            <div class="d-flex gap-2">
+                {% if pagina > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entrada.notas', q=busca, situacao=situacao, pagina=pagina - 1) }}"><i class="fas fa-chevron-left"></i>Anterior</a>{% endif %}
+                {% if pagina < paginas %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entrada.notas', q=busca, situacao=situacao, pagina=pagina + 1) }}">Próxima<i class="fas fa-chevron-right"></i></a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center" style="max-width: 520px;">
+                {% if busca or situacao != 'abertas' %}
+                <h5>Nenhuma nota encontrada com esse filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('entrada.notas', situacao='todas') }}">Ver todas as notas</a></p>
+                {% else %}
+                <h5>Nenhuma nota em aberto</h5>
+                <p class="text-muted mb-0">{% if editar %}Use <strong>Importar XML</strong> para trazer a NF-e do fornecedor, <strong>Importar planilha</strong> para várias notas de uma vez ou <strong>NF manual</strong>.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="modal fade" id="modalXml" tabindex="-1" aria-labelledby="modalXmlTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('entrada.importar_xml') }}" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalXmlTitulo"><i class="fas fa-file-code me-2"></i>Importar XML de NF-e</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="arquivosXml">Arquivos XML (pode escolher vários)</label>
+                <input type="file" class="form-control" id="arquivosXml" name="arquivos" accept=".xml,text/xml,application/xml" multiple required>
+                <p class="text-muted small mt-3 mb-0">O sistema lê o número, o remetente e os itens (com lote e validade, quando a nota traz). Remetente e produto que ainda não existem são cadastrados automaticamente.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPlanilha" tabindex="-1" aria-labelledby="modalPlanilhaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('entrada.importar_planilha') }}" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPlanilhaTitulo"><i class="fas fa-file-excel me-2"></i>Importar planilha de notas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <ol class="mb-3">
+                    <li>Baixe o <a href="{{ url_for('entrada.modelo_planilha') }}">modelo de planilha</a>.</li>
+                    <li>Preencha uma linha por item; linhas com a mesma NF e o mesmo remetente formam uma nota.</li>
+                    <li>Envie o arquivo aqui.</li>
+                </ol>
+                <input type="file" class="form-control" name="arquivo" accept=".xlsx" required aria-label="Planilha .xlsx">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalManual" tabindex="-1" aria-labelledby="modalManualTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('entrada.nota_manual') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalManualTitulo"><i class="fas fa-keyboard me-2"></i>Cadastrar NF manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-5">
+                        <label class="form-label" for="mNumero">Número <span class="obrigatorio">*</span></label>
+                        <input type="text" inputmode="numeric" class="form-control" id="mNumero" name="numero" maxlength="15" required>
+                    </div>
+                    <div class="col-3">
+                        <label class="form-label" for="mSerie">Série</label>
+                        <input type="text" class="form-control" id="mSerie" name="serie" maxlength="5">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label" for="mEmissao">Emissão</label>
+                        <input type="date" class="form-control" id="mEmissao" name="data_emissao">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="mEmpresa">Remetente <span class="obrigatorio">*</span></label>
+                        <select class="form-select" id="mEmpresa" name="empresa_id">
+                            <option value="">— escolher —</option>
+                            {% for e in empresas %}<option value="{{ e.id }}">{{ e.nome }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="mNovo">ou cadastrar um remetente novo</label>
+                        <input type="text" class="form-control" id="mNovo" name="remetente_novo" maxlength="150" placeholder="Razão social">
+                    </div>
+                </div>
+                <p class="text-muted small mt-3 mb-0">Os itens são incluídos na tela seguinte.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Criar nota</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Permissões · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-user-lock me-2"></i>Permissões</h2>
+</div>
+
+<ul class="sub-abas" role="tablist" aria-label="Tipos de permissão">
+    <li role="presentation"><a role="tab" aria-selected="true" class="ativo" href="{{ url_for('admin.permissoes') }}"><i class="fas fa-users-gear"></i>Por perfil</a></li>
+    {% if eh_super %}<li role="presentation"><a role="tab" aria-selected="false" href="{{ url_for('admin.permissoes_usuario') }}"><i class="fas fa-user-gear"></i>Por usuário (por hierarquia)</a></li>{% endif %}
+</ul>
+
+<div class="alert alert-info">
+    Regra geral: o que cada <strong>tipo de usuário</strong> (perfil) pode fazer em cada módulo. Vale para todos os usuários daquele perfil.
+    <strong>Visualizar</strong> abre as telas do módulo; <strong>Editar</strong> também libera as ações (salvar, excluir, finalizar).
+    Os perfis <strong>Administrador</strong> e <strong>Super Usuário</strong> sempre têm acesso total e não aparecem na tabela.
+    Uma pessoa pode ter permissões próprias, diferentes das do perfil: quem define é o Super Usuário, na aba <strong>Por usuário</strong>.
+</div>
+
+<form method="POST">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table matriz-permissoes mb-0">
+                    <thead>
+                        <tr>
+                            <th>Módulo</th>
+                            {% for valor, rotulo in perfis %}<th>{{ rotulo }}</th>{% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in modulos %}
+                        <tr>
+                            <td><i class="fas fa-{{ m.icone }} me-2"></i><strong>{{ m.nome }}</strong><br><small>{{ m.descricao }}</small></td>
+                            {% for perfil, rotulo in perfis %}
+                            <td>
+                                <select class="form-select" name="{{ perfil }}:{{ m.id }}" aria-label="{{ rotulo }} em {{ m.nome }}">
+                                    {% for n, n_rotulo in niveis %}
+                                    <option value="{{ n }}" {% if matriz.get((perfil, m.id), 0) == n %}selected{% endif %}>{{ n_rotulo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar permissões</button>
+</form>
+{% endblock %}

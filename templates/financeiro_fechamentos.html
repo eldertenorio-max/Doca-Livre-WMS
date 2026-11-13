@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Fechamento mensal · WMS Doca Livre{% endblock %}
+
+{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
+{% macro dia(texto) %}{% if texto %}{{ texto[8:10] }}/{{ texto[5:7] }}/{{ texto[0:4] }}{% else %}—{% endif %}{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-coins me-2"></i>Financeiro</h2>
+</div>
+
+<ul class="sub-abas" role="tablist" aria-label="Partes do Financeiro">
+    {% for chave, nome, icone in abas %}
+    <li role="presentation"><a role="tab" aria-selected="false" href="{{ url_for('financeiro.painel', aba=chave) }}"><i class="fas fa-{{ icone }}"></i>{{ nome }}</a></li>
+    {% endfor %}
+    <li role="presentation"><a role="tab" aria-selected="true" class="ativo" href="{{ url_for('fechamento.lista') }}"><i class="fas fa-file-invoice-dollar"></i>Fechamento mensal</a></li>
+</ul>
+
+<p class="text-muted small">O fechamento congela o valor do mês de um cliente e gera o demonstrativo em PDF. Depois de fechado, o valor não muda mais, mesmo que a nota continue armazenada ou o contrato seja alterado. Feche logo que o mês terminar: a cobrança por quilo usa o peso que a nota tem no momento do fechamento.</p>
+
+{% if editar %}
+<div class="card mb-3"><div class="card-body">
+    <h5 class="mb-3">Fechar um mês</h5>
+    <form method="POST" action="{{ url_for('fechamento.fechar') }}" class="row g-2 align-items-end" autocomplete="off">
+        {{ csrf() }}
+        {% set f_empresa = (form.get('empresa_id')|int(0)) if form else 0 %}
+        <div class="col-12 col-md-5"><label class="form-label" for="feCliente">Cliente <span class="obrigatorio">*</span></label>
+            <select class="form-select" id="feCliente" name="empresa_id" required {% if not clientes %}disabled{% endif %}>
+                <option value="">{{ '— escolher —' if clientes else 'Nenhum cliente com contrato ativo' }}</option>
+                {% for e in clientes %}<option value="{{ e.id }}" {% if f_empresa == e.id %}selected{% endif %}>{{ e.nome }}</option>{% endfor %}
+            </select></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="feMes">Mês <span class="obrigatorio">*</span></label>
+            <input type="month" class="form-control" id="feMes" name="mes" required max="{{ mes_maximo }}" value="{{ form.get('mes') if form else mes_padrao }}"></div>
+        <div class="col-12 col-md-4"><button type="submit" name="acao" value="previa" class="btn btn-outline-primary" {% if not clientes %}disabled{% endif %}><i class="fas fa-eye"></i>Ver o valor do mês</button></div>
+        {% if previa %}
+        <div class="col-12">
+            <div class="fin-bloco">
+                <h4>{{ previa.empresa.nome }} · {{ nome_do_mes(previa.ano, previa.mes) }} ({{ previa.inicio.strftime('%d/%m/%Y') }} a {{ previa.fim.strftime('%d/%m/%Y') }})</h4>
+                {% if previa.em_andamento %}<div class="alert alert-warning py-2">Este mês ainda não terminou: o valor abaixo vai só até hoje.</div>{% endif %}
+                {% if previa.linhas %}
+                <div class="tabela-scroll">
+                    <table class="table table-striped mb-0 align-middle">
+                        <thead><tr><th>NF</th><th>Entrada</th><th>Saída</th><th class="text-end">Dias no mês</th><th class="text-end">Diária</th><th class="text-end">Armazenagem</th><th class="text-end">Entrada</th><th class="text-end">Saída</th><th class="text-end">Total</th></tr></thead>
+                        <tbody>
+                            {% for x in previa.linhas %}
+                            <tr><td>{{ x.nf }}</td><td>{{ dia(x.entrada) }}</td><td>{{ dia(x.saida) }}</td><td class="text-end">{{ x.dias }}</td><td class="text-end">{{ x.diaria|moeda }}</td>
+                                <td class="text-end">{{ x.armazenagem|moeda }}</td><td class="text-end">{{ x.debitos_entrada|moeda }}</td><td class="text-end">{{ x.debitos_saida|moeda }}</td><td class="text-end"><strong>{{ x.total|moeda }}</strong></td></tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot><tr><th colspan="5">Total · {{ previa.linhas|length }} nota(s)</th><th class="text-end">{{ previa.totais.armazenagem|moeda }}</th><th class="text-end">{{ previa.totais.debitos_entrada|moeda }}</th><th class="text-end">{{ previa.totais.debitos_saida|moeda }}</th><th class="text-end">{{ previa.totais.total|moeda }}</th></tr></tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Nenhuma nota deste cliente com valor neste mês. Dá para fechar mesmo assim, com valor zero.</p>
+                {% endif %}
+                <div class="row g-2 align-items-end mt-2">
+                    <div class="col-12 col-md-8"><label class="form-label" for="feObs">Observação (sai no demonstrativo)</label><input type="text" class="form-control" id="feObs" name="observacao" maxlength="300" placeholder="Opcional"></div>
+                    <div class="col-12 col-md-4"><button type="submit" name="acao" value="fechar" class="btn btn-primary" onclick="return confirm('Fechar este mês? O valor fica congelado.');"><i class="fas fa-lock"></i>Fechar o mês com {{ previa.totais.total|moeda }}</button></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div></div>
+{% endif %}
+
+<div class="card"><div class="card-body">
+    <h5 class="mb-3">Meses fechados ({{ fechamentos|length }})</h5>
+    {% if fechamentos %}
+    <div class="tabela-scroll">
+        <table class="table table-striped mb-0 align-middle">
+            <thead><tr><th>Mês</th><th>Cliente</th><th class="text-end">Notas</th><th class="text-end">Armazenagem</th><th class="text-end">Entrada</th><th class="text-end">Saída</th><th class="text-end">Total</th><th>Fechado por</th><th></th></tr></thead>
+            <tbody>
+                {% for f in fechamentos %}
+                <tr><td class="text-nowrap"><strong>{{ '%02d'|format(f.mes) }}/{{ f.ano }}</strong></td><td>{{ f.empresa.nome }}</td><td class="text-end">{{ f.notas }}</td>
+                    <td class="text-end">{{ f.armazenagem|moeda }}</td><td class="text-end">{{ f.debitos_entrada|moeda }}</td><td class="text-end">{{ f.debitos_saida|moeda }}</td>
+                    <td class="text-end"><strong>{{ f.total|moeda }}</strong></td><td>{{ f.criado_por }}<small class="d-block text-muted">{{ f.criado_em|datahora }}</small></td>
+                    <td class="text-end text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('fechamento.pdf', fid=f.id) }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>Demonstrativo</a>
+                        {% if editar %}<form method="POST" action="{{ url_for('fechamento.reabrir', fid=f.id) }}" class="d-inline" onsubmit="return confirm('Reabrir este mês? O valor fechado é apagado e volta a ser calculado ao vivo.');">{{ csrf() }}
+                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-lock-open"></i>Reabrir</button></form>{% endif %}
+                    </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bloco-dados-altura"><p class="text-muted mb-0">Nenhum mês fechado ainda.</p></div>
+    {% endif %}
+</div></div>
+{% endblock %}

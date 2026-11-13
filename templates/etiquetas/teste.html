@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Teste Zebra {{ etq_largura_mm }}×{{ etq_altura_mm }} mm</title>
+<style>
+  @page { size: {{ etq_page_size_in }}; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --lw: {{ etq_largura_in }}in;
+    --lh: {{ etq_altura_in }}in;
+  }
+  body {
+    font-family: Arial, sans-serif;
+    background: #eee;
+    padding: 8px;
+    width: var(--lw);
+  }
+  .toolbar {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+  }
+  .toolbar button {
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    background: #1976d2;
+    color: #fff;
+  }
+  .toolbar .print-setup-hint {
+    font-size: 11px;
+    color: #555;
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+  .etq-teste {
+    width: var(--lw);
+    height: var(--lh);
+    border: 3px solid #000;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    font-weight: 900;
+    text-align: center;
+  }
+  @media print {
+    .toolbar { display: none !important; }
+    body { padding: 0 !important; background: #fff !important; width: var(--lw) !important; }
+    .etq-teste {
+      width: var(--lw) !important;
+      height: var(--lh) !important;
+    }
+  }
+</style>
+</head>
+<body data-etq-page="{{ etq_page_size_in }}">
+<div class="toolbar">
+  <button type="button" id="btn-wms-etq-imprimir">Imprimir teste</button>
+  <p class="print-setup-hint">{{ etq_driver_hint | safe }}</p>
+</div>
+<div class="etq-teste">
+  <div>TESTE</div>
+  <div>{{ etq_largura_mm }}×{{ etq_altura_mm }} mm</div>
+</div>
+<script src="{{ url_for('static', filename='imprimir-etiqueta.js') }}"></script>
+<script>
+document.getElementById('btn-wms-etq-imprimir').addEventListener('click', function() {
+  wmsEtiquetaImprimir();
+});
+</script>
+</body>
+</html>

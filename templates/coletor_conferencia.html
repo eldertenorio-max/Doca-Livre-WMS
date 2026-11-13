@@ -1,0 +1,106 @@
+{% extends "coletor_base.html" %}
+{% block voltar %}<a href="{{ url_for('coletor.conferencia') if nota else url_for('coletor.inicio') }}" class="coletor-voltar" aria-label="Voltar"><i class="fas fa-arrow-left"></i></a>{% endblock %}
+{% block corpo %}
+{% if not nota %}
+{% if notas %}
+<div class="coletor-lista">
+    {% for n in notas %}
+    <a href="{{ url_for('coletor.conferencia_nota', nid=n.id) }}">
+        <span><strong>NF {{ n.numero }}{% if n.tipo == 'Retorno' %} · retorno{% endif %}</strong><small>{{ n.empresa.nome if n.empresa else 'Sem remetente' }} · {{ n.itens|length }} item(ns)</small></span>
+        <em>{{ n.status }}</em>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="coletor-vazio">Nenhuma nota aguardando conferência. As notas entram por Entrada › Recebimento, no sistema completo.</p>
+{% endif %}
+
+{% else %}
+{% set aqui = url_for('coletor.conferencia_nota', nid=nota.id) %}
+<p class="coletor-detalhe">{{ nota.empresa.nome if nota.empresa else 'Sem remetente' }} · {{ nota.status }}</p>
+{% if aberta and editar %}
+<form method="POST" action="{{ url_for('entrada.montar_palete', nid=nota.id) }}" autocomplete="off" class="coletor-form" id="formPalete">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
+    <label for="ccBip">Bipe o produto (ou escolha na lista)</label>
+    <input type="text" id="ccBip" class="coletor-campo" data-bipar autocapitalize="characters" enterkeyhint="next" placeholder="EAN, DUN ou código">
+    <label for="ccItem">Item da nota</label>
+    <select id="ccItem" name="item_id" class="coletor-campo" required>
+        <option value="">— escolher —</option>
+        {% for i in itens %}
+        <option value="{{ i.item.id }}" data-codigos="{{ [i.item.produto.sku, i.item.codigo or '', i.item.produto.ean or '', i.item.produto.dun or '']|map('upper')|join('|') }}"
+                data-lote="{{ i.item.lote or '' }}" data-fabricacao="{{ i.item.fabricacao.isoformat() if i.item.fabricacao else '' }}" data-validade="{{ i.item.validade.isoformat() if i.item.validade else '' }}"
+                data-falta="{{ i.falta if i.falta > 0 else '' }}" {% if item_escolhido == i.item.id %}selected{% endif %}>{{ i.item.produto.sku }} · {{ i.item.descricao or i.item.produto.descricao }}{% if not nota.conferencia_cega %} (falta {{ i.falta|numero }} {{ i.item.unidade }}){% endif %}</option>
+        {% endfor %}
+    </select>
+    <label for="ccQtd">Quantidade neste palete</label>
+    <input type="text" inputmode="decimal" id="ccQtd" name="quantidade" class="coletor-campo" required>
+    <div class="coletor-dupla">
+        <div><label for="ccLote">Lote</label><input type="text" id="ccLote" name="lote" class="coletor-campo" maxlength="30"></div>
+        <div><label for="ccUp">UP</label><input type="text" id="ccUp" name="up" class="coletor-campo" maxlength="20"></div>
+    </div>
+    <div class="coletor-dupla">
+        <div><label for="ccFab">Fabricação</label><input type="date" id="ccFab" name="fabricacao" class="coletor-campo"></div>
+        <div><label for="ccVal">Validade</label><input type="date" id="ccVal" name="validade" class="coletor-campo"></div>
+    </div>
+    <label for="ccClasse">Classificação</label>
+    <select id="ccClasse" name="classificacao" class="coletor-campo">{% for c in classificacoes %}<option value="{{ c }}" {% if c == 'Bom' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    <button type="submit" class="coletor-acao"><i class="fas fa-pallet"></i>Montar palete</button>
+</form>
+{% elif not aberta %}
+<div class="coletor-aviso coletor-aviso--ok"><i class="fas fa-circle-check"></i><span>Esta nota não está mais em conferência ({{ nota.status }}).</span></div>
+{% endif %}
+
+<h2 class="coletor-subtitulo">Itens da nota</h2>
+<div class="coletor-lista coletor-lista--parada">
+    {% for i in itens %}
+    <div class="{% if i.falta <= 0 %}coletor-feito{% endif %}"><span><strong>{{ i.item.produto.sku }}</strong><small>{{ i.item.descricao or i.item.produto.descricao }}</small></span>
+        <em>{{ i.conferido|numero }}{% if not nota.conferencia_cega %} / {{ i.item.quantidade|numero }}{% endif %} {{ i.item.unidade }}</em></div>
+    {% endfor %}
+</div>
+
+{% if paletes %}
+<h2 class="coletor-subtitulo">Últimos paletes montados</h2>
+<div class="coletor-lista">
+    {% for p in paletes %}
+    <a href="{{ url_for('coletor.guarda', palete=p.etiqueta) if p.status == 'Aguardando guarda' else url_for('entrada.etiqueta_palete', pid=p.id) }}">
+        <span><strong>{{ resumo_itens(p) }}</strong><small>{{ p.etiqueta }} · {{ p.status }}</small></span>
+        <em>{{ p.sugerido.codigo if p.status == 'Aguardando guarda' and p.sugerido else (p.endereco.codigo if p.endereco else '—') }}</em>
+    </a>
+    {% endfor %}
+</div>
+<p class="coletor-detalhe">Toque num palete que aguarda guarda para guardá-lo. A etiqueta é impressa pelo sistema completo, em Entrada › Recebimento.</p>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// bipar o produto escolhe o item da nota e ja preenche lote e datas do item
+(function () {
+    var bip = document.getElementById('ccBip'), sel = document.getElementById('ccItem');
+    if (!bip || !sel) return;
+    function preencher() {
+        var o = sel.options[sel.selectedIndex];
+        if (!o || !o.value) return;
+        document.getElementById('ccLote').value = o.getAttribute('data-lote') || '';
+        document.getElementById('ccFab').value = o.getAttribute('data-fabricacao') || '';
+        document.getElementById('ccVal').value = o.getAttribute('data-validade') || '';
+        document.getElementById('ccQtd').focus();
+    }
+    sel.addEventListener('change', preencher);
+    function escolher() {
+        var codigo = bip.value.trim().toUpperCase();
+        if (!codigo) return false;
+        for (var i = 0; i < sel.options.length; i++) {
+            if ((sel.options[i].getAttribute('data-codigos') || '').split('|').indexOf(codigo) >= 0) { sel.selectedIndex = i; bip.value = ''; preencher(); return true; }
+        }
+        bip.classList.add('is-invalid');
+        bip.select();
+        return false;
+    }
+    bip.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); escolher(); } });
+    bip.addEventListener('input', function () { bip.classList.remove('is-invalid'); });
+    if (sel.value) preencher();
+})();
+</script>
+{% endblock %}

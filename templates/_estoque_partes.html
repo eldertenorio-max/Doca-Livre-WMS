@@ -1,0 +1,29 @@
+{# Partes comuns das telas de Estoque. #}
+
+{# Rodapé da tabela: total + anterior / próxima, mantendo os filtros. #}
+{% macro paginacao(endpoint, pagina, paginas, total, rotulo, filtros) %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+    <span class="text-muted">{{ total }} {{ rotulo }}{% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+    {% if paginas > 1 %}
+    <div class="d-flex gap-2">
+        {% if pagina > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for(endpoint, pagina=pagina - 1, **filtros) }}"><i class="fas fa-chevron-left"></i>Anterior</a>{% endif %}
+        {% if pagina < paginas %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for(endpoint, pagina=pagina + 1, **filtros) }}">Próxima<i class="fas fa-chevron-right"></i></a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{# Selo do semáforo (estoque de segurança e shelf life). #}
+{% set CORES_SEMAFORO = {'Excedido': 'excedido', 'Verde': 'verde', 'Amarelo': 'amarelo', 'Laranja': 'laranja', 'Vermelho': 'vermelho',
+                         'Analisar': 'analisar', 'Sem dado': 'neutro'} %}
+{% macro semaforo(status) %}<span class="semaforo semaforo--{{ CORES_SEMAFORO.get(status, 'neutro') }}">{{ status }}</span>{% endmacro %}
+
+{# Dias para vencer, com cor quando está vencido ou perto. #}
+{% macro dias_vencer(dias) %}{% if dias is none %}—{% elif dias < 0 %}<span class="text-danger fw-semibold">vencido há {{ -dias }} d</span>{% elif dias <= 30 %}<span class="text-warning-emphasis fw-semibold">{{ dias }} d</span>{% else %}{{ dias }} d{% endif %}{% endmacro %}
+
+{# Cartão de contagem que filtra a lista ao clicar. #}
+{% macro cartao_filtro(rotulo, valor, url, ativo, classe='') %}
+<a class="cartao-filtro {{ classe }}{% if ativo %} ativo{% endif %}" href="{{ url }}" {% if ativo %}aria-current="true"{% endif %}>
+    <strong>{{ valor }}</strong><span>{{ rotulo }}</span>
+</a>
+{% endmacro %}

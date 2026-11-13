@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Produtividade · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-stopwatch me-2"></i>Produtividade</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('relatorios.lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Relatórios</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('relatorios.produtividade', formato='xlsx', de=de.isoformat(), ate=ate.isoformat(), ver=ver) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+    </div>
+</div>
+
+<form method="GET" class="row g-2 mb-3 align-items-end" autocomplete="off">
+    <div class="col-6 col-md-2"><label class="form-label" for="pdDe">De</label><input type="date" class="form-control" id="pdDe" name="de" value="{{ de.isoformat() }}"></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="pdAte">Até</label><input type="date" class="form-control" id="pdAte" name="ate" value="{{ ate.isoformat() }}"></div>
+    <div class="col-12 col-md-3"><label class="form-label" for="pdVer">Mostrar</label>
+        <select class="form-select" id="pdVer" name="ver"><option value="turno" {% if ver == 'turno' %}selected{% endif %}>Por pessoa e turno</option><option value="pessoa" {% if ver == 'pessoa' %}selected{% endif %}>Só por pessoa</option></select></div>
+    <div class="col-auto"><button type="submit" class="btn btn-outline-primary">Aplicar</button></div>
+</form>
+
+<p class="text-muted small">Conta o que cada pessoa fez no período, pelo registro de cada palete: conferidos (montados na entrada ou no retorno), guardados, movimentados, separados (levados ao stage), expedidos e linhas contadas em inventário. Turnos: manhã 06h–14h, tarde 14h–22h, noite 22h–06h.</p>
+
+<div class="card"><div class="card-body">
+    {% if linhas %}
+    <div class="tabela-scroll">
+        <table class="table table-striped mb-0 align-middle">
+            <thead><tr><th>Pessoa</th>{% if ver == 'turno' %}<th>Turno</th>{% endif %}{% for _, rotulo in colunas %}<th class="text-end">{{ rotulo }}</th>{% endfor %}<th class="text-end">Total</th></tr></thead>
+            <tbody>
+                {% for l in linhas %}
+                <tr><td><strong>{{ l.nome }}</strong>{% if l.nome != l.usuario %}<small class="d-block text-muted">{{ l.usuario }}</small>{% endif %}</td>
+                    {% if ver == 'turno' %}<td>{{ l.turno }}</td>{% endif %}
+                    {% for chave, _ in colunas %}<td class="text-end">{{ l.valores.get(chave, 0) or '—' }}</td>{% endfor %}
+                    <td class="text-end"><strong>{{ l.total }}</strong></td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot><tr><th>Total</th>{% if ver == 'turno' %}<th></th>{% endif %}{% for chave, _ in colunas %}<th class="text-end">{{ totais.get(chave, 0) }}</th>{% endfor %}<th class="text-end">{{ totais.values()|sum }}</th></tr></tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div class="bloco-dados-altura"><p class="text-muted mb-0">Nenhuma atividade registrada neste período.</p></div>
+    {% endif %}
+</div></div>
+{% endblock %}

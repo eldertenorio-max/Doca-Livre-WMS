@@ -1,0 +1,39 @@
+{# Campos do cadastro de câmara. "camara" vem preenchida na edição e ausente na criação. #}
+{% set c = camara if camara is defined else none %}
+<div class="row g-3">
+    <div class="col-4">
+        <label class="form-label" for="cam_codigo">Número <span class="obrigatorio">*</span></label>
+        <input type="number" class="form-control" id="cam_codigo" name="codigo" min="1" max="99" required value="{{ c.codigo if c else '' }}">
+    </div>
+    <div class="col-8">
+        <label class="form-label" for="cam_nome">Nome <span class="obrigatorio">*</span></label>
+        <input type="text" class="form-control" id="cam_nome" name="nome" maxlength="80" required value="{{ c.nome if c else '' }}" placeholder="Ex.: Câmara 6">
+    </div>
+    <div class="col-6">
+        <label class="form-label" for="cam_tipo">Tipo <span class="obrigatorio">*</span></label>
+        <select class="form-select" id="cam_tipo" name="tipo" required>
+            {% for t in tipos %}<option value="{{ t }}" {% if c and c.tipo == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-6">
+        <label class="form-label" for="cam_categoria">Categoria</label>
+        <select class="form-select" id="cam_categoria" name="categoria">
+            <option value="">—</option>
+            {% for cat in categorias %}<option value="{{ cat }}" {% if c and c.categoria == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-6">
+        <label class="form-label" for="cam_tmin">Temperatura mínima (°C)</label>
+        <input type="text" inputmode="decimal" class="form-control" id="cam_tmin" name="temp_min" value="{{ (c.temp_min|numero) if c and c.temp_min is not none else '' }}" placeholder="Ex.: -22">
+    </div>
+    <div class="col-6">
+        <label class="form-label" for="cam_tmax">Temperatura máxima (°C)</label>
+        <input type="text" inputmode="decimal" class="form-control" id="cam_tmax" name="temp_max" value="{{ (c.temp_max|numero) if c and c.temp_max is not none else '' }}" placeholder="Ex.: -18">
+    </div>
+    <div class="col-12">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="cam_ativo" name="ativo" value="1" {% if not c or c.ativo %}checked{% endif %}>
+            <label class="form-check-label" for="cam_ativo">Câmara ativa (em uso na operação)</label>
+        </div>
+    </div>
+</div>

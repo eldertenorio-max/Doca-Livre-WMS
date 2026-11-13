@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% from '_estoque_partes.html' import paginacao, semaforo, dias_vencer, cartao_filtro %}
+{% block title %}Análise de estoque · WMS Doca Livre{% endblock %}
+
+{# filtros que valem para qualquer sub-aba (a sub-aba e o cartão clicado entram por cima) #}
+{% set base = {'aba': aba} %}
+{% if categoria %}{% set _ = base.update({'categoria': categoria}) %}{% endif %}
+{% if busca %}{% set _ = base.update({'q': busca}) %}{% endif %}
+{% set atuais = dict(base) %}
+{% if filtro %}{% set _ = atuais.update({'status': filtro}) %}{% endif %}
+{% if celula %}{% set _ = atuais.update({'celula': celula}) %}{% endif %}
+
+{% macro pct(v) %}{% if v is none %}—{% else %}{{ ('%.2f'|format(v))|replace('.', ',') }}%{% endif %}{% endmacro %}
+
+{# Legenda do semáforo do shelf life (mesmas faixas do WMS Light) #}
+{% macro legenda_shelf() %}
+<div class="legenda-shelf mb-3">
+    <div><small class="text-muted text-uppercase fw-semibold">Semáforo shelf life</small>
+        <strong class="d-block">Regra por % da vida útil consumida</strong>
+        <span class="text-muted small">Quanto maior o percentual, mais tempo o produto já passou desde a fabricação em direção ao vencimento.</span></div>
+    <ul>
+        {% for nome, faixa, texto in faixas_shelf %}
+        <li>{{ semaforo(nome) }}<span><strong>{{ faixa }}</strong> · {{ texto }}</span></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-chart-simple me-2"></i>Análise de estoque</h2>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        {% if aba == 'seguranca' %}
+        <a class="btn btn-outline-primary position-relative{% if filtro == 'alerta' %} active{% endif %}" href="{{ url_for('estoque.analise', status='alerta', **base) }}"
+           title="Itens em Amarelo ou Vermelho" aria-label="Alertas: {{ alertas }} item(ns) em Amarelo ou Vermelho"><i class="fas fa-bell"></i>Alertas
+            {% if alertas %}<span class="badge bg-danger ms-1">{{ '99+' if alertas > 99 else alertas }}</span>{% endif %}</a>
+        {% elif aba == 'shelf' and criticos %}
+        <span class="semaforo semaforo--vermelho">{{ criticos }} em Laranja/Vermelho</span>
+        {% elif aba == 'cruzada' and urgentes %}
+        <span class="semaforo semaforo--vermelho">{{ urgentes }} urgente(s)</span>
+        {% endif %}
+        <a class="btn btn-outline-primary" href="{{ url_for('estoque.analise', formato='xlsx', **atuais) }}"><i class="fas fa-file-excel"></i>Baixar Excel ({{ total }})</a>
+    </div>
+</div>
+
+{# Sub-abas #}
+<ul class="sub-abas" role="tablist" aria-label="Análises de estoque">
+    {% for chave, nome, icone in abas %}
+    <li role="presentation">
+        <a role="tab" aria-selected="{{ 'true' if aba == chave else 'false' }}" class="{% if aba == chave %}ativo{% endif %}"
+           href="{{ url_for('estoque.analise', aba=chave, categoria=categoria or none, q=busca or none) }}"><i class="fas fa-{{ icone }}"></i>{{ nome }}</a>
+    </li>
+    {% endfor %}
+</ul>
+
+<p class="text-muted small mb-3">
+    {% if aba == 'seguranca' %}Semáforo de cada produto: <strong>Vermelho</strong> abaixo do estoque ideal mínimo · <strong>Amarelo</strong> abaixo do médio · <strong>Verde</strong> na faixa · <strong>Excedido</strong> acima do máximo · <strong>Analisar</strong> sem meta no cadastro. A coluna <strong>Confiabilidade</strong> junta o semáforo com a trava de saldo/giro: Vermelho + confiável → PRODUZ; Amarelo + confiável → AVALIA; Verde → NÃO PRODUZ; não confiável → bloqueia a decisão automática. O consumo vem das cargas expedidas nos últimos 30 dias.
+    {% elif aba == 'shelf' %}Uma linha por produto, pelo lote que vence primeiro. Dias de vida = hoje − fabricação; Shelf % = dias de vida ÷ shelf life.
+    {% elif aba == 'cruzada' %}Cruza o semáforo de estoque de segurança com o shelf life pelo código do produto. Use os cartões e a matriz para priorizar produção, giro ou consumo do que vence.
+    {% else %}Cada lote em estoque com a validade, o shelf e onde está guardado. As contagens do inventário ficam em <a href="{{ url_for('inventario.contagens') }}">Consulta de contagens</a>.
+    {% endif %}
+    Conta só o que está guardado, classificado como Bom e em endereço não bloqueado.
+</p>
+
+{% if aba in ('shelf', 'cruzada', 'lotes') %}{{ legenda_shelf() }}{% endif %}
+
+{# Cartões de contagem (clicar filtra) #}
+<div class="cartoes-filtro mb-3" role="navigation" aria-label="Filtrar pela situação">
+    {{ cartao_filtro('Todos', total_geral, url_for('estoque.analise', **base), not filtro and not celula) }}
+    {% if aba == 'cruzada' %}
+        {{ cartao_filtro('Urgentes', urgentes, url_for('estoque.analise', status='urgentes', **base), filtro == 'urgentes', 'cartao-filtro--critico') }}
+        {% for chave, rotulo, acao in prioridades %}
+        {{ cartao_filtro(rotulo, contagem.get(chave, 0), url_for('estoque.analise', status=chave, **base), filtro == chave, 'cartao-filtro--' ~ chave) }}
+        {% endfor %}
+    {% else %}
+        {% for s in ordem %}
+        {{ cartao_filtro(s, contagem.get(s, 0), url_for('estoque.analise', status=s, **base), filtro == s, 'cartao-filtro--' ~ s|lower|replace(' ', '-')) }}
+        {% endfor %}
+    {% endif %}
+</div>
+
+{% if aba == 'cruzada' %}
+{# Matriz estoque × shelf (clicar numa casa filtra) #}
+<div class="card mb-3">
+    <div class="card-header"><i class="fas fa-table-cells-large me-2"></i>Matriz estoque × shelf</div>
+    <div class="card-body">
+        <div class="tabela-scroll">
+            <table class="matriz-cruzada">
+                <thead><tr><th scope="col"></th><th scope="col">Longe do vencimento</th><th scope="col">Vencendo em breve</th><th scope="col">Vencimento crítico</th></tr></thead>
+                <tbody>
+                    {% for nivel, nome in (('pouco', 'Estoque baixo'), ('ok', 'Estoque bom'), ('muito', 'Estoque alto')) %}
+                    <tr>
+                        <th scope="row">{{ nome }}</th>
+                        {% for sh, nome_sh in (('boa', 'longe do vencimento'), ('atencao', 'vencendo em breve'), ('ruim', 'vencimento crítico')) %}
+                        {% set chave = nivel ~ '-' ~ sh %}
+                        <td><a class="matriz-casa matriz-casa--{{ chave }}{% if celula == chave %} ativo{% endif %}{% if not matriz.get(chave) %} matriz-casa--vazia{% endif %}"
+                               href="{{ url_for('estoque.analise', celula=chave, **base) }}" aria-label="{{ nome }}, {{ nome_sh }}: {{ matriz.get(chave, 0) }} produto(s)">{{ matriz.get(chave, 0) }}</a></td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted small mb-0 mt-2">Matriz: quantidade de produtos com semáforo de estoque e de shelf. Clique numa casa para filtrar. Produtos sem shelf não entram na matriz ({{ fora_da_grade }} fora da grade).</p>
+    </div>
+</div>
+{% endif %}
+
+{% if graficos and total_geral %}
+{# Gráficos (os mesmos do WMS Light). Clicar num produto ou num status filtra a tela; clicar de novo limpa. #}
+<details class="painel-graficos mb-3" id="painelGraficos" open>
+    <summary><i class="fas fa-chart-line me-2"></i>Gráficos<small class="text-muted ms-2">passe o mouse para ver os valores · clique num produto ou num status para filtrar</small></summary>
+    <div class="graficos-grade">
+        {% for g in graficos %}
+        <figure class="grafico{% if g.tipo == 'colunas' %} grafico--estreito{% endif %}" data-grafico="{{ g|tojson|forceescape }}">
+            <figcaption><strong>{{ g.titulo }}</strong><span>{{ g.ajuda }}</span></figcaption>
+            {% if g.series|length > 1 %}
+            <ul class="grafico-legenda" aria-label="Séries">
+                {% for s in g.series %}<li><i style="background: var({{ s.cor }})"></i>{{ s.nome }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+            <div class="grafico-area"></div>
+            <div class="grafico-dica" hidden></div>
+        </figure>
+        {% endfor %}
+    </div>
+    {% if total > 150 %}<p class="text-muted small mb-0 mt-2">Os gráficos mostram os 150 primeiros itens do filtro; a lista e o Excel trazem todos.</p>{% endif %}
+</details>
+{% endif %}
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    <input type="hidden" name="aba" value="{{ aba }}">
+    {% if filtro %}<input type="hidden" name="status" value="{{ filtro }}">{% endif %}
+    {% if celula %}<input type="hidden" name="celula" value="{{ celula }}">{% endif %}
+    <div class="col-12 col-md-5 col-lg-4">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Código{{ ', descrição ou lote' if aba == 'lotes' else ' ou descrição' }}" aria-label="Filtrar código ou descrição">
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="categoria" aria-label="Categoria" onchange="this.form.submit()">
+            <option value="">Todas as categorias</option>
+            {% for c in categorias %}<option value="{{ c }}" {% if categoria == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca or categoria or filtro or celula %}<a href="{{ url_for('estoque.analise', aba=aba) }}" class="btn btn-outline-secondary">Limpar filtros</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if linhas %}
+        <div class="tabela-scroll">
+            {% if aba == 'seguranca' %}
+            <table class="table mb-0 align-middle tabela-semaforo">
+                <thead><tr><th>SKU · Descrição</th><th class="text-end" title="Saída média por dia nos últimos 30 dias">Saída méd./dia (30 d)</th><th class="text-end" title="Maior saída num único dia nos últimos 30 dias">Saída máx. (30 d)</th>
+                    <th class="text-end">Média últ. 5 dias</th><th class="text-end">Ideal máx.</th><th class="text-end">Ideal méd.</th><th class="text-end">Ideal mín.</th>
+                    <th class="text-end" title="Estoque atual ÷ média dos últimos 5 dias: por quantos dias o estoque cobre o ritmo recente de saída">Dias de estoque</th>
+                    <th class="text-end">Estoque atual</th><th class="text-end">Posição atual</th><th>Para condicional</th>
+                    <th title="Regra: Vermelho+confiável→PRODUZ; Amarelo+confiável→AVALIA; Verde+confiável→NÃO PRODUZ; não confiável→bloqueia automação.">Confiabilidade (decisão)</th></tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr class="linha-semaforo linha-semaforo--{{ l.status|lower }}{% if l.conferir %} linha-semaforo--conferir{% endif %}">
+                        <td><strong>{{ l.produto.sku }}</strong> · {{ l.produto.descricao }}</td>
+                        <td class="text-end">{{ l.media30|numero if l.media30 else '—' }}</td>
+                        <td class="text-end">{{ l.max30|numero if l.max30 else '—' }}</td>
+                        <td class="text-end">{{ l.media5|numero if l.media5 else '—' }}</td>
+                        <td class="text-end">{{ l.produto.estoque_maximo|numero }}</td>
+                        <td class="text-end">{{ l.produto.estoque_ideal|numero }}</td>
+                        <td class="text-end">{{ l.produto.estoque_seguranca|numero }}</td>
+                        <td class="text-end">{{ l.cobertura|numero if l.cobertura else '—' }}</td>
+                        <td class="text-end text-nowrap"><strong>{{ l.quantidade|numero if l.quantidade else '0' }}</strong> {{ l.produto.unidade }}</td>
+                        <td class="text-end">{{ l.posicoes }}</td>
+                        <td>{{ semaforo(l.status) }}</td>
+                        <td class="small">{{ l.decisao }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% elif aba == 'shelf' %}
+            <table class="table mb-0 align-middle tabela-semaforo">
+                <thead><tr><th>Código · Descrição</th><th>Un.</th><th class="text-end">Qtd.</th><th>Lote</th><th>Fab.</th><th>Venc.</th><th class="text-end">Shelf (d)</th><th class="text-end">D. vencer</th><th class="text-end">D. vida</th><th class="text-end">Shelf %</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr class="linha-semaforo linha-semaforo--{{ l.status|lower|replace(' ', '-') }}">
+                        <td><strong>{{ l.produto.sku }}</strong> · {{ l.produto.descricao }}</td>
+                        <td>{{ l.produto.unidade }}</td>
+                        <td class="text-end"><strong>{{ l.quantidade|numero }}</strong></td>
+                        <td>{{ l.lote or '—' }}</td>
+                        <td class="text-nowrap">{{ l.fabricacao.strftime('%d/%m/%Y') if l.fabricacao else '—' }}</td>
+                        <td class="text-nowrap">{{ l.validade.strftime('%d/%m/%Y') if l.validade else '—' }}</td>
+                        <td class="text-end">{{ l.shelf if l.shelf is not none else '—' }}</td>
+                        <td class="text-end text-nowrap">{{ dias_vencer(l.dias) }}</td>
+                        <td class="text-end">{{ l.vida if l.vida is not none else '—' }}</td>
+                        <td class="text-end">{{ pct(l.pct) }}</td>
+                        <td>{{ semaforo(l.status) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% elif aba == 'cruzada' %}
+            <table class="table table-striped mb-0 align-middle">
+                <thead><tr><th>Código · Descrição</th><th>Prioridade</th><th>Estoque</th><th>Shelf</th><th class="text-end">Shelf %</th><th class="text-end">Dias p/ vencer</th><th class="text-end">Estoque atual</th><th>Ação sugerida</th></tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr>
+                        <td><strong>{{ l.produto.sku }}</strong> · {{ l.produto.descricao }}</td>
+                        <td><span class="semaforo semaforo--prio-{{ l.prioridade }}">{{ l.rotulo }}</span></td>
+                        <td>{{ semaforo(l.seguranca) }}</td>
+                        <td>{% if l.shelf == 'Sem dado' %}—{% else %}{{ semaforo(l.shelf) }}{% endif %}</td>
+                        <td class="text-end">{{ pct(l.pct) }}</td>
+                        <td class="text-end text-nowrap">{{ dias_vencer(l.dias) }}</td>
+                        <td class="text-end text-nowrap"><strong>{{ l.quantidade|numero if l.quantidade else '0' }}</strong> {{ l.produto.unidade }}</td>
+                        <td>{{ l.acao }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <table class="table mb-0 align-middle tabela-semaforo">
+                <thead><tr><th>Código · Descrição</th><th>Lote</th><th>Fab.</th><th>Venc.</th><th class="text-end">Shelf (d)</th><th class="text-end">D. vencer</th><th class="text-end">D. vida</th><th class="text-end">Shelf %</th><th>Status</th><th class="text-end">Qtd.</th><th class="text-end">Paletes</th><th>Onde está</th></tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr class="linha-semaforo linha-semaforo--{{ l.status|lower|replace(' ', '-') }}">
+                        <td><strong>{{ l.produto.sku }}</strong> · {{ l.produto.descricao }}</td>
+                        <td>{{ l.lote or '—' }}</td>
+                        <td class="text-nowrap">{{ l.fabricacao.strftime('%d/%m/%Y') if l.fabricacao else '—' }}</td>
+                        <td class="text-nowrap">{{ l.validade.strftime('%d/%m/%Y') if l.validade else '—' }}</td>
+                        <td class="text-end">{{ l.shelf if l.shelf is not none else '—' }}</td>
+                        <td class="text-end text-nowrap">{{ dias_vencer(l.dias) }}</td>
+                        <td class="text-end">{{ l.vida if l.vida is not none else '—' }}</td>
+                        <td class="text-end">{{ pct(l.pct) }}</td>
+                        <td>{{ semaforo(l.status) }}</td>
+                        <td class="text-end text-nowrap"><strong>{{ l.quantidade|numero }}</strong> {{ l.produto.unidade }}</td>
+                        <td class="text-end">{{ l.paletes|length }}</td>
+                        <td class="codigo-mono">{{ l.enderecos[:4]|join(', ') }}{% if l.enderecos|length > 4 %} <a href="{{ url_for('estoque.atual', q=l.produto.sku) }}" title="Ver todos no estoque atual">+{{ l.enderecos|length - 4 }}</a>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {{ paginacao('estoque.analise', pagina, paginas, total, 'lote(s)' if aba == 'lotes' else 'item(ns)', atuais) }}
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center" style="max-width: 560px;">
+                {% if busca or categoria or filtro or celula %}
+                <h5>Nenhum item neste filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('estoque.analise', aba=aba) }}">Limpar os filtros</a></p>
+                {% elif aba == 'seguranca' %}
+                <h5>Nenhum produto para analisar</h5>
+                <p class="text-muted mb-0">Aparecem aqui os produtos com estoque guardado ou com estoque mínimo, ideal ou máximo preenchidos em Cadastros › Produtos.</p>
+                {% else %}
+                <h5>Sem estoque disponível</h5>
+                <p class="text-muted mb-0">A análise usa os paletes guardados nos endereços. O shelf life precisa da fabricação e da validade do lote (informadas na conferência) ou do shelf do produto (Cadastros › Produtos).</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if graficos %}<script src="{{ url_for('static', filename='graficos.js') }}?v={{ assets_version }}"></script>{% endif %}
+{% endblock %}

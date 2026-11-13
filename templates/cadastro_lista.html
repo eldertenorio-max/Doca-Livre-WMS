@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}{{ d.titulo }} · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('cadastros') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-{{ d.icone }} me-2"></i>{{ d.titulo }}</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('cadastros.exportar', slug=slug, q=busca, situacao=situacao) }}" class="btn btn-outline-primary">
+            <i class="fas fa-file-excel"></i>Baixar Excel
+        </a>
+        {% if editar %}
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalImportar">
+            <i class="fas fa-file-import"></i>Importar planilha
+        </button>
+        <a href="{{ url_for('cadastros.formulario', slug=slug) }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i>Novo
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-12 col-md-5">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Buscar em {{ d.titulo|lower }}" aria-label="Buscar" autofocus>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="situacao" aria-label="Situação" onchange="this.form.submit()">
+            <option value="ativos" {% if situacao == 'ativos' %}selected{% endif %}>Ativos</option>
+            <option value="inativos" {% if situacao == 'inativos' %}selected{% endif %}>Inativos</option>
+            <option value="todos" {% if situacao == 'todos' %}selected{% endif %}>Todos</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca or situacao != 'ativos' %}<a href="{{ url_for('cadastros.lista', slug=slug) }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if registros %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        {% for c in colunas %}<th>{{ c.rotulo }}</th>{% endfor %}
+                        <th>Situação</th>
+                        {% if editar %}<th></th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in registros %}
+                    <tr>
+                        {% for c in colunas %}
+                        {% set v = valor(r, c) %}
+                        <td>
+                            {% if v is none %}—
+                            {% elif c.nome == d.chave %}<strong>{{ v }}</strong>
+                            {% elif c.tipo == 'decimal' %}{{ v|numero }}
+                            {% elif c.tipo == 'opcao' %}<span class="badge bg-info">{{ v }}</span>
+                            {% else %}{{ v }}{% endif %}
+                        </td>
+                        {% endfor %}
+                        <td>{% if r.ativo %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-secondary">Inativo</span>{% endif %}</td>
+                        {% if editar %}
+                        <td class="text-end text-nowrap">
+                            <a href="{{ url_for('cadastros.formulario', slug=slug, rid=r.id) }}" class="btn btn-sm btn-secondary" title="Editar" aria-label="Editar"><i class="fas fa-pen"></i></a>
+                            <form method="POST" action="{{ url_for('cadastros.situacao', slug=slug, rid=r.id) }}" class="d-inline">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-secondary" title="{{ 'Inativar' if r.ativo else 'Reativar' }}" aria-label="{{ 'Inativar' if r.ativo else 'Reativar' }}">
+                                    <i class="fas fa-{{ 'ban' if r.ativo else 'rotate-left' }}"></i>
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('cadastros.excluir', slug=slug, rid=r.id) }}" class="d-inline"
+                                  onsubmit="return confirm('Excluir este cadastro? Esta ação não pode ser desfeita.');">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir" aria-label="Excluir"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <span class="text-muted">{{ total }} registro(s){% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+            {% if paginas > 1 %}
+            <div class="d-flex gap-2">
+                {% if pagina > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('cadastros.lista', slug=slug, q=busca, situacao=situacao, pagina=pagina - 1) }}"><i class="fas fa-chevron-left"></i>Anterior</a>{% endif %}
+                {% if pagina < paginas %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('cadastros.lista', slug=slug, q=busca, situacao=situacao, pagina=pagina + 1) }}">Próxima<i class="fas fa-chevron-right"></i></a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="alert alert-info text-center">
+                {% if total_geral == 0 %}
+                <h5>Nenhum cadastro em {{ d.titulo|lower }} ainda</h5>
+                <p class="mb-0">{% if editar %}Use <strong>Novo</strong> para cadastrar um por vez ou <strong>Importar planilha</strong> para trazer vários de uma vez.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+                {% else %}
+                <h5>Nada encontrado com esse filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('cadastros.lista', slug=slug, situacao='todos') }}">Ver todos os registros</a></p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="modal fade" id="modalImportar" tabindex="-1" aria-labelledby="modalImportarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('cadastros.importar', slug=slug) }}" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalImportarTitulo"><i class="fas fa-file-import me-2"></i>Importar {{ d.titulo|lower }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <ol class="mb-3">
+                    <li>Baixe o <a href="{{ url_for('cadastros.modelo_planilha', slug=slug) }}">modelo de planilha</a> (a aba "Como preencher" explica cada coluna).</li>
+                    <li>Preencha uma linha por {{ d.singular }}.</li>
+                    <li>Envie o arquivo aqui.</li>
+                </ol>
+                <p class="text-muted small">Linhas cujo identificador já existe atualizam o cadastro; as demais são criadas. Linhas com erro são ignoradas e listadas no final.</p>
+                <input type="file" class="form-control" name="arquivo" accept=".xlsx" required aria-label="Planilha .xlsx">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

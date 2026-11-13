@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Divergências · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('expedicao') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-triangle-exclamation me-2"></i>Divergências de carregamento</h2>
+    <div class="d-flex flex-wrap gap-2 nao-imprimir">
+        <button type="button" class="btn btn-outline-primary" onclick="window.print()"><i class="fas fa-print"></i>Imprimir</button>
+        <a href="{{ url_for('saida.divergencias', formato='xlsx', **filtros) }}" class="btn btn-outline-primary"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-triangle-exclamation"></i></span><div><div class="kpi-valor">{{ itens|length }}</div><div class="kpi-rotulo">Itens com divergência</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-minus"></i></span><div><div class="kpi-valor">{{ faltas }}</div><div class="kpi-rotulo">Faltas</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-plus"></i></span><div><div class="kpi-valor">{{ sobras }}</div><div class="kpi-rotulo">Sobras</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-truck"></i></span><div><div class="kpi-valor">{{ cargas }}</div><div class="kpi-rotulo">Cargas com divergência</div></div></div></div>
+</div>
+
+{% set rota = 'saida.divergencias' %}
+{% include '_filtros_itens.html' %}
+
+<div class="card">
+    <div class="card-body">
+        {% if itens %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Carga</th><th>NF</th><th>SKU</th><th>Descrição</th><th>Qtd NF</th><th>Carregado</th><th>Diferença</th><th style="min-width: 320px;">Motivo</th></tr></thead>
+                <tbody>
+                    {% for i in itens %}
+                    {% set dif = (i.conferido - i.quantidade)|round(3) %}
+                    <tr>
+                        <td><a href="{{ url_for('saida.carga', cid=i.carga_id) }}"><strong>{{ i.carga.codigo }}</strong></a><br>{{ selo(i.carga.status) }}</td>
+                        <td>{{ i.nf_numero or '—' }}</td>
+                        <td><strong>{{ i.produto.sku }}</strong></td>
+                        <td>{{ i.produto.descricao }}</td>
+                        <td>{{ i.quantidade|numero }}</td>
+                        <td>{{ i.conferido|numero }}</td>
+                        <td>{% if dif < 0 %}<span class="badge bg-warning">Falta {{ (-dif)|numero }}</span>{% else %}<span class="badge bg-danger">Sobra {{ dif|numero }}</span>{% endif %}</td>
+                        <td>
+                            {% if editar %}
+                            <form method="POST" action="{{ url_for('saida.motivo_divergencia', iid=i.id) }}" class="d-flex gap-2 nao-imprimir" autocomplete="off">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <input type="text" class="form-control form-control-sm" name="motivo" list="motivosDivergencia" maxlength="200" value="{{ i.motivo_divergencia or '' }}" placeholder="Motivo" aria-label="Motivo da divergência de {{ i.produto.sku }}">
+                                <button type="submit" class="btn btn-sm btn-secondary" title="Salvar motivo" aria-label="Salvar motivo"><i class="fas fa-check"></i></button>
+                            </form>
+                            {% endif %}
+                            <span class="{{ 'so-impressao' if editar }}">{{ i.motivo_divergencia or '—' }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <datalist id="motivosDivergencia">{% for m in motivos_divergencia %}<option value="{{ m }}">{% endfor %}</datalist>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center">
+                <h5>Nenhuma divergência</h5>
+                <p class="text-muted mb-0">Aparecem aqui os itens de cargas em conferência ou expedidas em que o carregado é diferente da nota.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

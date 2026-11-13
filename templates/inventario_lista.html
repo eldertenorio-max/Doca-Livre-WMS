@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Inventário · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('estoque') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-clipboard-check me-2"></i>Inventário</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary" href="{{ url_for('inventario.contagens') }}"><i class="fas fa-list-check"></i>Consulta de contagens</a>
+        {% if editar %}<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalInventario"><i class="fas fa-plus"></i>Iniciar inventário</button>{% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if inventarios %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0 align-middle">
+                <thead><tr><th>Nº</th><th>Descrição</th><th>Câmara</th><th>Situação</th><th style="min-width: 180px;">Progresso</th><th class="text-end">Divergentes</th><th class="text-end">Extras</th><th>Iniciado</th><th>Finalizado</th><th></th></tr></thead>
+                <tbody>
+                    {% for i, r in inventarios %}
+                    <tr>
+                        <td><strong>{{ i.id }}</strong></td>
+                        <td>{{ i.descricao }}{% if i.cego %} <span class="badge bg-secondary" title="Quem conta não vê o que o sistema espera">cego</span>{% endif %}</td>
+                        <td>{{ i.camara.nome if i.camara else 'Todas' }}</td>
+                        <td>{{ selo(i.status) }}{% if i.status == 'Finalizado' %} <small class="text-muted">{{ 'aplicado na base' if i.aplicado else 'sem alterar o estoque' }}</small>{% endif %}</td>
+                        <td>
+                            <div class="progress barra-ocupacao" role="progressbar" aria-label="Progresso do inventário {{ i.id }}" aria-valuenow="{{ r.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ r.pct }}%"></div></div>
+                            <small class="text-muted">{{ r.contadas }} de {{ r.da_fotografia }} · {{ r.pct }}%</small>
+                        </td>
+                        <td class="text-end">{{ r.Divergente or '—' }}</td>
+                        <td class="text-end">{{ r.Extra or '—' }}</td>
+                        <td class="text-nowrap">{{ i.criado_em|datahora }}<small class="text-muted d-block">{{ i.criado_por }}</small></td>
+                        <td class="text-nowrap">{{ i.finalizado_em|datahora }}</td>
+                        <td class="text-end"><a class="btn btn-sm btn-secondary" href="{{ url_for('inventario.detalhe', iid=i.id) }}"><i class="fas fa-arrow-right"></i>{{ 'Abrir' if i.status != 'Finalizado' else 'Ver' }}</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center" style="max-width: 560px;">
+                <h5>Nenhum inventário ainda</h5>
+                <p class="text-muted mb-0">{% if editar %}Use <strong>Iniciar inventário</strong>: o sistema tira uma fotografia do estoque ({{ em_estoque }} palete(s) no armazém agora) e você confere bipando. No fim, escolhe se aplica as contagens na base ou só guarda o resultado.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="modal fade" id="modalInventario" tabindex="-1" aria-labelledby="modalInventarioTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('inventario.novo') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalInventarioTitulo"><i class="fas fa-clipboard-check me-2"></i>Iniciar inventário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="invDescricao">Descrição <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control mb-3" id="invDescricao" name="descricao" maxlength="120" required placeholder="Ex.: Inventário mensal — novembro">
+                <label class="form-label" for="invCamara">Câmara</label>
+                <select class="form-select mb-3" id="invCamara" name="camara_id">
+                    <option value="">Todas (estoque inteiro)</option>
+                    {% for c in camaras %}<option value="{{ c.id }}">{{ '%02d'|format(c.codigo) }} · {{ c.nome }}</option>{% endfor %}
+                </select>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="invCego" name="cego" value="1">
+                    <label class="form-check-label" for="invCego">Contagem cega (quem conta não vê lote, validade nem quantidade do sistema)</label>
+                </div>
+                <p class="text-muted small mt-3 mb-0">O inventário guarda uma fotografia do que está guardado nos endereços e no stage neste momento. A operação pode continuar; o que entrar ou sair depois não muda a fotografia.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Iniciar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

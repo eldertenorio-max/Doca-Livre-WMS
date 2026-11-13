@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo, form_guardar with context %}
+{% block title %}NF {{ nota.numero }} · {{ 'Retorno' if retorno else 'Recebimento' }} · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('recebimento') and (not retorno or pode_editar('devolucoes')) %}
+{% set cega = nota.conferencia_cega and aberta %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-file-invoice me-2"></i>NF {{ nota.numero }}{% if nota.serie %}<small class="text-muted"> / {{ nota.serie }}</small>{% endif %} <span class="ms-2 align-middle">{{ selo(nota.status) }}</span></h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ lista_url }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>{{ 'Retornos' if retorno else 'Recebimento' }}</a>
+        <a href="{{ url_for('entrada.nota_pdf', nid=nota.id) }}" target="_blank" rel="noopener" class="btn btn-outline-primary" title="Abrir a nota fiscal em PDF"><i class="fas fa-file-pdf"></i>NF em PDF</a>
+        {% if editar %}<button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalXmlNota" title="{{ 'Trocar o XML guardado desta nota' if tem_xml else 'Guardar o XML desta nota para gerar o DANFE oficial' }}"><i class="fas fa-file-code"></i>{{ 'Trocar XML' if tem_xml else 'Anexar XML' }}</button>{% endif %}
+        <a href="{{ url_for('entrada.extrato', nid=nota.id) }}" target="_blank" rel="noopener" class="btn btn-outline-primary"><i class="fas fa-receipt"></i>Extrato</a>
+        {% if editar and nota.status in ('Finalizada', 'Cancelada') %}
+        <form method="POST" action="{{ url_for('entrada.reabrir', nid=nota.id) }}" onsubmit="return confirm('Reabrir esta nota para conferência?');">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-primary"><i class="fas fa-rotate-left"></i>Reabrir</button>
+        </form>
+        {% endif %}
+        {% if editar and aberta %}
+        {% if not nota.paletes %}
+        <form method="POST" action="{{ url_for('entrada.excluir', nid=nota.id) }}" onsubmit="return confirm('Excluir esta nota? Esta ação não pode ser desfeita.');">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger"><i class="fas fa-trash"></i>Excluir nota</button>
+        </form>
+        {% endif %}
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#modalCancelar"><i class="fas fa-ban"></i>Cancelar entrada</button>
+        {% if nota.status == 'Em conferência' %}
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalFinalizar"><i class="fas fa-flag-checkered"></i>Finalizar</button>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+{% if nota.status == 'Cancelada' %}
+<div class="alert alert-danger"><strong>{{ 'Retorno cancelado.' if retorno else 'Entrada cancelada.' }}</strong> Motivo: {{ nota.motivo_cancelamento }}</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-5">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-truck me-2"></i>Dados da descarga</div>
+            <div class="card-body">
+                <dl class="detalhe-endereco mb-3">
+                    <div><dt>{{ 'Dono da mercadoria' if retorno else 'Remetente' }}</dt><dd>{{ nota.empresa.nome if nota.empresa else '—' }}</dd></div>
+                    {% if retorno %}
+                    <div><dt>Motivo do retorno</dt><dd>{{ nota.motivo_retorno or '—' }}</dd></div>
+                    <div><dt>Carga de origem</dt><dd>{% if nota.carga %}<a href="{{ url_for('saida.carga', cid=nota.carga.id) }}">{{ nota.carga.codigo }}</a>{% else %}—{% endif %}</dd></div>
+                    {% endif %}
+                    <div><dt>Emissão</dt><dd>{{ nota.data_emissao.strftime('%d/%m/%Y') if nota.data_emissao else '—' }}</dd></div>
+                    <div><dt>Origem</dt><dd>{{ nota.origem }}</dd></div>
+                    <div><dt>Entrada</dt><dd>{{ nota.criado_em|datahora }} · {{ nota.criado_por }}</dd></div>
+                    {% if nota.finalizado_em %}<div><dt>Encerrada em</dt><dd>{{ nota.finalizado_em|datahora }}</dd></div>{% endif %}
+                </dl>
+                {% if editar and aberta %}
+                <form method="POST" action="{{ url_for('entrada.nota_dados', nid=nota.id) }}" autocomplete="off">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <div class="row g-2">
+                        <div class="col-4"><label class="form-label" for="dDoca">Doca</label><input type="text" class="form-control" id="dDoca" name="doca" maxlength="10" value="{{ nota.doca or '' }}"></div>
+                        <div class="col-4"><label class="form-label" for="dPlaca">Placa</label><input type="text" class="form-control" id="dPlaca" name="placa" maxlength="8" value="{{ nota.placa or '' }}" style="text-transform: uppercase;"></div>
+                        <div class="col-4"><label class="form-label" for="dMotorista">Motorista</label><input type="text" class="form-control" id="dMotorista" name="motorista" maxlength="120" value="{{ nota.motorista or '' }}"></div>
+                        <div class="col-6"><label class="form-label" for="dConferente">Conferente</label><input type="text" class="form-control" id="dConferente" name="conferente" maxlength="120" value="{{ nota.conferente or '' }}"></div>
+                        <div class="col-6"><label class="form-label" for="dObs">Observação</label><input type="text" class="form-control" id="dObs" name="observacao" maxlength="300" value="{{ nota.observacao or '' }}"></div>
+                        <div class="col-12 d-flex flex-wrap align-items-center gap-3 mt-2">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="dCega" name="conferencia_cega" value="1" {% if nota.conferencia_cega %}checked{% endif %}>
+                                <label class="form-check-label" for="dCega">Conferência cega (esconde a quantidade da nota)</label>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-outline-primary ms-auto"><i class="fas fa-check"></i>Salvar</button>
+                        </div>
+                    </div>
+                </form>
+                {% else %}
+                <dl class="detalhe-endereco mb-0">
+                    <div><dt>Doca</dt><dd>{{ nota.doca or '—' }}</dd></div>
+                    <div><dt>Placa</dt><dd>{{ nota.placa or '—' }}</dd></div>
+                    <div><dt>Motorista</dt><dd>{{ nota.motorista or '—' }}</dd></div>
+                    <div><dt>Conferente</dt><dd>{{ nota.conferente or '—' }}</dd></div>
+                </dl>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-7">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-pallet me-2"></i>Montar palete</div>
+            <div class="card-body">
+                {% if not (editar and aberta) %}
+                <p class="text-muted mb-0">{% if aberta %}Seu perfil só visualiza esta tela.{% else %}Nota encerrada: não é possível montar paletes.{% endif %}</p>
+                {% elif not nota.itens %}
+                <p class="text-muted mb-0">Inclua os itens da nota abaixo para começar a conferência.</p>
+                {% else %}
+                <form method="POST" action="{{ url_for('entrada.montar_palete', nid=nota.id) }}" autocomplete="off" id="formPalete">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-5">
+                            <label class="form-label" for="pBip">1. Bipe o produto (EAN, DUN ou SKU)</label>
+                            <input type="text" class="form-control codigo-mono" id="pBip" placeholder="Bipe ou digite e tecle Enter" autofocus>
+                        </div>
+                        <div class="col-12 col-md-7">
+                            <label class="form-label" for="pItem">Item da nota <span class="obrigatorio">*</span></label>
+                            <select class="form-select" id="pItem" name="item_id" required>
+                                <option value="">— bipe o produto ou escolha —</option>
+                                {% for l in linhas %}<option value="{{ l.item.id }}">{{ l.item.produto.sku }} · {{ l.item.produto.descricao }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="pQtd">2. Quantidade <span class="obrigatorio">*</span></label>
+                            <input type="text" inputmode="decimal" class="form-control" id="pQtd" name="quantidade" required>
+                        </div>
+                        <div class="col-6 col-md-3"><label class="form-label" for="pUp">UP</label><input type="text" class="form-control" id="pUp" name="up" maxlength="20"></div>
+                        <div class="col-6 col-md-3"><label class="form-label" for="pLote">Lote</label><input type="text" class="form-control" id="pLote" name="lote" maxlength="30"></div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label" for="pClass">Classificação</label>
+                            <select class="form-select" id="pClass" name="classificacao">
+                                {% for c in classificacoes %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3"><label class="form-label" for="pFab">Fabricação</label><input type="date" class="form-control" id="pFab" name="fabricacao"></div>
+                        <div class="col-6 col-md-3"><label class="form-label" for="pVal">Validade</label><input type="date" class="form-control" id="pVal" name="validade"></div>
+                        <div class="col-12 col-md-6 d-flex align-items-end gap-2">
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i>Montar palete</button>
+                            <span class="text-muted small" id="pAviso" aria-live="polite"></span>
+                        </div>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Paletes da nota #}
+<div class="card">
+    <div class="card-header"><i class="fas fa-pallet me-2"></i>Paletes <span class="text-muted fw-normal">({{ nota.paletes|length }}{% if pendentes %} · {{ pendentes|length }} aguardando guarda{% endif %})</span></div>
+    <div class="card-body">
+        {% if nota.paletes %}
+        <div class="tabela-scroll">
+            <table class="table mb-0">
+                <thead><tr><th>Etiqueta</th><th>Conteúdo</th><th>Lote / validade</th><th>Classificação</th><th>Situação</th><th>Endereço</th><th></th></tr></thead>
+                <tbody>
+                    {% for p in nota.paletes %}
+                    {% set it = p.itens[0] if p.itens else none %}
+                    <tr id="palete-{{ p.id }}">
+                        <td><span class="codigo-mono">{{ p.etiqueta }}</span>{% if p.up %}<br><small>UP {{ p.up }}</small>{% endif %}</td>
+                        <td>{{ resumo_itens(p) }}</td>
+                        <td>{{ it.lote or '—' if it else '—' }}{% if it and it.validade %}<br><small>val. {{ it.validade.strftime('%d/%m/%Y') }}</small>{% endif %}</td>
+                        <td>{{ selo(p.classificacao) }}</td>
+                        <td>{{ selo(p.status) }}</td>
+                        <td>
+                            {% if p.status == 'Aguardando guarda' %}
+                                {% if p.sugerido %}<span class="text-muted small">Guardar em</span> <strong class="codigo-mono">{{ p.sugerido.codigo }}</strong>
+                                {% else %}<span class="badge bg-danger">Sem indicação</span>{% endif %}
+                            {% elif p.endereco %}<strong class="codigo-mono">{{ p.endereco.codigo }}</strong>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="d-flex flex-wrap justify-content-end align-items-center gap-2">
+                                {% if editar and p.status == 'Aguardando guarda' %}
+                                {{ form_guardar(p) }}
+                                <button type="button" class="btn btn-sm btn-secondary" title="Indicar outro endereço" aria-label="Indicar outro endereço"
+                                        data-indicar="{{ url_for('entrada.indicar', pid=p.id) }}" data-etiqueta="{{ p.etiqueta }}"><i class="fas fa-location-dot"></i></button>
+                                {% endif %}
+                                <a href="{{ url_for('entrada.etiqueta_palete', pid=p.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="Etiqueta do palete" aria-label="Etiqueta do palete"><i class="fas fa-tag"></i></a>
+                                {% if editar and p.status == 'Aguardando guarda' %}
+                                <form method="POST" action="{{ url_for('entrada.palete_excluir', pid=p.id) }}" onsubmit="return confirm('Excluir este palete da conferência?');">
+                                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Excluir palete" aria-label="Excluir palete"><i class="fas fa-trash"></i></button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Nenhum palete montado ainda.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# Itens da nota #}
+<div class="card">
+    <div class="card-header"><i class="fas fa-list me-2"></i>Itens da nota <span class="text-muted fw-normal">({{ nota.itens|length }})</span>{% if cega %} <span class="badge bg-warning ms-2">Conferência cega</span>{% endif %}</div>
+    <div class="card-body">
+        {% if linhas %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>SKU</th><th>Descrição</th><th>EAN</th><th>Un.</th>{% if not cega %}<th>Qtd NF</th>{% endif %}<th>Conferido</th>{% if not cega %}<th>Falta</th><th>Situação</th>{% endif %}<th>Lote / validade</th>{% if editar and aberta %}<th></th>{% endif %}</tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    {% set i = l.item %}
+                    <tr>
+                        <td><strong>{{ i.produto.sku }}</strong></td>
+                        <td>{{ i.produto.descricao }}</td>
+                        <td class="codigo-mono">{{ i.produto.ean or '—' }}</td>
+                        <td>{{ i.unidade }}</td>
+                        {% if not cega %}<td>{{ i.quantidade|numero }}</td>{% endif %}
+                        <td>{{ l.conferido|numero }}</td>
+                        {% if not cega %}
+                        <td>{{ l.falta|numero if l.falta > 0 else '—' }}</td>
+                        <td>
+                            {% if l.situacao == 'ok' %}<span class="badge bg-success">Conferido</span>
+                            {% elif l.situacao == 'pendente' %}<span class="badge bg-secondary">Pendente</span>
+                            {% elif l.situacao == 'falta' %}<span class="badge bg-warning">Falta {{ l.falta|numero }}</span>
+                            {% else %}<span class="badge bg-danger">Sobra {{ (-l.falta)|numero }}</span>{% endif %}
+                            {% if i.motivo_divergencia %}<br><small>{{ i.motivo_divergencia }}</small>{% endif %}
+                        </td>
+                        {% endif %}
+                        <td>{{ i.lote or '—' }}{% if i.validade %}<br><small>val. {{ i.validade.strftime('%d/%m/%Y') }}</small>{% endif %}</td>
+                        {% if editar and aberta %}
+                        <td class="text-end">
+                            {% if not l.conferido %}
+                            <form method="POST" action="{{ url_for('entrada.item_excluir', nid=nota.id, iid=i.id) }}" onsubmit="return confirm('Excluir este item da nota?');">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir item" aria-label="Excluir item"><i class="fas fa-trash"></i></button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">Esta nota ainda não tem itens.</p>
+        {% endif %}
+
+        {% if editar and aberta %}
+        <form method="POST" action="{{ url_for('entrada.item_novo', nid=nota.id) }}" class="row g-2 align-items-end mt-2" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="col-12 col-md-3"><label class="form-label" for="iCodigo">Incluir item: SKU ou EAN</label><input type="text" class="form-control codigo-mono" id="iCodigo" name="codigo" required style="text-transform: uppercase;"></div>
+            <div class="col-6 col-md-2"><label class="form-label" for="iQtd">Quantidade</label><input type="text" inputmode="decimal" class="form-control" id="iQtd" name="quantidade" required></div>
+            <div class="col-6 col-md-2"><label class="form-label" for="iLote">Lote</label><input type="text" class="form-control" id="iLote" name="lote" maxlength="30"></div>
+            <div class="col-6 col-md-2"><label class="form-label" for="iFab">Fabricação</label><input type="date" class="form-control" id="iFab" name="fabricacao"></div>
+            <div class="col-6 col-md-2"><label class="form-label" for="iVal">Validade</label><input type="date" class="form-control" id="iVal" name="validade"></div>
+            <div class="col-auto"><button type="submit" class="btn btn-outline-primary"><i class="fas fa-plus"></i>Incluir</button></div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar and aberta %}
+{# Indicar outro endereço #}
+<div class="modal fade" id="modalIndicar" tabindex="-1" aria-labelledby="modalIndicarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" id="formIndicar" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalIndicarTitulo"><i class="fas fa-location-dot me-2"></i>Indicar endereço</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Palete <strong class="codigo-mono" id="indEtiqueta"></strong></p>
+                <label class="form-label" for="indCodigo">Endereço de guarda</label>
+                <input type="text" class="form-control codigo-mono" id="indCodigo" name="codigo" placeholder="Ex.: 06-A-03-2" style="text-transform: uppercase;">
+                <div class="form-text">Deixe em branco para o sistema sugerir outro endereço livre.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Indicar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Cancelar entrada #}
+<div class="modal fade" id="modalCancelar" tabindex="-1" aria-labelledby="modalCancelarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('entrada.cancelar', nid=nota.id) }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCancelarTitulo"><i class="fas fa-ban me-2"></i>Cancelar entrada da NF {{ nota.numero }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>Os paletes que ainda aguardam guarda são excluídos. Paletes já guardados precisam ser removidos do estoque antes.</p>
+                <label class="form-label" for="cMotivo">Motivo <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="cMotivo" name="motivo" maxlength="200" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                <button type="submit" class="btn btn-danger"><i class="fas fa-ban"></i>Cancelar entrada</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Finalizar #}
+<div class="modal fade" id="modalFinalizar" tabindex="-1" aria-labelledby="modalFinalizarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" method="POST" action="{{ url_for('entrada.finalizar', nid=nota.id) }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalFinalizarTitulo"><i class="fas fa-flag-checkered me-2"></i>Finalizar {{ 'retorno' if retorno else 'recebimento' }} da NF {{ nota.numero }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                {% if pendentes %}
+                <div class="alert alert-warning mb-0">Ainda há {{ pendentes|length }} palete(s) aguardando guarda. Guarde todos antes de finalizar.</div>
+                {% elif divergentes %}
+                <p>Há {{ divergentes|length }} item(ns) com quantidade diferente da nota. Informe o motivo de cada um:</p>
+                {% for l in divergentes %}
+                <div class="mb-3">
+                    <label class="form-label" for="mot{{ l.item.id }}">{{ l.item.produto.sku }} · {{ l.item.produto.descricao }} —
+                        nota {{ l.item.quantidade|numero }}, conferido {{ l.conferido|numero }}
+                        ({{ 'falta ' ~ (l.falta|numero) if l.falta > 0 else 'sobra ' ~ ((-l.falta)|numero) }})</label>
+                    <input type="text" class="form-control" id="mot{{ l.item.id }}" name="motivo_{{ l.item.id }}" maxlength="200" required value="{{ l.item.motivo_divergencia or '' }}">
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="mb-0">Todos os itens conferem com a nota e todos os paletes estão guardados.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                {% if not pendentes %}<button type="submit" class="btn btn-primary"><i class="fas fa-flag-checkered"></i>Finalizar</button>{% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% if editar %}
+{# XML da nota: é dele que sai o DANFE oficial em PDF #}
+<div class="modal fade" id="modalXmlNota" tabindex="-1" aria-labelledby="modalXmlNotaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('entrada.anexar_xml', nid=nota.id) }}" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalXmlNotaTitulo"><i class="fas fa-file-code me-2"></i>{{ 'Trocar' if tem_xml else 'Anexar' }} o XML da NF {{ nota.numero }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="xmlDaNota">Arquivo XML da NF-e</label>
+                <input type="file" class="form-control" id="xmlDaNota" name="arquivo" accept=".xml,text/xml,application/xml" required>
+                <p class="text-muted small mt-3 mb-0">{% if tem_xml %}Esta nota já tem o XML guardado; o arquivo novo substitui o atual.{% else %}Esta nota ainda não tem o XML guardado, por isso o PDF dela é só um espelho.{% endif %}
+                    O sistema confere se o XML é desta mesma nota. Os itens e a conferência não mudam.
+                    {% if not danfe_oficial %}<strong>Atenção:</strong> a chave do Meu Danfe não está configurada; sem ela o PDF continua sendo o espelho.{% endif %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Guardar XML</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script type="application/json" id="itensBipagem">{{ bipagem|tojson }}</script>
+<script>
+(function () {
+    // Bipagem: acha o item da nota pelo EAN, DUN ou SKU e já sugere quantidade, lote e datas.
+    var itens = JSON.parse(document.getElementById('itensBipagem').textContent);
+    var bip = document.getElementById('pBip');
+    if (bip) {
+        var item = document.getElementById('pItem'), qtd = document.getElementById('pQtd'), aviso = document.getElementById('pAviso');
+        var cega = {{ 'true' if cega else 'false' }};
+        function preencher(achado, porCaixa) {
+            item.value = achado.id;
+            if (!cega && achado.falta > 0) qtd.value = String(achado.falta).replace('.', ',');
+            else if (porCaixa) qtd.value = String(achado.fator).replace('.', ',');
+            if (achado.lote) document.getElementById('pLote').value = achado.lote;
+            if (achado.fabricacao) document.getElementById('pFab').value = achado.fabricacao;
+            if (achado.validade) document.getElementById('pVal').value = achado.validade;
+            aviso.textContent = achado.sku + ' selecionado.';
+            qtd.focus(); qtd.select();
+        }
+        function resolver() {
+            // Leitor que cola o código duas vezes seguidas: fica só com a primeira metade.
+            var codigo = bip.value.trim().toUpperCase();
+            if (codigo.length % 2 === 0 && codigo.slice(0, codigo.length / 2) === codigo.slice(codigo.length / 2)) codigo = codigo.slice(0, codigo.length / 2);
+            if (!codigo) return;
+            var porCaixa = false;
+            var achado = itens.filter(function (i) { return i.ean === codigo || i.sku.toUpperCase() === codigo || (i.codigo || '').toUpperCase() === codigo; })[0];
+            if (!achado) { achado = itens.filter(function (i) { return i.dun === codigo; })[0]; porCaixa = !!achado; }
+            if (!achado) { aviso.textContent = 'Código ' + codigo + ' não é de nenhum item desta nota.'; bip.select(); return; }
+            bip.value = '';
+            preencher(achado, porCaixa);
+        }
+        bip.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); resolver(); } });
+        item.addEventListener('change', function () {
+            var achado = itens.filter(function (i) { return String(i.id) === item.value; })[0];
+            if (achado) preencher(achado, false);
+        });
+    }
+    // Indicar outro endereço
+    var modalEl = document.getElementById('modalIndicar');
+    if (modalEl) {
+        var modal = new bootstrap.Modal(modalEl);
+        document.querySelectorAll('[data-indicar]').forEach(function (botao) {
+            botao.addEventListener('click', function () {
+                document.getElementById('formIndicar').action = botao.getAttribute('data-indicar');
+                document.getElementById('indEtiqueta').textContent = botao.getAttribute('data-etiqueta');
+                document.getElementById('indCodigo').value = '';
+                modal.show();
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

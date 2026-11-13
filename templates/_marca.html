@@ -1,0 +1,5 @@
+{# Logo Doca Livre: a versão clara ou a escura aparece conforme o tema (regra em wms.css). #}
+{% macro logo(class='') %}
+<img src="{{ url_for('static', filename='img/logo-doca-livre-claro.png') }}" alt="Doca Livre" class="logo-claro {{ class }}">
+<img src="{{ url_for('static', filename='img/logo-doca-livre-escuro.png') }}" alt="Doca Livre" class="logo-escuro {{ class }}">
+{% endmacro %}

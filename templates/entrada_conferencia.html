@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Conferência de entrada · WMS Doca Livre{% endblock %}
+
+{% set pode_guardar = pode_editar('recebimento') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-barcode me-2"></i>Conferência de entrada</h2>
+    <form method="GET" class="d-flex gap-2" autocomplete="off">
+        <input type="search" class="form-control" name="nf" value="{{ numero }}" placeholder="Número da NF" aria-label="Buscar a NF da descarga" style="width: 200px;" autofocus>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i>Buscar NF</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-truck-ramp-box me-2"></i>Notas em andamento <span class="text-muted fw-normal">({{ andamento|length }})</span></div>
+    <div class="card-body">
+        {% if andamento %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>NF</th><th>Remetente</th><th>Doca</th><th>Placa</th><th>Situação</th><th style="min-width: 160px;">Conferido</th><th>Aguardando guarda</th><th></th></tr></thead>
+                <tbody>
+                    {% for a in andamento %}
+                    {% set n = a.nota %}
+                    <tr>
+                        <td><strong>{{ n.numero }}</strong></td>
+                        <td>{{ n.empresa.nome if n.empresa else '—' }}</td>
+                        <td>{{ n.doca or '—' }}</td>
+                        <td>{{ n.placa or '—' }}</td>
+                        <td>{{ selo(n.status) }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress barra-ocupacao flex-grow-1" role="progressbar" aria-label="Conferido da NF {{ n.numero }}" aria-valuenow="{{ a.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ a.pct }}%"></div></div>
+                                <span class="small">{{ a.pct }}%</span>
+                            </div>
+                        </td>
+                        <td>{% if a.pendentes %}<span class="badge bg-warning">{{ a.pendentes }} palete(s)</span>{% else %}—{% endif %}</td>
+                        <td class="text-end"><a href="{{ url_for('entrada.nota', nid=n.id) }}" class="btn btn-sm btn-primary"><i class="fas fa-barcode"></i>Conferir</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center">
+                <h5>Nenhuma nota aguardando conferência</h5>
+                <p class="text-muted mb-3">As notas aparecem aqui depois de importadas ou cadastradas no Recebimento.</p>
+                <a href="{{ url_for('entrada.notas') }}" class="btn btn-primary"><i class="fas fa-file-import"></i>Ir para Recebimento</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-pallet me-2"></i>Paletes aguardando guarda <span class="text-muted fw-normal">({{ pendentes|length }})</span></div>
+    <div class="card-body">
+        {% include '_guarda_pendente.html' %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width={{ etq_largura_mm }}mm">
+<title>Etiquetas longarina WMS{% if titulo %} — {{ titulo }}{% endif %}</title>
+<style>
+  :root {
+    --lw: {{ etq_largura_in }}in;
+    --lh: {{ etq_altura_in }}in;
+    --lw-mm: {{ etq_largura_mm }}mm;
+    --lh-mm: {{ etq_altura_mm }}mm;
+    --ink: #000;
+    --paper: #fff;
+    --etq-side: 5mm;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  @page { size: {{ etq_page_size_in }}; size: {{ etq_page_size_mm }}; margin: 0; }
+
+  html { background: #e0e0e0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    color: var(--ink);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 9;
+    background: #fff; border: 1px solid #ccc; border-radius: 8px;
+    padding: 10px 14px; margin: 8px;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    max-width: calc(var(--lw) + 16px);
+  }
+  .toolbar button {
+    padding: 8px 16px; font-size: 14px; cursor: pointer;
+    border: none; border-radius: 6px; background: #1976d2; color: #fff;
+  }
+  .toolbar button.sec { background: #555; }
+  .toolbar .print-setup-hint {
+    flex-basis: 100%; font-size: 11px; color: #555; margin: 4px 0 0; line-height: 1.4;
+  }
+  @media print { .print-setup-hint { display: none !important; } }
+
+  .bloco-faixa { margin: 0 0 12px 8px; }
+  .bloco-camara { margin: 0 0 16px 8px; }
+  .camara-titulo {
+    font-size: 13px; font-weight: 800; color: #1565c0;
+    padding: 8px 4px 10px; border-bottom: 2px solid #1565c0; margin-bottom: 10px;
+    max-width: var(--lw);
+  }
+  .faixa-titulo { font-size: 11px; color: #555; padding: 0 0 6px 2px; max-width: var(--lw); }
+  .faixa { width: var(--lw); }
+
+  .etq-page {
+    width: var(--lw);
+    height: var(--lh);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--paper);
+    position: relative;
+  }
+
+  .etq-loc,
+  .etiqueta {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--paper);
+    padding: 0 var(--etq-side);
+    display: grid;
+    grid-template-rows: {{ etq_zebra.grid_top_pct }}fr {{ etq_zebra.grid_mid_pct }}fr {{ etq_zebra.grid_bot_pct }}fr;
+    overflow: hidden;
+    container-type: size;
+    container-name: etq;
+  }
+
+  .etq-top {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 0.55mm solid var(--ink);
+    border-bottom: 0.5mm solid var(--ink);
+    min-height: 0;
+  }
+  .loc-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: 100%;
+    padding: 3% 1.5% 2%;
+  }
+  .loc-col:not(:last-child) {
+    border-right: 0.4mm solid var(--ink);
+  }
+  .loc-lbl {
+    font-size: 7.5cqh;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1.05;
+    margin-bottom: 5%;
+  }
+  .loc-val {
+    font-size: 28cqh;
+    font-weight: 900;
+    line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+  }
+  .loc-val.letra { font-size: 26cqh; }
+
+  .etq-bc-block {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: 2% 1.5% 1.5%;
+    gap: 1.5%;
+    min-height: 0;
+    border-bottom: 0.5mm solid var(--ink);
+  }
+  .bc-wrap {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    line-height: 0;
+  }
+  .bc-wrap svg.bc {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .endereco {
+    text-align: center;
+    font-size: 10cqh;
+    font-weight: 700;
+    font-family: Consolas, 'Courier New', monospace;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .etq-zone-bar {
+    display: flex;
+    min-height: 0;
+  }
+  .zone-inner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
+    padding: 0 1%;
+  }
+  .arrow {
+    width: 0;
+    height: 0;
+    flex-shrink: 0;
+    border-left: 8cqh solid transparent;
+    border-right: 8cqh solid transparent;
+  }
+  .arrow.up { border-bottom: 11cqh solid var(--ink); }
+  .arrow.down { border-top: 11cqh solid var(--ink); }
+  .zone-lbl {
+    font-size: 13cqh;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .etq-zone-bar.destino .zone-inner { justify-content: center; }
+  .etq-zone-bar.destino .zone-lbl {
+    font-size: 9cqh;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.1;
+  }
+  .etq-zone-bar.destino .arrow { display: none; }
+
+  @media print {
+    @page { size: {{ etq_page_size_in }}; size: {{ etq_page_size_mm }}; margin: 0; }
+
+    html, body {
+      width: {{ etq_largura_in }}in !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      overflow: visible !important;
+    }
+
+    .toolbar, .faixa-titulo, .camara-titulo, .print-setup-hint { display: none !important; }
+
+    .bloco-camara, .bloco-faixa, .faixa {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: {{ etq_largura_in }}in !important;
+      max-width: {{ etq_largura_in }}in !important;
+    }
+
+    .etq-page {
+      width: {{ etq_largura_in }}in !important;
+      height: {{ etq_altura_in }}in !important;
+      max-width: {{ etq_largura_in }}in !important;
+      max-height: {{ etq_altura_in }}in !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      position: relative !important;
+      page-break-after: always;
+      break-after: page;
+      break-inside: avoid;
+      box-decoration-break: clone;
+    }
+    .etq-page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    .etq-loc,
+    .etiqueta {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 var(--etq-side) !important;
+      border: none !important;
+      display: grid !important;
+      grid-template-rows: {{ etq_zebra.grid_top_pct }}fr {{ etq_zebra.grid_mid_pct }}fr {{ etq_zebra.grid_bot_pct }}fr !important;
+      background: #fff !important;
+      container-type: size !important;
+    }
+
+    .etq-top {
+      border-top: 0.55mm solid #000 !important;
+      border-bottom: 0.5mm solid #000 !important;
+    }
+
+    .arrow.up { border-bottom-color: #000 !important; }
+    .arrow.down { border-top-color: #000 !important; }
+    .loc-col:not(:last-child) { border-right: 0.4mm solid #000 !important; }
+  }
+
+  /* Prévia na tela: etiquetas e botões centralizados na página (a impressão não usa isto). */
+  @media screen {
+    body { display: flex; flex-direction: column; align-items: center; padding: 16px; }
+    .toolbar { margin: 0 0 16px; width: var(--lw); max-width: 94vw; }
+    .bloco-faixa, .bloco-camara { margin-left: 0; margin-right: 0; }
+    .etq-page { margin-bottom: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.18); }
+  }
+  @media print {
+    body { display: block !important; padding: 0 !important; }
+    .etq-page { box-shadow: none !important; margin-bottom: 0 !important; }
+  }
+</style>
+</head>
+<body
+  data-etq-page="{{ etq_page_size_in }}"
+  data-etq-w="{{ etq_largura_in }}in"
+  data-etq-h="{{ etq_altura_in }}in"
+>
+<div class="toolbar">
+  <button type="button" id="btn-wms-etq-imprimir">Imprimir</button>
+  <button type="button" class="sec" id="btn-wms-etq-fechar">Fechar</button>
+  <p class="print-setup-hint">{{ etq_driver_hint | safe }}</p>
+</div>
+
+{% macro etiqueta_longarina(e) %}
+<div class="etq-page"><div class="etq-loc etiqueta">
+  <div class="etq-top">
+    <div class="loc-col">
+      <span class="loc-lbl">Câmara</span>
+      <span class="loc-val">{{ e.camara or e.rua_num }}</span>
+    </div>
+    <div class="loc-col">
+      <span class="loc-lbl">Rua</span>
+      <span class="loc-val letra">{{ e.rua_letra or '—' }}</span>
+    </div>
+    <div class="loc-col">
+      <span class="loc-lbl">Coluna</span>
+      <span class="loc-val">{{ e.predio }}</span>
+    </div>
+    <div class="loc-col">
+      <span class="loc-lbl">Nível</span>
+      <span class="loc-val">{{ e.nivel }}</span>
+    </div>
+  </div>
+
+  <div class="etq-bc-block">
+    <div class="bc-wrap"><svg class="bc" data-code="{{ e.barcode }}"></svg></div>
+    <div class="endereco">{{ e.codigo_wms or e.codigo or e.barcode }}</div>
+  </div>
+
+  {% if e.destino_fixo %}
+  <div class="etq-zone-bar destino">
+    <div class="zone-inner">
+      <span class="zone-lbl">{{ e.destino_label or e.zona }}</span>
+    </div>
+  </div>
+  {% elif e.picking %}
+  <div class="etq-zone-bar picking">
+    <div class="zone-inner">
+      <span class="zone-lbl">Picking</span>
+      <div class="arrow down" aria-hidden="true"></div>
+    </div>
+  </div>
+  {% else %}
+  <div class="etq-zone-bar pulmao">
+    <div class="zone-inner">
+      <span class="zone-lbl">Pulmão</span>
+      <div class="arrow up" aria-hidden="true"></div>
+    </div>
+  </div>
+  {% endif %}
+</div></div>
+{% endmacro %}
+
+{% if agrupado_por_camara %}
+{% for bloco in agrupado_por_camara %}
+<div class="bloco-camara">
+  <div class="camara-titulo">{{ bloco.camara_nome or ('Câmara ' ~ bloco.camara) }} — {{ bloco.faixas|length }} coluna(s) · {{ bloco.total_niveis }} etiqueta(s)</div>
+  {% for faixa in bloco.faixas %}
+  <div class="bloco-faixa">
+    <div class="faixa-titulo">Coluna {{ faixa.titulo }} — {{ faixa.etiquetas|length }} nível(is)</div>
+    <div class="faixa">
+      {% for e in faixa.etiquetas %}{{ etiqueta_longarina(e) }}{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% else %}
+{% for faixa in faixas %}
+<div class="bloco-faixa">
+  <div class="faixa-titulo">Coluna {{ faixa.titulo }} — {{ faixa.etiquetas|length }} nível(is)</div>
+  <div class="faixa">
+    {% for e in faixa.etiquetas %}{{ etiqueta_longarina(e) }}{% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="{{ url_for('static', filename='imprimir-etiqueta.js') }}"></script>
+<script>
+(function() {
+  var LARGURA_MM = {{ etq_largura_mm }};
+  var ALTURA_MID_MM = {{ (etq_zebra.grid_mid_pct * etq_altura_mm / 100)|round(1) }};
+  var MM_PX = 96 / 25.4;
+
+  function dimsBarcode(wrap) {
+    var block = wrap && wrap.closest('.etq-bc-block');
+    var page = wrap && wrap.closest('.etq-page');
+    var w = wrap ? wrap.clientWidth : 0;
+    var h = wrap ? wrap.clientHeight : 0;
+    if (w < 20 && page) w = page.clientWidth;
+    if (h < 10 && block) h = Math.round(block.clientHeight * 0.88);
+    if (w < 20) w = Math.round(LARGURA_MM * MM_PX);
+    if (h < 10) h = Math.round(ALTURA_MID_MM * MM_PX * 0.72);
+    return { w: w, h: h };
+  }
+
+  function renderBarcode(el) {
+    var code = el.getAttribute('data-code') || '';
+    if (!code) return;
+    var wrap = el.parentElement;
+    var dims = dimsBarcode(wrap);
+    var modulos = Math.max(11, code.length * 11 + 35);
+    var barW = Math.max(1.35, Math.min(4.2, dims.w / modulos));
+    var barH = Math.max(24, Math.round(dims.h * 0.92));
+    try {
+      JsBarcode(el, code, {
+        format: 'CODE128',
+        width: barW,
+        height: barH,
+        displayValue: false,
+        margin: 0,
+        lineColor: '#000000',
+        background: '#ffffff'
+      });
+      el.style.width = '100%';
+      el.style.height = '100%';
+      el.style.maxWidth = '100%';
+      el.style.maxHeight = '100%';
+      el.style.display = 'block';
+      el.removeAttribute('width');
+      el.removeAttribute('height');
+    } catch (e) { console.warn(e); }
+  }
+
+  function renderTodos() {
+    document.querySelectorAll('svg.bc').forEach(renderBarcode);
+  }
+
+  renderTodos();
+  window.addEventListener('resize', renderTodos);
+  window.addEventListener('beforeprint', function() {
+    requestAnimationFrame(function() {
+      requestAnimationFrame(renderTodos);
+    });
+  });
+
+  document.getElementById('btn-wms-etq-imprimir').addEventListener('click', function() {
+    wmsEtiquetaImprimir(renderTodos);
+  });
+  document.getElementById('btn-wms-etq-fechar').addEventListener('click', function() {
+    window.close();
+  });
+
+  {% if auto_print %}
+  wmsEtiquetaImprimir(renderTodos);
+  {% endif %}
+})();
+</script>
+</body>
+</html>

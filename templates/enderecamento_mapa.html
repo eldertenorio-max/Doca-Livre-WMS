@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Mapa 2D / 3D · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('enderecamento') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-cube me-2"></i>Mapa{% if camara %} · {{ camara.nome }}{% endif %}</h2>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        {% if tem_enderecos %}
+        <div class="btn-group" role="group" aria-label="Visualização">
+            <button type="button" class="btn btn-outline-primary" id="btnVisao2d" aria-pressed="true"><i class="fas fa-table-cells"></i>2D</button>
+            <button type="button" class="btn btn-outline-primary" id="btnVisao3d" aria-pressed="false"><i class="fas fa-cube"></i>3D</button>
+        </div>
+        {% endif %}
+        {% if linhas %}
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalImprimir"><i class="fas fa-print"></i>Imprimir mapa</button>
+        {% endif %}
+    </div>
+</div>
+
+{% if not linhas %}
+<div class="card">
+    <div class="card-body bloco-dados-altura">
+        <div class="text-center">
+            <h5>Nenhuma câmara cadastrada ainda</h5>
+            <p class="text-muted mb-3">O mapa aparece depois que as câmaras e os endereços forem cadastrados.</p>
+            <a href="{{ url_for('enderecamento.camaras') }}" class="btn btn-primary"><i class="fas fa-table-cells"></i>Ir para Câmaras e endereços</a>
+        </div>
+    </div>
+</div>
+{% else %}
+
+{# Seletor de câmara: funciona também como visão geral (ocupação de cada uma). #}
+<div class="mapa-camaras mb-3" role="navigation" aria-label="Câmaras">
+    <a class="mapa-camara-chip{% if not camara %} ativo{% endif %}" href="{{ url_for('enderecamento.mapa') }}">
+        <strong>Visão geral</strong><span>{{ linhas|length }} câmaras</span>
+    </a>
+    {% for l in linhas %}
+    <a class="mapa-camara-chip{% if camara and camara.id == l.camara.id %} ativo{% endif %}" href="{{ url_for('enderecamento.mapa', camara=l.camara.id) }}">
+        <strong>{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }}</strong>
+        <span>{{ l.ocupados }} / {{ l.total }} · {{ l.ocupacao }}%</span>
+    </a>
+    {% endfor %}
+</div>
+
+{% if not tem_enderecos %}
+<div class="card">
+    <div class="card-body bloco-dados-altura">
+        <div class="text-center">
+            <h5>{{ 'Esta câmara ainda não tem endereços' if camara else 'Nenhuma câmara tem endereços ainda' }}</h5>
+            <a href="{{ url_for('enderecamento.camara', cid=camara.id) if camara else url_for('enderecamento.camaras') }}" class="btn btn-primary mt-2"><i class="fas fa-wand-magic-sparkles"></i>Gerar endereços</a>
+        </div>
+    </div>
+</div>
+{% else %}
+{# Legenda (fixa no topo ao rolar) e busca — no desenho do mapa de câmaras do WMS Plus. #}
+<div class="layout-legend" aria-label="Legenda do mapa">
+    <span><i class="swatch swatch--disp" aria-hidden="true"></i>Disponível</span>
+    <span><i class="swatch swatch--ocup" aria-hidden="true"></i>Ocupado</span>
+    <span><i class="swatch swatch--bloq" aria-hidden="true"></i>Bloqueado</span>
+    <span><i class="swatch swatch--porta" aria-hidden="true"></i>Porta</span>
+    <span><i class="swatch swatch--nv5" aria-hidden="true"></i>Sem posição</span>
+    <span><i class="swatch swatch--reserva" aria-hidden="true"></i>Espaço de cliente</span>
+    <form class="d-flex gap-2 ms-auto" id="formBuscaMapa" autocomplete="off">
+        <input type="search" class="form-control form-control-sm" id="buscaMapa" style="width: 200px;" placeholder="Localizar endereço" aria-label="Localizar endereço (código ou bipagem)">
+        <button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-location-crosshairs"></i>Localizar</button>
+    </form>
+</div>
+<p class="text-muted small mb-2" id="mapaAviso" aria-live="polite"></p>
+
+<div id="mapa2d" class="layout-panel"></div>
+<div id="mapa3d" class="mapa-3d" hidden>
+    <div class="mapa-3d-ajuda">Arraste para girar · roda do mouse para aproximar · botão direito para mover
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnVisaoGeral3d"><i class="fas fa-expand"></i>Visão geral</button>
+    </div>
+    <div id="mapa3dTela" class="mapa-3d-tela"></div>
+    <div id="mapa3dDica" class="mapa-3d-dica" hidden></div>
+</div>
+
+{# Notas fiscais e produtos armazenados numa câmara (botão "i" do cabeçalho) e conteúdo do stage #}
+<div class="modal fade" id="modalCamaraInfo" tabindex="-1" aria-labelledby="modalCamaraInfoTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCamaraInfoTitulo"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="modalCamaraInfoCorpo"></div>
+        </div>
+    </div>
+</div>
+
+{# Detalhe do endereço (aberto pelo clique no 2D ou no 3D) #}
+<div class="modal fade" id="modalEndereco" tabindex="-1" aria-labelledby="modalEnderecoTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEnderecoTitulo"><i class="fas fa-location-dot me-2"></i><span class="codigo-mono" id="endCodigo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="detalhe-endereco">
+                    <div><dt>Câmara</dt><dd id="endCamara"></dd></div>
+                    <div><dt>Rua</dt><dd id="endRua"></dd></div>
+                    <div><dt>Coluna</dt><dd id="endColuna"></dd></div>
+                    <div><dt>Nível</dt><dd id="endNivel"></dd></div>
+                    <div><dt>Bipagem</dt><dd class="codigo-mono" id="endBip"></dd></div>
+                    <div><dt>Tipo</dt><dd id="endTipo"></dd></div>
+                    <div><dt>Destino</dt><dd id="endDestino"></dd></div>
+                    <div><dt>Espaço de cliente</dt><dd id="endCliente"></dd></div>
+                    <div><dt>Situação</dt><dd id="endStatus"></dd></div>
+                </dl>
+                <div id="endPaletes"></div>
+                {% if editar %}
+                <form method="POST" id="formBloqueio" class="mt-3">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <div id="blocoMotivo">
+                        <label class="form-label" for="endMotivo">Motivo do bloqueio (opcional)</label>
+                        <input type="text" class="form-control" id="endMotivo" name="motivo" maxlength="120" placeholder="Ex.: longarina danificada">
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <a class="btn btn-outline-primary me-auto" id="endEtiqueta" target="_blank" rel="noopener"><i class="fas fa-tag"></i>Etiqueta</a>
+                {% if editar %}
+                <button type="submit" form="formBloqueio" class="btn btn-secondary" id="btnBloqueio"></button>
+                {% endif %}
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Imprimir mapa #}
+<div class="modal fade" id="modalImprimir" tabindex="-1" aria-labelledby="modalImprimirTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="GET" action="{{ url_for('enderecamento.mapa_imprimir') }}" target="_blank" id="formImprimir">
+            <input type="hidden" name="camaras" id="impCamaras">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalImprimirTitulo"><i class="fas fa-print me-2"></i>Imprimir mapa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Câmaras</label>
+                <div class="mb-3">
+                    {% for l in linhas if l.total %}
+                    <div class="form-check">
+                        <input class="form-check-input imp-camara" type="checkbox" id="imp{{ l.camara.id }}" value="{{ l.camara.id }}" {% if not camara or camara.id == l.camara.id %}checked{% endif %}>
+                        <label class="form-check-label" for="imp{{ l.camara.id }}">{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }} <span class="text-muted">({{ l.total }} posições)</span></label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <label class="form-label" for="impOrientacao">Orientação da folha (A4)</label>
+                <select class="form-select" id="impOrientacao" name="orientacao">
+                    <option value="paisagem">Paisagem</option>
+                    <option value="retrato">Retrato</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" name="modo" value="branco" class="btn btn-outline-primary"><i class="far fa-file"></i>Layout em branco</button>
+                <button type="submit" name="modo" value="preenchido" class="btn btn-primary"><i class="fas fa-print"></i>Mapa preenchido</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if linhas and tem_enderecos %}
+<script type="application/json" id="dadosMapa">{{ dados|tojson }}</script>
+<script>
+window.WMS_MAPA = {
+    urlBloqueio: {{ url_for('enderecamento.bloqueio', eid=0)|tojson }},
+    urlEtiqueta: {{ url_for('enderecamento.etiquetas_imprimir')|tojson }},
+    urlMapa: {{ url_for('enderecamento.mapa')|tojson }},
+    {# atalhos do detalhe do palete: só para quem tem acesso à tela de destino #}
+    urlNota: {{ (url_for('entrada.nota', nid=0) if pode_ver('recebimento') else none)|tojson }},
+    urlNotaPdf: {{ (url_for('entrada.nota_pdf', nid=0) if pode_ver('recebimento') else none)|tojson }},
+    urlEtiquetaPalete: {{ (url_for('entrada.etiqueta_palete', pid=0) if pode_ver('recebimento') else none)|tojson }},
+    urlPaletes: {{ (url_for('movimentacao.paletes') if pode_ver('movimentacao') else none)|tojson }},
+    porta: {{ url_for('static', filename='img/porta-camara.png')|tojson }},
+    three: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+    orbit: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'
+};
+</script>
+<script src="{{ url_for('static', filename='mapa.js') }}?v={{ assets_version }}"></script>
+{% endif %}
+<script>
+// Imprimir: junta as câmaras marcadas no campo enviado.
+(function () {
+    var form = document.getElementById('formImprimir');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+        var ids = Array.prototype.slice.call(form.querySelectorAll('.imp-camara:checked')).map(function (c) { return c.value; });
+        if (!ids.length) { e.preventDefault(); alert('Marque ao menos uma câmara.'); return; }
+        document.getElementById('impCamaras').value = ids.join(',');
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Mapa das câmaras · WMS Doca Livre</title>
+{# Mapa para imprimir no modelo do WMS Plus: uma folha por rua, quadrados esticados para ocupar a folha,
+   desenho de estante (longarina laranja em cima, montante azul à esquerda). #}
+<style>
+  @page { size: A4 {{ 'portrait' if retrato else 'landscape' }}; margin: 5mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #000; background: #e5e7eb; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .toolbar { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid #ccc; padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar button { padding: 8px 18px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; border-radius: 6px; background: #1a237e; color: #fff; }
+  .toolbar button.sec { background: #555; }
+  .toolbar span { font-size: 12px; color: #555; }
+
+  .print-page { background: #fff; margin: 14px auto; padding: 5mm; width: {{ '210mm' if retrato else '297mm' }}; height: {{ '297mm' if retrato else '210mm' }};
+                display: flex; flex-direction: column; overflow: hidden; }
+  .print-page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 2mm; padding-bottom: 1mm; border-bottom: 1px solid #333; flex-shrink: 0; }
+  .print-page-header h1 { margin: 0; font-size: 18pt; font-weight: 700; }
+  .print-page-sub { margin: 1px 0 0; font-size: 12pt; color: #444; }
+  .print-page-meta { text-align: right; font-size: 10pt; color: #666; display: flex; flex-direction: column; gap: 2px; }
+  .print-page-body { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
+  .print-page-footer { margin-top: 2mm; padding-top: 1.5mm; border-top: 1px solid #ccc; flex-shrink: 0; }
+  .print-legend { display: flex; flex-wrap: wrap; gap: 12px 20px; font-size: 12pt; color: #333; margin-bottom: 2.5mm; }
+  .print-legend span { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .print-swatch { display: inline-block; width: 11px; height: 16px; border-radius: 2px; }
+  .print-swatch--disp { background: #fff; border: 1px solid #333; }
+  .print-swatch--ocup { background: #1a4d8c; border: 1px solid #1a56a8; }
+  .print-swatch--porta { background: #1d4ed8; border: 1px solid #1d4ed8; }
+  .print-swatch--nv5 { background: repeating-linear-gradient(-45deg, #f5f5f5, #f5f5f5 2px, #ddd 2px, #ddd 4px); border: 1px solid #999; }
+  .print-swatch--bloq { background: #fff; border: 1px solid #333; position: relative; overflow: hidden; }
+  .print-swatch--bloq::before, .print-swatch--bloq::after { content: ''; position: absolute; top: 50%; left: 50%; width: 160%; height: 1px; background: #000; }
+  .print-swatch--bloq::before { transform: translate(-50%, -50%) rotate(55deg); } .print-swatch--bloq::after { transform: translate(-50%, -50%) rotate(-55deg); }
+  .print-duplex-hint { margin: 0; font-size: 11pt; color: #444; text-align: center; font-weight: 500; }
+
+  .print-rua-grid { margin: 0 auto; }
+  .print-col-headers { display: grid; margin-bottom: 0.5mm; }
+  .print-axis { text-align: center; color: #333; font-weight: 700; }
+  .print-axis--row { text-align: right; }
+  .print-rua-body { display: flex; gap: 1mm; }
+  .print-row-labels { display: flex; flex-direction: column; flex-shrink: 0; }
+  .print-cells-area { position: relative; border-right: 0.45mm solid #1a56a8; border-bottom: 0.45mm solid #e87722; overflow: hidden; }
+  .print-cells-row { display: grid; }
+  .print-cell { border-top: 0.45mm solid #e87722; border-left: 0.45mm solid #1a56a8; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fff; }
+  .print-cell--ocupado { background: #1a4d8c; }
+  .print-cell-labels { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3mm; line-height: 1.05; text-align: center; padding: 0.2mm; max-width: 100%; }
+  .print-cell-nf { font-weight: 700; color: #fff; word-break: break-all; }
+  .print-cell-codigo { font-weight: 600; color: rgba(255, 255, 255, .92); word-break: break-all; }
+  .print-cell--porta { border-top: none; border-left: none; background-repeat: no-repeat; }
+  .print-cell--porta.print-cell--porta-edge-top { border-top: 0.45mm solid #e87722; }
+  .print-cell--porta.print-cell--porta-edge-left { border-left: 0.45mm solid #1a56a8; }
+  .print-cell--sem::before, .print-cell--sem::after, .print-cell--bloqueado::before, .print-cell--bloqueado::after {
+    content: ''; position: absolute; top: 50%; left: 50%; width: 141%; height: 0.4mm; background: rgba(0, 0, 0, .22); z-index: 1; }
+  .print-cell--bloqueado::before, .print-cell--bloqueado::after { background: rgba(0, 0, 0, .75); }
+  .print-cell--sem::before, .print-cell--bloqueado::before { transform: translate(-50%, -50%) rotate(45deg); }
+  .print-cell--sem::after, .print-cell--bloqueado::after { transform: translate(-50%, -50%) rotate(-45deg); }
+  .print-cell--ocupado.print-cell--bloqueado::before, .print-cell--ocupado.print-cell--bloqueado::after { background: rgba(255, 255, 255, .6); }
+
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .print-page { margin: 0; padding: 0; width: auto; height: {{ '287mm' if retrato else '200mm' }}; break-after: page; }
+    .print-page:last-child { break-after: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Imprimir</button>
+  <button type="button" class="sec" onclick="window.close()">Fechar</button>
+  <span>A4 {{ 'retrato' if retrato else 'paisagem' }} · {{ 'layout em branco' if em_branco else 'mapa preenchido' }} · {{ paginas|length }} folha(s), uma por rua · ligue "Gráficos de plano de fundo" na janela de impressão.</span>
+</div>
+
+{% for p in paginas %}
+<section class="print-page">
+  <header class="print-page-header">
+    <div>
+      <h1>{{ p.camara.nome }}</h1>
+      <p class="print-page-sub">{{ p.camara.categoria or p.camara.tipo }} · Rua {{ p.rua }}</p>
+    </div>
+    <div class="print-page-meta">
+      <span>WMS Doca Livre — {{ 'Layout de endereçamento' if em_branco else 'Mapa de ocupação' }}</span>
+      <span>Folha {{ loop.index }} de {{ paginas|length }}</span>
+    </div>
+  </header>
+
+  <div class="print-page-body">
+    <div class="print-rua-grid">
+      <div class="print-col-headers" style="margin-left: {{ p.rotulo_w + 1 }}mm; grid-template-columns: repeat({{ p.colunas|length }}, {{ p.cel_w }}mm);">
+        {% for c in p.colunas %}<span class="print-axis" style="font-size: {{ p.fonte_col }}px;">{{ c }}</span>{% endfor %}
+      </div>
+      <div class="print-rua-body">
+        <div class="print-row-labels" style="width: {{ p.rotulo_w }}mm;">
+          {% for n in p.niveis %}<span class="print-axis print-axis--row" style="height: {{ p.cel_h }}mm; line-height: {{ p.cel_h }}mm; font-size: {{ p.fonte_niv }}px;">{{ n }}</span>{% endfor %}
+        </div>
+        <div class="print-cells-area">
+          {% for n in p.niveis %}
+          <div class="print-cells-row" style="grid-template-columns: repeat({{ p.colunas|length }}, {{ p.cel_w }}mm);">
+            {% for c in p.colunas %}
+            {% set cel = p.celulas[(c, n)] %}
+            {% if cel.tipo == 'porta' %}
+            <div class="print-cell print-cell--porta{{ ' print-cell--porta-edge-top' if cel.topo }}{{ ' print-cell--porta-edge-left' if cel.esquerda }}"
+                 style="height: {{ p.cel_h }}mm; background-image: url('{{ url_for('static', filename='img/porta-camara.png') }}'); background-size: {{ cel.cols * 100 }}% {{ cel.linhas * 100 }}%; background-position: {{ cel.x }}% {{ cel.y }}%;"></div>
+            {% elif cel.tipo == 'sem' %}
+            <div class="print-cell print-cell--sem" style="height: {{ p.cel_h }}mm;"></div>
+            {% else %}
+            <div class="print-cell{{ ' print-cell--ocupado' if cel.nf is not none and not em_branco }}{{ ' print-cell--bloqueado' if cel.bloqueado and not em_branco }}" style="height: {{ p.cel_h }}mm;">
+              {% if cel.nf is not none and not em_branco %}
+              <span class="print-cell-labels">
+                <span class="print-cell-nf" style="font-size: {{ p.fonte_nf }}pt;">{{ cel.nf[-p.corte_nf:] if p.corte_nf else cel.nf }}</span>
+                {% if cel.sku %}<span class="print-cell-codigo" style="font-size: {{ p.fonte_sku }}pt;">{{ cel.sku[:p.corte_sku] }}{{ '…' if cel.sku|length > p.corte_sku }}</span>{% endif %}
+              </span>
+              {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="print-page-footer">
+    <div class="print-legend">
+      {% if em_branco %}
+      <span><i class="print-swatch print-swatch--disp"></i> Posição</span>
+      {% else %}
+      <span><i class="print-swatch print-swatch--ocup"></i> Ocupado (NF + código)</span>
+      <span><i class="print-swatch print-swatch--disp"></i> Disponível</span>
+      <span><i class="print-swatch print-swatch--bloq"></i> Bloqueado</span>
+      {% endif %}
+      <span><i class="print-swatch print-swatch--porta"></i> Porta</span>
+      <span><i class="print-swatch print-swatch--nv5"></i> Sem posição</span>
+    </div>
+    {% if p.verso %}
+    <p class="print-duplex-hint">Impressão frente e verso: esta folha = <strong>Rua {{ p.rua }}</strong> (frente) · verso = <strong>Rua {{ p.verso }}</strong></p>
+    {% elif p.frente %}
+    <p class="print-duplex-hint">Verso da folha anterior — <strong>Rua {{ p.rua }}</strong></p>
+    {% endif %}
+  </footer>
+</section>
+{% else %}
+<section class="print-page"><p>Nenhuma câmara com endereços para imprimir.</p></section>
+{% endfor %}
+</body>
+</html>

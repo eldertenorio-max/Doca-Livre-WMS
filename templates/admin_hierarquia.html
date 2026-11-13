@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}Hierarquia · WMS Doca Livre{% endblock %}
+
+{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro no(o) %}
+<li>
+    <div class="org-no org-no--{{ o.tipo }}">
+        <span class="org-tipo">{{ rotulo_tipo[o.tipo] }}</span>
+        <strong class="org-nome">{{ o.nome }}</strong>
+        <small class="org-dados">{% if o.cnpj %}{{ o.cnpj|cnpj }}{% else %}Sem CNPJ{% endif %}{% if o.codigo %} · cód. {{ o.codigo }}{% endif %}{% if o.fornecedor %} · fornecedor{% endif %}</small>
+        {% set pessoas = usuarios_da_org.get(o.id, []) %}
+        {% if pessoas %}
+        <ul class="org-usuarios" aria-label="Usuários de {{ o.nome }}">
+            {% for u in pessoas %}
+            <li{% if not u.ativo %} class="inativo"{% endif %}><i class="fas fa-user"></i><span>{{ u.nome }}<small>{{ perfis.get(u.perfil, u.perfil) }}{% if not u.ativo %} · inativo{% endif %}</small></span>
+                {% if editar and gestao %}
+                <form method="POST" action="{{ url_for('hierarquia.vinculo', uid=u.id) }}">{{ csrf() }}<input type="hidden" name="voltar" value="arvore"><input type="hidden" name="organizacao_id" value="">
+                    <button type="submit" class="org-tirar" title="Tirar {{ u.nome }} desta organização" aria-label="Tirar {{ u.nome }} desta organização"><i class="fas fa-xmark"></i></button></form>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <small class="org-vazio">Nenhum usuário vinculado</small>
+        {% endif %}
+        {% if editar %}
+        <div class="org-acoes">
+            {% if filhos_permitidos[o.tipo] %}
+            <button type="button" class="btn btn-sm btn-outline-primary" data-org="{{ {'pai_id': o.id, 'pai_nome': o.nome, 'tipos': filhos_permitidos[o.tipo]}|tojson|forceescape }}" title="Adicionar uma organização abaixo de {{ o.nome }}"><i class="fas fa-plus"></i>Organização</button>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-primary" data-vincular="{{ {'id': o.id, 'nome': o.nome}|tojson|forceescape }}" title="Vincular um usuário a {{ o.nome }}"><i class="fas fa-user-plus"></i>Usuário</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-org="{{ {'id': o.id, 'tipo_nome': rotulo_tipo[o.tipo], 'nome': o.nome, 'cnpj': o.cnpj or '', 'codigo': o.codigo or '', 'fornecedor': o.fornecedor}|tojson|forceescape }}" title="Editar" aria-label="Editar {{ o.nome }}"><i class="fas fa-pen me-0"></i></button>
+            {% if o.id != meu_no %}<form method="POST" action="{{ url_for('hierarquia.org_excluir', oid=o.id) }}" onsubmit="return confirm('Excluir esta organização da hierarquia?');">{{ csrf() }}
+                {% if grupo %}<input type="hidden" name="grupo" value="{{ grupo.id }}">{% endif %}
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir" aria-label="Excluir {{ o.nome }}"><i class="fas fa-trash me-0"></i></button></form>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% if o.filhos %}<ul>{% for f in o.filhos|sort(attribute='nome') %}{{ no(f) }}{% endfor %}</ul>{% endif %}
+</li>
+{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-sitemap me-2"></i>Hierarquia</h2>
+    {% if pode_ver('admin') %}<a class="btn btn-outline-secondary" href="{{ url_for('admin.permissoes') }}"><i class="fas fa-user-lock"></i>Permissões por perfil</a>{% endif %}
+</div>
+
+<ul class="sub-abas" role="tablist" aria-label="Partes da Hierarquia">
+    <li role="presentation"><a role="tab" aria-selected="{{ 'true' if aba == 'arvore' else 'false' }}" class="{% if aba == 'arvore' %}ativo{% endif %}" href="{{ url_for('hierarquia.painel') }}"><i class="fas fa-sitemap"></i>Organizações e grupos</a></li>
+    <li role="presentation"><a role="tab" aria-selected="{{ 'true' if aba == 'usuarios' else 'false' }}" class="{% if aba == 'usuarios' %}ativo{% endif %}" href="{{ url_for('hierarquia.painel', aba='usuarios') }}"><i class="fas fa-users"></i>Usuários</a></li>
+</ul>
+
+{% if aba == 'arvore' %}
+<div class="row g-3">
+    <div class="col-12">
+        <div class="card"><div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h5 class="mb-0">{{ raizes[0].nome if raizes else 'Hierarquia organizacional' }}</h5>
+                {% if gestao and editar %}<button type="button" class="btn btn-sm btn-primary" data-org="{{ {'pai_id': '', 'pai_nome': '', 'tipos': [['operador_logistico', 'Operador Logístico']]}|tojson|forceescape }}"><i class="fas fa-plus"></i>{{ 'Outro operador logístico' if raizes else 'Criar o Operador Logístico' }}</button>{% endif %}
+            </div>
+            <p class="text-muted small">Desenho da hierarquia: cada caixa é uma organização, com os usuários dela dentro. Ordem: Operador Logístico → Filial Operador / Embarcador → Unidade → Transportadora. Embarcadores, unidades e transportadoras ficam ligados a Cadastros › Empresas.</p>
+            {% if raizes %}
+            <div class="org-desenho"><ul class="org-arvore">{% for r in raizes %}{{ no(r) }}{% endfor %}</ul></div>
+            {% else %}
+            <div class="bloco-dados-altura"><p class="text-muted mb-0 text-center">{{ 'Nenhuma organização ainda. Comece criando o Operador Logístico (a sua empresa).' if gestao else 'Você ainda não está vinculado a uma organização. Peça ao Super Usuário para fazer o vínculo.' }}</p></div>
+            {% endif %}
+        </div></div>
+    </div>
+    {% if gestao %}<div class="col-12 col-xl-7">
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="mb-3">Grupos de hierarquia</h5>
+            <form method="POST" action="{{ url_for('hierarquia.grupo_salvar') }}" class="row g-2 align-items-end mb-3" autocomplete="off">{{ csrf() }}
+                <div class="col-12 col-sm-5"><label class="form-label" for="grNome">Nome <span class="obrigatorio">*</span></label><input type="text" class="form-control" id="grNome" name="nome" maxlength="80" required value="{{ form_grupo.get('nome') if form_grupo else '' }}"></div>
+                <div class="col-12 col-sm-5"><label class="form-label" for="grDesc">Descrição</label><input type="text" class="form-control" id="grDesc" name="descricao" maxlength="200" value="{{ form_grupo.get('descricao') if form_grupo else '' }}"></div>
+                <div class="col-12 col-sm-2"><button type="submit" class="btn btn-primary w-100">Criar</button></div>
+            </form>
+            {% if grupos %}
+            <ul class="fin-lista">
+                {% for g in grupos %}
+                <li class="{% if grupo and grupo.id == g.id %}ativo{% endif %}">
+                    <a class="fin-cliente" href="{{ url_for('hierarquia.painel', grupo=(none if grupo and grupo.id == g.id else g.id)) }}" {% if grupo and grupo.id == g.id %}aria-current="true"{% endif %}>
+                        <strong>{{ g.nome }}</strong><small class="d-block text-muted">{{ g.descricao or 'Sem descrição' }} · {{ g.membros|length }} organização(ões)</small></a>
+                    <form method="POST" action="{{ url_for('hierarquia.grupo_excluir', gid=g.id) }}" onsubmit="return confirm('Excluir este grupo? Os layouts salvos por ele deixam de aparecer.');">{{ csrf() }}
+                        <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Excluir o grupo {{ g.nome }}"><i class="fas fa-trash me-0"></i></button></form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">Nenhum grupo ainda. Um grupo junta as organizações que trabalham juntas; os usuários delas compartilham os layouts salvos e a lista de clientes.</p>
+            {% endif %}
+        </div></div>
+        {% if grupo %}
+        <div class="card"><div class="card-body">
+            <h5 class="mb-3">Organizações do grupo "{{ grupo.nome }}"</h5>
+            {% set no_grupo = grupo.membros|map(attribute='organizacao_id')|list %}
+            <form method="POST" action="{{ url_for('hierarquia.membro_novo', gid=grupo.id) }}" class="row g-2 align-items-end mb-3">{{ csrf() }}
+                <div class="col-12 col-sm-5"><label class="form-label" for="mbOrg">Organização</label>
+                    <select class="form-select" id="mbOrg" name="organizacao_id" required><option value="">— escolher —</option>
+                        {% for o in organizacoes if o.id not in no_grupo %}<option value="{{ o.id }}">{{ o.nome }} ({{ rotulo_tipo[o.tipo] }})</option>{% endfor %}</select></div>
+                <div class="col-12 col-sm-5"><label class="form-label" for="mbPai">Pai no grupo</label>
+                    <select class="form-select" id="mbPai" name="pai_id"><option value="">— nenhum —</option>
+                        {% for m in grupo.membros %}<option value="{{ m.organizacao_id }}">{{ m.organizacao.nome }}</option>{% endfor %}</select></div>
+                <div class="col-12 col-sm-2"><button type="submit" class="btn btn-primary w-100" aria-label="Adicionar ao grupo"><i class="fas fa-plus me-0"></i></button></div>
+            </form>
+            {% if grupo.membros %}
+            <ul class="fin-lista">
+                {% for m in grupo.membros %}
+                <li><div><strong>{{ m.organizacao.nome }}</strong><small class="d-block text-muted">{{ rotulo_tipo[m.organizacao.tipo] }}{% if m.pai %} · abaixo de {{ m.pai.nome }}{% endif %}</small></div>
+                    <form method="POST" action="{{ url_for('hierarquia.membro_excluir', mid=m.id) }}">{{ csrf() }}<button type="submit" class="btn btn-sm btn-outline-danger">Remover</button></form></li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">Grupo vazio. Adicione as organizações da árvore que fazem parte dele.</p>
+            {% endif %}
+        </div></div>
+        {% endif %}
+    </div>{% endif %}
+</div>
+
+<div class="modal fade" id="modalOrg" tabindex="-1" aria-labelledby="modalOrgTitulo" aria-hidden="true"
+     data-reabrir="{{ ({'id': form_org.get('id', ''), 'pai_id': form_org.get('pai_id', ''), 'tipo': form_org.get('tipo', ''), 'nome': form_org.get('nome', ''), 'cnpj': form_org.get('cnpj', ''), 'codigo': form_org.get('codigo', ''), 'fornecedor': form_org.get('fornecedor') == '1', 'titulo': form_org.get('titulo', ''), 'tipos': form_org.get('tipos', '')} if form_org else none)|tojson|forceescape }}">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('hierarquia.org_salvar') }}" autocomplete="off">
+            {{ csrf() }}
+            <input type="hidden" name="id" id="orgId"><input type="hidden" name="pai_id" id="orgPai">
+            <input type="hidden" name="titulo" id="orgTituloCampo"><input type="hidden" name="tipos" id="orgTiposCampo">
+            {% if grupo %}<input type="hidden" name="grupo" value="{{ grupo.id }}">{% endif %}
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalOrgTitulo"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12" id="orgTipoBloco"><label class="form-label" for="orgTipo">Tipo</label><select class="form-select" id="orgTipo" name="tipo"></select></div>
+                    <div class="col-12"><label class="form-label" for="orgNome">Nome <span class="obrigatorio">*</span></label><input type="text" class="form-control" id="orgNome" name="nome" maxlength="150" required></div>
+                    <div class="col-7"><label class="form-label" for="orgCnpj">CNPJ</label><input type="text" class="form-control" id="orgCnpj" name="cnpj" maxlength="18" inputmode="numeric" placeholder="00.000.000/0000-00"></div>
+                    <div class="col-5"><label class="form-label" for="orgCodigo">Código</label><input type="text" class="form-control" id="orgCodigo" name="codigo" maxlength="30"></div>
+                    <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="orgFornecedor" name="fornecedor" value="1"><label class="form-check-label" for="orgFornecedor">É fornecedor</label></div></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalVincular" tabindex="-1" aria-labelledby="modalVincularTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" id="formVincular" autocomplete="off">
+            {{ csrf() }}
+            <input type="hidden" name="voltar" value="arvore"><input type="hidden" name="organizacao_id" id="vincOrg">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalVincularTitulo"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="vincUsuario">Usuário</label>
+                <select class="form-select" id="vincUsuario" required>
+                    <option value="">— escolher —</option>
+                    {% for u in usuarios %}<option value="{{ url_for('hierarquia.vinculo', uid=u.id) }}" data-org="{{ u.organizacao_id or '' }}">{{ u.nome }} ({{ perfis.get(u.perfil, u.perfil) }}){% if u.organizacao %} — hoje em {{ u.organizacao.nome }}{% endif %}</option>{% endfor %}
+                </select>
+                <div class="form-text">Cada usuário fica em uma organização só: quem já está em outra é movido para esta. Para criar um usuário novo, use Administração › Usuários.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Vincular</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% else %}
+<p class="text-muted small">O vínculo diz de qual organização o usuário é. Com ele, o usuário passa a ver só os layouts salvos do grupo dele e, ao reservar espaço nas câmaras, só os clientes do grupo. Usuário sem organização continua como antes (vê todos os clientes e os layouts do perfil dele); o Administrador e o Super Usuário sempre veem todos os clientes. O que cada perfil pode abrir ou editar fica em Administração › Permissões.</p>
+<form method="GET" class="row g-2 mb-3">
+    <input type="hidden" name="aba" value="usuarios">
+    <div class="col-12 col-md-5"><div class="input-group"><span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+        <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Buscar por nome, login ou e-mail" aria-label="Buscar usuário"></div></div>
+    <div class="col-auto"><button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca %}<a href="{{ url_for('hierarquia.painel', aba='usuarios') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}</div>
+</form>
+<div class="card"><div class="card-body">
+    {% if not organizacoes %}<div class="alert alert-warning">Ainda não há organizações. Crie a árvore na aba <a href="{{ url_for('hierarquia.painel') }}">Organizações e grupos</a> para poder vincular os usuários.</div>{% endif %}
+    {% if usuarios %}
+    <div class="tabela-scroll">
+        <table class="table table-striped mb-0 align-middle">
+            <thead><tr><th>Usuário</th><th>Perfil</th><th>Organização</th><th>Grupo</th></tr></thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td><strong>{{ u.nome }}</strong><small class="d-block text-muted">{{ u.username }}{% if u.email %} · {{ u.email }}{% endif %}{% if not u.ativo %} · inativo{% endif %}</small></td>
+                    <td><span class="badge bg-{{ 'danger' if u.perfil == 'super' else ('warning' if u.perfil == 'admin' else 'info') }}">{{ perfis.get(u.perfil, u.perfil) }}</span></td>
+                    <td style="min-width: 260px;">
+                        <form method="POST" action="{{ url_for('hierarquia.vinculo', uid=u.id) }}">{{ csrf() }}<input type="hidden" name="q" value="{{ busca }}">
+                            <select class="form-select form-select-sm" name="organizacao_id" onchange="this.form.submit()" aria-label="Organização de {{ u.nome }}" {% if not organizacoes or not editar %}disabled{% endif %}>
+                                {% if gestao %}<option value="">— sem organização —</option>{% endif %}
+                                {% for o in organizacoes %}<option value="{{ o.id }}" {% if u.organizacao_id == o.id %}selected{% endif %}>{{ o.nome }} ({{ rotulo_tipo[o.tipo] }})</option>{% endfor %}
+                            </select></form></td>
+                    <td>{% set gs = grupos_do_usuario(u) %}{% if gs %}{{ gs|map(attribute='nome')|join(', ') }}{% elif u.organizacao_id %}<span class="text-muted">sem grupo (vale a árvore dele)</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bloco-dados-altura"><p class="text-muted mb-0">Nenhum usuário encontrado.</p></div>
+    {% endif %}
+</div></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var el = document.getElementById('modalOrg');
+    if (!el) return;
+    var modal = new bootstrap.Modal(el);
+    function campo(id) { return document.getElementById(id); }
+    function abrir(d) {
+        var editar = !!d.id;
+        var tipos = d.tipos || [];
+        if (typeof tipos === 'string') { try { tipos = JSON.parse(tipos || '[]'); } catch (e) { tipos = []; } }
+        var titulo = d.titulo || (editar ? 'Editar ' + (d.tipo_nome || 'organização') : (d.pai_nome ? 'Adicionar abaixo de ' + d.pai_nome : 'Operador Logístico'));
+        campo('modalOrgTitulo').textContent = titulo;
+        campo('orgTituloCampo').value = titulo;
+        campo('orgTiposCampo').value = JSON.stringify(tipos);
+        campo('orgId').value = d.id || '';
+        campo('orgPai').value = d.pai_id || '';
+        var sel = campo('orgTipo');
+        sel.innerHTML = '';
+        tipos.forEach(function (t) { var o = document.createElement('option'); o.value = t[0]; o.textContent = t[1]; sel.appendChild(o); });
+        if (d.tipo) sel.value = d.tipo;
+        campo('orgTipoBloco').hidden = editar || tipos.length < 2;
+        campo('orgNome').value = d.nome || '';
+        campo('orgCnpj').value = d.cnpj || '';
+        campo('orgCodigo').value = d.codigo || '';
+        campo('orgFornecedor').checked = !!d.fornecedor;
+        modal.show();
+    }
+    document.querySelectorAll('[data-org]').forEach(function (b) {
+        b.addEventListener('click', function () { abrir(JSON.parse(b.getAttribute('data-org'))); });
+    });
+    el.addEventListener('shown.bs.modal', function () { campo('orgNome').focus(); });
+    var reabrir = JSON.parse(el.getAttribute('data-reabrir') || 'null');
+    if (reabrir) abrir(reabrir);
+
+    // vincular usuário a uma organização, direto no desenho
+    var elV = document.getElementById('modalVincular');
+    if (elV) {
+        var modalV = new bootstrap.Modal(elV), selV = campo('vincUsuario'), formV = campo('formVincular');
+        document.querySelectorAll('[data-vincular]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var d = JSON.parse(b.getAttribute('data-vincular'));
+                campo('modalVincularTitulo').textContent = 'Vincular usuário a ' + d.nome;
+                campo('vincOrg').value = d.id;
+                selV.value = '';
+                // quem já está nesta organização não aparece na lista
+                Array.prototype.forEach.call(selV.options, function (o) { o.hidden = o.disabled = !!o.value && o.getAttribute('data-org') === String(d.id); });
+                modalV.show();
+            });
+        });
+        formV.addEventListener('submit', function (ev) {
+            if (!selV.value) { ev.preventDefault(); return; }
+            formV.action = selV.value;
+        });
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+# Blueprint Render — WMS Doca Livre
+# No Render: New > Blueprint > escolha este repositório. Depois preencha DATABASE_URL e ADMIN_PASSWORD no painel.
+
+services:
+  - type: web
+    name: wms-doca-livre
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -b 0.0.0.0:$PORT --workers 1 --timeout 120 --graceful-timeout 30 --worker-class gthread --threads 4 app:app
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: DATABASE_URL
+        # URL do Postgres. NUNCA escreva a URL/senha aqui: defina no painel do Render.
+        # Sem ela o sistema usa SQLite dentro do serviço e os dados somem a cada publicação.
+        sync: false
+      - key: ADMIN_PASSWORD
+        # Senha do usuário "admin" criado no primeiro start (banco vazio). Defina no painel do Render.
+        sync: false

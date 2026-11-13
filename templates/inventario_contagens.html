@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% from '_estoque_partes.html' import paginacao %}
+{% block title %}Consulta de contagens · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-list-check me-2"></i>Consulta de contagens</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('inventario.lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Inventários</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('inventario.contagens', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+    </div>
+</div>
+<p class="text-muted small mb-3">Tudo o que já foi contado nos inventários, no período escolhido (padrão: últimos 7 dias).</p>
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    <div class="col-6 col-md-2"><label class="form-label" for="ctDe">Data de</label><input type="date" class="form-control" id="ctDe" name="de" value="{{ f.de }}"></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="ctAte">Data até</label><input type="date" class="form-control" id="ctAte" name="ate" value="{{ f.ate }}"></div>
+    <div class="col-12 col-md-3"><label class="form-label" for="ctQ">Busca (código, descrição, lote)</label><input type="search" class="form-control" id="ctQ" name="q" value="{{ f.q }}" placeholder="Filtrar na lista…"></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="ctConf">Conferente</label>
+        <select class="form-select" id="ctConf" name="conferente"><option value="">Todos</option>{% for c in conferentes %}<option value="{{ c }}" {% if f.conferente == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="ctCam">Câmara</label>
+        <select class="form-select" id="ctCam" name="camara"><option value="">Todas</option>{% for c in camaras %}<option value="{{ c }}" {% if f.camara == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="ctSt">Situação</label>
+        <select class="form-select" id="ctSt" name="status"><option value="">Todas</option>{% for s in status_linha %}<option value="{{ s }}" {% if f.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="col-auto d-flex align-items-end gap-2">
+        <button type="submit" class="btn btn-primary">Carregar</button>
+        <a href="{{ url_for('inventario.contagens') }}" class="btn btn-outline-secondary">Limpar</a>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if linhas %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0 align-middle">
+                <thead><tr><th>Data</th><th>Inventário</th><th>Código</th><th>Descrição</th><th class="text-end">Qtd</th><th>Un.</th><th>Lote</th><th>Validade</th><th>Conferente</th><th>Câmara</th><th>Endereço</th><th>Situação</th></tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    <tr>
+                        <td class="text-nowrap">{{ l.contado_em|datahora }}</td>
+                        <td><a href="{{ url_for('inventario.detalhe', iid=l.inventario_id) }}">nº {{ l.inventario_id }}</a> <small class="text-muted">{{ l.inventario.descricao }}</small></td>
+                        <td><strong>{{ l.bip_sku or l.sku }}</strong></td>
+                        <td>{{ l.descricao }}</td>
+                        <td class="text-end"><strong>{{ l.bip_quantidade|numero }}</strong></td>
+                        <td>{{ l.unidade }}</td>
+                        <td>{{ l.bip_lote or '—' }}</td>
+                        <td class="text-nowrap">{{ l.bip_validade.strftime('%d/%m/%Y') if l.bip_validade else '—' }}</td>
+                        <td>{{ l.contado_por }}</td>
+                        <td>{{ l.camara_nome or '—' }}</td>
+                        <td class="codigo-mono">{{ l.endereco or '—' }}</td>
+                        <td>{{ selo(l.status) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {{ paginacao('inventario.contagens', pagina, paginas, total, 'linha(s) — período ' ~ f.de[8:10] ~ '/' ~ f.de[5:7] ~ '/' ~ f.de[:4] ~ ' a ' ~ f.ate[8:10] ~ '/' ~ f.ate[5:7] ~ '/' ~ f.ate[:4], filtros) }}
+        {% else %}
+        <div class="bloco-dados-altura"><div class="text-center">
+            <h5>Nenhum registro para os filtros</h5>
+            <p class="text-muted mb-0">As contagens aparecem aqui conforme os inventários são contados.</p>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

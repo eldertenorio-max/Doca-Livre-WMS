@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Extrato de carregamento · Carga {{ carga.codigo }}</title>
+<style>
+  @page { size: A4 portrait; margin: 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #e5e7eb; font-size: 9.5pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .toolbar { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid #ccc; padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar button, .toolbar a { padding: 8px 18px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; border-radius: 6px; background: #1a237e; color: #fff; text-decoration: none; }
+  .toolbar .sec { background: #555; }
+  .toolbar span { font-size: 12px; color: #555; }
+  .folha { background: #fff; margin: 14px auto; padding: 12mm; width: 210mm; min-height: 297mm; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-end; gap: 10mm; border-bottom: 2px solid #000; padding-bottom: 3mm; margin-bottom: 4mm; }
+  .topo img { height: 12mm; }
+  .topo h1 { font-size: 15pt; }
+  .topo .id { text-align: right; }
+  .topo .id strong { font-size: 14pt; display: block; }
+  .situacao { display: inline-block; border: 0.4mm solid #000; padding: 0.6mm 2.5mm; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; margin-top: 1mm; }
+  .aviso { border: 0.4mm solid #000; background: #eee; padding: 2mm 3mm; margin-bottom: 4mm; font-weight: 700; }
+  .dados { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm 5mm; margin-bottom: 5mm; }
+  .dados .larga { grid-column: span 2; }
+  .dados .total { grid-column: span 4; }
+  .dados dt { font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #444; }
+  .dados dd { font-size: 9.5pt; overflow-wrap: anywhere; }
+  h2 { font-size: 10.5pt; margin: 5mm 0 2mm; text-transform: uppercase; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 0.25mm solid #000; padding: 1.2mm 1.6mm; text-align: left; vertical-align: top; font-size: 8.5pt; }
+  thead th { background: #000; color: #fff; font-size: 7.5pt; text-transform: uppercase; }
+  td.n, th.n { text-align: right; white-space: nowrap; }
+  tr.diverge td { background: #eee; font-weight: 700; }
+  tfoot td { font-weight: 700; background: #f3f3f3; }
+  tr { break-inside: avoid; }
+  .resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-top: 5mm; }
+  .resumo div { border: 0.3mm solid #000; padding: 2mm 3mm; }
+  .resumo span { display: block; font-size: 7pt; font-weight: 700; text-transform: uppercase; color: #444; }
+  .resumo strong { font-size: 13pt; }
+  .assinaturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10mm; margin-top: 18mm; break-inside: avoid; }
+  .assinaturas div { border-top: 0.3mm solid #000; padding-top: 1.5mm; text-align: center; font-size: 8.5pt; }
+  .assinaturas small { display: block; color: #444; }
+  .rodape { margin-top: 6mm; font-size: 7.5pt; color: #444; text-align: right; }
+  @media print { body { background: #fff; } .toolbar { display: none; } .folha { margin: 0; padding: 0; width: auto; min-height: 0; } }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button type="button" onclick="window.print()">Imprimir / salvar em PDF</button>
+  <a href="{{ url_for('saida.extrato', cid=carga.id, formato='xlsx') }}">Baixar em Excel</a>
+  <a class="sec" href="{{ url_for('saida.carga', cid=carga.id) }}">Voltar à carga</a>
+  <span>Folha A4 retrato. Para PDF, escolha "Salvar como PDF" na janela de impressão.</span>
+</div>
+
+<div class="folha">
+  <div class="topo">
+    <div>
+      <img src="{{ url_for('static', filename='img/logo-doca-livre-claro.png') }}" alt="Doca Livre">
+      <h1>Extrato de carregamento</h1>
+    </div>
+    <div class="id">
+      <strong>Carga {{ carga.codigo }}</strong>
+      <span class="situacao">{{ carga.status }}{% if carga.status == 'Expedida' %} · {{ 'divergente' if divergentes else 'completa' }}{% endif %}</span>
+    </div>
+  </div>
+
+  {% if carga.status in ('Aberta', 'Em separação', 'Em conferência') %}
+  <div class="aviso">Extrato parcial: o comprovante desta carga ainda não foi gerado.</div>
+  {% elif carga.status == 'Cancelada' %}
+  <div class="aviso">{{ carga.observacao or 'Carga cancelada.' }}</div>
+  {% endif %}
+
+  <dl class="dados">
+    <div><dt>Motivo da saída</dt><dd>{{ carga.motivo }}</dd></div>
+    <div><dt>Data de expedição</dt><dd>{{ carga.data_expedicao.strftime('%d/%m/%Y') if carga.data_expedicao else '—' }}</dd></div>
+    <div><dt>Doca</dt><dd>{{ carga.doca or '—' }}</dd></div>
+    <div><dt>Placa</dt><dd>{{ carga.placa or '—' }}</dd></div>
+    <div class="larga"><dt>Motorista</dt><dd>{{ carga.motorista or '—' }}</dd></div>
+    <div class="larga"><dt>Notas fiscais</dt><dd>{{ notas|join(', ') or '—' }}</dd></div>
+    <div><dt>Início da conferência</dt><dd>{{ carga.inicio_conferencia|datahora }}</dd></div>
+    <div><dt>Fim da conferência</dt><dd>{{ carga.fim_conferencia|datahora }}</dd></div>
+    <div><dt>Duração</dt><dd>{{ duracao or '—' }}</dd></div>
+    <div><dt>Coordenador</dt><dd>{{ carga.coordenador or '—' }}</dd></div>
+    <div class="larga"><dt>Conferente</dt><dd>{{ carga.conferente or '—' }}</dd></div>
+    <div class="larga"><dt>Ajudantes</dt><dd>{{ carga.ajudantes or '—' }}</dd></div>
+  </dl>
+
+  <h2>Itens carregados</h2>
+  <table>
+    <thead><tr><th>NF</th><th>SKU</th><th>Descrição</th><th>Un.</th><th class="n">Qtd NF</th><th class="n">Carregado</th><th class="n">Diferença</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr class="{{ 'diverge' if l.diferenca != 0 and carga.status == 'Expedida' }}">
+        <td>{{ l.item.nf_numero or '—' }}</td>
+        <td>{{ l.item.produto.sku }}</td>
+        <td>{{ l.item.produto.descricao }}{% if l.item.cliente %}<br>{{ l.item.cliente }}{% endif %}{% if l.item.motivo_divergencia %}<br>Motivo: {{ l.item.motivo_divergencia }}{% endif %}</td>
+        <td>{{ l.item.unidade }}</td>
+        <td class="n">{{ l.item.quantidade|numero }}</td>
+        <td class="n">{{ l.item.conferido|numero }}</td>
+        <td class="n">{{ ('+' if l.diferenca > 0 else '') ~ (l.diferenca|numero) if l.diferenca != 0 else '—' }}</td>
+        <td>{{ l.situacao }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8">Carga sem itens.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if linhas %}
+    <tfoot><tr><td colspan="4">Total ({{ linhas|length }} itens)</td><td class="n">{{ total|numero }}</td><td class="n">{{ conferido|numero }}</td>
+      <td class="n">{{ ((conferido - total)|round(3)|numero) if conferido != total else '—' }}</td><td></td></tr></tfoot>
+    {% endif %}
+  </table>
+
+  {% if divergentes and carga.status == 'Expedida' %}
+  <h2>Itens faltantes e a mais</h2>
+  <table>
+    <thead><tr><th>SKU</th><th>Descrição</th><th>Tipo</th><th class="n">Quantidade</th><th>Motivo</th></tr></thead>
+    <tbody>
+      {% for l in divergentes %}
+      <tr><td>{{ l.item.produto.sku }}</td><td>{{ l.item.produto.descricao }}</td><td>{{ 'Faltante' if l.diferenca < 0 else 'A mais' }}</td>
+        <td class="n">{{ (l.diferenca|abs)|numero }} {{ l.item.unidade }}</td><td>{{ l.item.motivo_divergencia or '—' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if paletes %}
+  <h2>Paletes da carga</h2>
+  <table>
+    <thead><tr><th>Etiqueta</th><th>Produto</th><th class="n">Qtd</th><th>Lote</th><th>Validade</th><th>Situação</th></tr></thead>
+    <tbody>
+      {% for p in paletes %}{% for it in p.itens %}
+      <tr><td style="font-family: Consolas, monospace; font-size: 8pt;">{{ p.etiqueta }}</td><td>{{ it.produto.sku }} · {{ it.produto.descricao }}</td>
+        <td class="n">{{ it.quantidade|numero }} {{ it.produto.unidade }}</td><td>{{ it.lote or '—' }}</td>
+        <td>{{ it.validade.strftime('%d/%m/%Y') if it.validade else '—' }}</td><td>{{ p.status }}</td></tr>
+      {% endfor %}{% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div class="resumo">
+    <div><span>Notas fiscais</span><strong>{{ notas|length }}</strong></div>
+    <div><span>Itens</span><strong>{{ linhas|length }}</strong></div>
+    <div><span>Itens com divergência</span><strong>{{ divergentes|length }}</strong></div>
+    <div><span>Quantidade carregada</span><strong>{{ conferido|numero }}</strong></div>
+  </div>
+
+  <div class="assinaturas">
+    <div>Conferente<small>{{ carga.conferente or ' ' }}</small></div>
+    <div>Motorista<small>{{ carga.motorista or ' ' }}{% if carga.placa %} · {{ carga.placa }}{% endif %}</small></div>
+    <div>Coordenador<small>{{ carga.coordenador or ' ' }}</small></div>
+  </div>
+
+  <p class="rodape">WMS Doca Livre · emitido em {{ emitido_em|datahora }} por {{ emitido_por }}</p>
+</div>
+</body>
+</html>

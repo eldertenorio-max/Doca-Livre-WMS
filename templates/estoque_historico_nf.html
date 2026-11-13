@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Histórico NF{% if numero %} {{ numero }}{% endif %} · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-file-invoice me-2"></i>Histórico NF{% if numero %} · {{ numero }}{% endif %}</h2>
+    <div class="d-flex flex-wrap gap-2">
+        {% if numero and eventos %}<a class="btn btn-outline-primary" href="{{ url_for('estoque.historico_nf', nf=numero, formato='xlsx') }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>{% endif %}
+        {% if numero %}<a class="btn btn-outline-secondary" href="{{ url_for('estoque.historico_nf') }}"><i class="fas fa-arrow-left"></i>Todas as notas</a>{% endif %}
+    </div>
+</div>
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    <div class="col-12 col-md-5 col-lg-4">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="nf" value="{{ numero }}" placeholder="Número da nota fiscal" aria-label="Número da nota fiscal" inputmode="numeric" required {% if not numero %}autofocus{% endif %}>
+        </div>
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-primary"><i class="fas fa-clock-rotate-left"></i>Ver histórico</button></div>
+</form>
+
+{% if numero %}
+    {% if not eventos %}
+    <div class="card"><div class="card-body bloco-dados-altura"><div class="text-center">
+        <h5>Nenhum registro da NF {{ numero }}</h5>
+        <p class="text-muted mb-0">Confira o número. A nota aparece aqui depois de entrar pelo Recebimento, pela Saída ou pelos Retornos.</p>
+    </div></div></div>
+    {% else %}
+    <div class="row g-3 mb-3">
+        {% for n in notas %}
+        <div class="col-12 col-lg-6">
+            <div class="card h-100 mb-0">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="fas fa-{{ 'rotate-left' if n.tipo == 'Retorno' else 'dolly' }}"></i>{{ n.tipo }} {{ selo(n.status) }}
+                    {% if pode_ver('recebimento') %}<a class="btn btn-sm btn-secondary ms-auto" href="{{ url_for('entrada.nota_pdf', nid=n.id) }}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>PDF</a>
+                    <a class="btn btn-sm btn-secondary" href="{{ url_for('entrada.nota', nid=n.id) }}"><i class="fas fa-arrow-right"></i>Abrir</a>{% endif %}
+                </div>
+                <div class="card-body">
+                    <dl class="detalhe-endereco mb-3">
+                        <div><dt>{{ 'Dono da mercadoria' if n.tipo == 'Retorno' else 'Remetente' }}</dt><dd>{{ n.empresa.nome if n.empresa else '—' }}</dd></div>
+                        <div><dt>Emissão</dt><dd>{{ n.data_emissao.strftime('%d/%m/%Y') if n.data_emissao else '—' }}</dd></div>
+                        <div><dt>No sistema desde</dt><dd>{{ n.criado_em|datahora }} · {{ n.criado_por }}</dd></div>
+                        <div><dt>Finalizado em</dt><dd>{{ n.finalizado_em|datahora }}</dd></div>
+                        {% if n.tipo == 'Retorno' %}
+                        <div><dt>Motivo do retorno</dt><dd>{{ n.motivo_retorno or '—' }}</dd></div>
+                        <div><dt>Carga de origem</dt><dd>{{ n.carga.codigo if n.carga else '—' }}</dd></div>
+                        {% endif %}
+                    </dl>
+                    {% if n.paletes %}
+                    <div class="tabela-scroll">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>Palete</th><th>Conteúdo</th><th>Classificação</th><th>Situação</th><th>Onde está</th></tr></thead>
+                            <tbody>
+                                {% for p in n.paletes %}
+                                <tr>
+                                    <td class="codigo-mono">{{ p.etiqueta }}</td>
+                                    <td>{{ resumo_itens(p) }}</td>
+                                    <td>{{ selo(p.classificacao) }}</td>
+                                    <td>{{ selo(p.status) }}</td>
+                                    <td class="codigo-mono">{{ p.endereco.codigo if p.endereco else '—' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}<p class="text-muted small mb-0">Nenhum palete montado ainda.</p>{% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% for c in cargas %}
+        <div class="col-12 col-lg-6">
+            <div class="card h-100 mb-0">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <i class="fas fa-truck-ramp-box"></i>Saída · carga {{ c.codigo }} {{ selo(c.status) }}
+                    {% if pode_ver('expedicao') %}<a class="btn btn-sm btn-secondary ms-auto" href="{{ url_for('saida.carga', cid=c.id) }}"><i class="fas fa-arrow-right"></i>Abrir</a>{% endif %}
+                </div>
+                <div class="card-body">
+                    <dl class="detalhe-endereco mb-3">
+                        <div><dt>Cliente</dt><dd>{{ (saidas|selectattr('carga_id', 'equalto', c.id)|first).cliente or '—' }}</dd></div>
+                        <div><dt>Saiu em</dt><dd>{{ c.fim_conferencia|datahora }}</dd></div>
+                        <div><dt>Placa</dt><dd>{{ c.placa or '—' }}</dd></div>
+                        <div><dt>Motorista</dt><dd>{{ c.motorista or '—' }}</dd></div>
+                    </dl>
+                    <div class="tabela-scroll">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>Produto</th><th class="text-end">Da nota</th><th class="text-end">Conferido</th><th>Divergência</th></tr></thead>
+                            <tbody>
+                                {% for i in saidas if i.carga_id == c.id %}
+                                <tr>
+                                    <td><strong>{{ i.produto.sku }}</strong> · {{ i.produto.descricao }}</td>
+                                    <td class="text-end">{{ i.quantidade|numero }}</td>
+                                    <td class="text-end">{{ i.conferido|numero }}</td>
+                                    <td>{{ i.motivo_divergencia or '—' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <div class="card-header"><i class="fas fa-timeline me-2"></i>Linha do tempo · {{ eventos|length }} registro(s)</div>
+        <div class="card-body">
+            <ol class="linha-tempo">
+                {% for e in eventos %}
+                <li>
+                    <span class="linha-tempo-quando">{{ e.quando|datahora }}</span>
+                    <span class="linha-tempo-tipo">{{ selo(e.tipo) }}</span>
+                    <span class="linha-tempo-texto">{% if e.link %}<a href="{{ e.link }}">{{ e.texto }}</a>{% else %}{{ e.texto }}{% endif %}{% if e.usuario %}<small class="text-muted"> · {{ e.usuario }}</small>{% endif %}</span>
+                </li>
+                {% endfor %}
+            </ol>
+        </div>
+    </div>
+    {% endif %}
+{% else %}
+<div class="card">
+    <div class="card-header"><i class="fas fa-list me-2"></i>Notas mais recentes</div>
+    <div class="card-body">
+        {% if recentes %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>NF</th><th>Tipo</th><th>Remetente / cliente</th><th>Carga</th><th>Situação</th><th>Data</th><th></th></tr></thead>
+                <tbody>
+                    {% for r in recentes %}
+                    <tr>
+                        <td><strong>{{ r.numero }}</strong></td>
+                        <td>{{ selo(r.tipo) }}</td>
+                        <td>{{ r.quem or '—' }}</td>
+                        <td>{{ r.carga or '—' }}</td>
+                        <td>{{ selo(r.situacao) }}</td>
+                        <td class="text-nowrap">{{ r.quando|datahora }}</td>
+                        <td class="text-end"><a class="btn btn-sm btn-secondary" href="{{ url_for('estoque.historico_nf', nf=r.numero) }}"><i class="fas fa-clock-rotate-left"></i>Histórico</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura"><div class="text-center">
+            <h5>Nenhuma nota no sistema ainda</h5>
+            <p class="text-muted mb-0">Digite o número de uma nota para ver tudo o que aconteceu com ela: entrada, paletes, movimentações, saída e retorno.</p>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

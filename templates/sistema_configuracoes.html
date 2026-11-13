@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Configurações · WMS Doca Livre{% endblock %}
+
+{% macro v(chave) %}{{ form.get(chave, '') if form else valores[chave] }}{% endmacro %}
+{% set separacao = (form.get('separacao') if form else valores.separacao) %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-sliders me-2"></i>Configurações e backup</h2>
+</div>
+
+<form method="POST" action="{{ url_for('sistema.configuracoes') }}" autocomplete="off">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="row g-3">
+        <div class="col-12 col-xl-6">
+            <div class="card h-100"><div class="card-body">
+                <h5 class="mb-3"><i class="fas fa-truck-ramp-box me-2"></i>Regra de separação</h5>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="radio" name="separacao" id="sepFefo" value="FEFO" {% if separacao != 'FIFO' %}checked{% endif %}>
+                    <label class="form-check-label" for="sepFefo"><strong>FEFO</strong> — sai primeiro o que <strong>vence</strong> primeiro
+                        <small class="d-block text-muted">Indicado para alimentos. Produto sem validade informada segue a ordem de entrada.</small></label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="separacao" id="sepFifo" value="FIFO" {% if separacao == 'FIFO' %}checked{% endif %}>
+                    <label class="form-check-label" for="sepFifo"><strong>FIFO</strong> — sai primeiro o que foi <strong>fabricado / entrou</strong> primeiro
+                        <small class="d-block text-muted">Era a regra do sistema até aqui.</small></label>
+                </div>
+                <p class="text-muted small mt-3 mb-0">Vale para as próximas listas de separação e para a indicação de onde guardar (o que sai primeiro fica embaixo). As listas já geradas não mudam.</p>
+            </div></div>
+        </div>
+        <div class="col-12 col-xl-6">
+            <div class="card h-100"><div class="card-body">
+                <h5 class="mb-3"><i class="fas fa-bell me-2"></i>Alertas</h5>
+                <div class="row g-3">
+                    <div class="col-12 col-md-5"><label class="form-label" for="cfDias">Avisar da validade com antecedência de</label>
+                        <div class="input-group"><input type="number" class="form-control" id="cfDias" name="alerta_validade_dias" min="0" max="3650" required value="{{ v('alerta_validade_dias') }}"><span class="input-group-text">dias</span></div></div>
+                    <div class="col-12 col-md-7"><label class="form-label" for="cfEmails">E-mails que recebem o resumo diário</label>
+                        <input type="text" class="form-control" id="cfEmails" name="alerta_emails" maxlength="300" placeholder="um ou mais, separados por espaço" value="{{ v('alerta_emails') }}"></div>
+                </div>
+                <p class="small mt-3 mb-0 {{ 'text-muted' if smtp else 'text-warning-emphasis' }}">
+                    {% if smtp %}Servidor de e-mail configurado. O resumo sai uma vez por dia, no primeiro acesso, quando houver alerta.
+                    {% else %}O envio por e-mail está desligado: falta o servidor de e-mail no arquivo <code>.env</code> (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD). Os alertas aparecem normalmente no sino do topo e na tela Alertas.{% endif %}</p>
+            </div></div>
+        </div>
+        <div class="col-12">
+            <div class="card"><div class="card-body">
+                <h5 class="mb-3"><i class="fas fa-database me-2"></i>Backup do banco de dados</h5>
+                {% if tem_backup %}
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-4 col-xl-3"><label class="form-label" for="cfManter">Guardar os últimos</label>
+                        <div class="input-group"><input type="number" class="form-control" id="cfManter" name="backup_manter" min="1" max="365" required value="{{ v('backup_manter') }}"><span class="input-group-text">backups</span></div></div>
+                    <div class="col-12 col-md-8 col-xl-9"><p class="text-muted small mb-0">O sistema faz uma cópia do banco por dia, sozinho, no primeiro acesso do dia, e guarda na pasta <code>instance/backups</code>. As cópias ficam no mesmo computador: para proteger contra perda do computador, copie essa pasta para outro lugar (nuvem ou HD externo).</p></div>
+                </div>
+                {% else %}
+                <input type="hidden" name="backup_manter" value="{{ v('backup_manter') }}">
+                <p class="text-muted mb-0">Este sistema está usando um banco em servidor (não é um arquivo). O backup é feito pelo próprio servidor do banco.</p>
+                {% endif %}
+            </div></div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3"><i class="fas fa-check"></i>Salvar configurações</button>
+</form>
+
+<div class="d-flex flex-wrap gap-2 mt-3">
+    {% if tem_backup %}
+    <form method="POST" action="{{ url_for('sistema.backup_agora') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-primary"><i class="fas fa-floppy-disk"></i>Fazer backup agora</button></form>
+    {% endif %}
+    <form method="POST" action="{{ url_for('sistema.email_teste') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-secondary"><i class="fas fa-paper-plane"></i>Enviar e-mail de alertas agora</button></form>
+</div>
+
+{% if tem_backup %}
+<div class="card mt-3"><div class="card-body">
+    <h5 class="mb-3">Backups guardados ({{ backups|length }})</h5>
+    {% if backups %}
+    <div class="tabela-scroll">
+        <table class="table table-striped mb-0 align-middle">
+            <thead><tr><th>Feito em</th><th>Arquivo</th><th class="text-end">Tamanho</th>{% if eh_super %}<th></th>{% endif %}</tr></thead>
+            <tbody>
+                {% for b in backups %}
+                <tr><td>{{ b.quando }}</td><td class="codigo-mono">{{ b.nome }}</td><td class="text-end">{{ (b.tamanho / 1024 / 1024)|round(2)|numero }} MB</td>
+                    {% if eh_super %}<td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('sistema.backup_baixar', nome=b.nome) }}"><i class="fas fa-download"></i>Baixar</a></td>{% endif %}</tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted small mt-2 mb-0">Para voltar a um backup: pare o sistema, troque o arquivo <code>instance/wms.db</code> pelo backup escolhido e inicie de novo.{% if not eh_super %} Só o Super Usuário baixa os arquivos.{% endif %}</p>
+    {% else %}
+    <p class="text-muted mb-0">Nenhum backup ainda. O primeiro é feito sozinho no próximo acesso, ou clique em "Fazer backup agora".</p>
+    {% endif %}
+</div></div>
+{% endif %}
+{% endblock %}

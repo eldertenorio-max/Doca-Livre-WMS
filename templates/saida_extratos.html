@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Extrato · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-receipt me-2"></i>Extrato de carregamento</h2>
+    <form method="GET" class="d-flex gap-2" autocomplete="off">
+        <input type="search" class="form-control" name="carga" placeholder="Código da carga" aria-label="Buscar o extrato pelo código da carga" style="width: 200px; text-transform: uppercase;" autofocus>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-magnifying-glass"></i>Buscar</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-truck-fast me-2"></i>Últimas cargas</div>
+    <div class="card-body">
+        {% if cargas %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Carga</th><th>Expedição</th><th>Placa</th><th>Notas</th><th>Itens</th><th>Conferido</th><th>Divergências</th><th>Situação</th><th></th></tr></thead>
+                <tbody>
+                    {% for c, r in cargas %}
+                    <tr>
+                        <td><strong>{{ c.codigo }}</strong></td>
+                        <td>{{ c.data_expedicao.strftime('%d/%m/%Y') if c.data_expedicao else '—' }}</td>
+                        <td>{{ c.placa or '—' }}</td>
+                        <td>{{ r.notas|join(', ') or '—' }}</td>
+                        <td>{{ c.itens|length }}</td>
+                        <td>{{ r.conferido|numero }} de {{ r.total|numero }}</td>
+                        <td>{% if r.divergentes and c.status != 'Aberta' %}<span class="badge bg-warning">{{ r.divergentes|length }}</span>{% else %}—{% endif %}</td>
+                        <td>{{ selo(c.status) }}</td>
+                        <td class="text-end text-nowrap">
+                            <a href="{{ url_for('saida.extrato', cid=c.id, formato='xlsx') }}" class="btn btn-sm btn-secondary" title="Baixar em Excel" aria-label="Baixar o extrato da carga {{ c.codigo }} em Excel"><i class="fas fa-file-excel"></i></a>
+                            <a href="{{ url_for('saida.extrato', cid=c.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-primary"><i class="fas fa-receipt"></i>Extrato</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center">
+                <h5>Nenhuma carga ainda</h5>
+                <p class="text-muted mb-0">O extrato fica disponível para cada carga importada em Saída por XML.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

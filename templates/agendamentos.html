@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% from '_estoque_partes.html' import paginacao %}
+{% block title %}Agendamento · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('agendamento') %}
+{% set DIAS = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'] %}
+{% macro quando(d) %}{{ d.strftime('%d/%m %H:%M') if d else '—' }}{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-calendar-check me-2"></i>Agendamento</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-outline-primary" href="{{ url_for('agendamento.ocorrencias') }}"><i class="fas fa-triangle-exclamation"></i>Ocorrências{% if resumo.ocorrencias %} <span class="badge bg-danger ms-1">{{ resumo.ocorrencias }}</span>{% endif %}</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('agendamento.lista', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+        {% if editar %}<button type="button" class="btn btn-primary" id="btnNovoAgendamento"><i class="fas fa-plus"></i>Novo agendamento</button>{% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-calendar-day"></i></span><div><div class="kpi-valor">{{ resumo.hoje }}</div><div class="kpi-rotulo">Agendados para hoje</div></div><a href="{{ url_for('agendamento.lista', periodo='hoje') }}" class="stretched-link" aria-label="Ver os de hoje"></a></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-truck"></i></span><div><div class="kpi-valor">{{ resumo.patio }}</div><div class="kpi-rotulo">No pátio ou em operação</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi{% if resumo.atrasados %} kpi--alerta{% endif %}"><span class="kpi-icone"><i class="fas fa-clock"></i></span><div><div class="kpi-valor">{{ resumo.atrasados }}</div><div class="kpi-rotulo">De dias anteriores, em aberto</div></div><a href="{{ url_for('agendamento.lista', periodo='atrasados') }}" class="stretched-link" aria-label="Ver os atrasados"></a></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi{% if resumo.ocorrencias %} kpi--alerta{% endif %}"><span class="kpi-icone"><i class="fas fa-triangle-exclamation"></i></span><div><div class="kpi-valor">{{ resumo.ocorrencias }}</div><div class="kpi-rotulo">Ocorrências abertas</div></div><a href="{{ url_for('agendamento.ocorrencias') }}" class="stretched-link" aria-label="Ver as ocorrências"></a></div></div>
+</div>
+
+<form method="GET" class="row g-2 mb-3 align-items-end" autocomplete="off">
+    <div class="col-6 col-md-2">
+        <label class="form-label" for="agPeriodo">Período</label>
+        <select class="form-select" id="agPeriodo" name="periodo" onchange="this.form.de.value=''; this.form.ate.value=''; this.form.submit()">
+            <option value="semana" {% if f.periodo == 'semana' %}selected{% endif %}>Próximos 7 dias</option>
+            <option value="hoje" {% if f.periodo == 'hoje' %}selected{% endif %}>Hoje</option>
+            <option value="atrasados" {% if f.periodo == 'atrasados' %}selected{% endif %}>Atrasados em aberto</option>
+            <option value="todos" {% if f.periodo == 'todos' %}selected{% endif %}>Todos</option>
+            {% if f.periodo == 'datas' %}<option value="datas" selected>Entre datas</option>{% endif %}
+        </select>
+    </div>
+    <div class="col-6 col-md-2"><label class="form-label" for="agDe">De</label><input type="date" class="form-control" id="agDe" name="de" value="{{ f.de }}"></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="agAte">Até</label><input type="date" class="form-control" id="agAte" name="ate" value="{{ f.ate }}"></div>
+    <div class="col-6 col-md-2">
+        <label class="form-label" for="agTipo">Tipo</label>
+        <select class="form-select" id="agTipo" name="tipo" onchange="this.form.submit()"><option value="">Todos</option>{% for t in tipos %}<option value="{{ t }}" {% if f.tipo == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-6 col-md-2">
+        <label class="form-label" for="agStatus">Situação</label>
+        <select class="form-select" id="agStatus" name="status" onchange="this.form.submit()"><option value="">Todas</option><option value="abertos" {% if f.status == 'abertos' %}selected{% endif %}>Em aberto</option>{% for s in status %}<option value="{{ s }}" {% if f.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-12 col-md-4"><label class="form-label" for="agBusca">Busca</label><input type="search" class="form-control" id="agBusca" name="q" value="{{ f.q }}" placeholder="NF, cliente, transportadora, placa, pedido ou protocolo"></div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if filtros or f.periodo == 'datas' %}<a href="{{ url_for('agendamento.lista') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+{% if dias %}
+{% for dia in dias %}
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="fas fa-calendar-day"></i><strong>{{ dia.data.strftime('%d/%m/%Y') }}</strong><span class="text-muted">{{ DIAS[dia.data.weekday()] }}{% if dia.data == hoje %} · hoje{% endif %}</span>
+        <span class="text-muted ms-auto small">{{ dia.itens|length }} agendamento(s)</span>
+    </div>
+    <div class="card-body">
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0 align-middle">
+                <thead><tr><th>Hora</th><th>Tipo</th><th>Doca</th><th>Cliente / fornecedor</th><th>NF</th><th>Veículo</th><th class="text-end">Volumes</th><th>Situação</th><th>No WMS</th><th></th></tr></thead>
+                <tbody>
+                    {% for i in dia.itens %}
+                    {% set a = i.a %}
+                    <tr>
+                        <td class="text-nowrap"><strong>{{ a.hora or '—' }}</strong>{% if i.atrasado %}<span class="d-block small text-danger fw-semibold">atrasado</span>{% endif %}</td>
+                        <td>{{ selo(a.tipo) }}</td>
+                        <td>{{ a.doca or '—' }}</td>
+                        <td>{{ a.cliente }}{% if a.transportadora %}<small class="d-block text-muted">{{ a.transportadora }}</small>{% endif %}{% if a.observacao %}<small class="d-block text-muted">{{ a.observacao }}</small>{% endif %}</td>
+                        <td>{{ a.nf_numero or '—' }}{% if a.pedido %}<small class="d-block text-muted">ped. {{ a.pedido }}</small>{% endif %}</td>
+                        <td class="text-nowrap">{{ a.placa or '—' }}{% if a.motorista %}<small class="d-block text-muted">{{ a.motorista }}</small>{% endif %}</td>
+                        <td class="text-end">{{ a.volumes|numero if a.volumes is not none else '—' }}</td>
+                        <td>{{ selo(a.status) }}{% if a.chegada_em %}<small class="d-block text-muted">chegou {{ quando(a.chegada_em) }}</small>{% endif %}{% if a.fim_em %}<small class="d-block text-muted">saiu {{ quando(a.fim_em) }}</small>{% endif %}
+                            {% if i.ocorrencias %}<a class="d-block small text-danger fw-semibold" href="{{ url_for('agendamento.ocorrencias', q=a.nf_numero or a.cliente) }}"><i class="fas fa-triangle-exclamation"></i> {{ i.ocorrencias }} ocorrência(s)</a>{% endif %}</td>
+                        <td class="small">{% if i.wms[1] %}<a href="{{ url_for(i.wms[1], **i.wms[2]) }}">{{ i.wms[0] }}</a>{% else %}<span class="text-muted">{{ i.wms[0] }}</span>{% endif %}</td>
+                        <td class="text-end text-nowrap">
+                            {% if editar %}
+                            <form method="POST" action="{{ url_for('agendamento.mudar_status', aid=a.id) }}" class="d-inline">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                {% if a.status == 'Agendado' %}<button type="submit" name="acao" value="chegou" class="btn btn-sm btn-primary" title="Registrar a chegada do veículo"><i class="fas fa-truck-arrow-right"></i>Chegou</button>
+                                {% elif a.status == 'No pátio' %}<button type="submit" name="acao" value="iniciar" class="btn btn-sm btn-primary" title="Veículo encostou na doca"><i class="fas fa-play"></i>Iniciar</button>
+                                {% elif a.status == 'Em operação' %}<button type="submit" name="acao" value="concluir" class="btn btn-sm btn-primary"><i class="fas fa-flag-checkered"></i>Concluir</button>
+                                {% else %}<button type="submit" name="acao" value="reabrir" class="btn btn-sm btn-outline-secondary" title="Voltar a deixar em aberto"><i class="fas fa-rotate-left"></i>Reabrir</button>{% endif %}
+                            </form>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Mais ações do agendamento de {{ a.cliente }}"><i class="fas fa-ellipsis"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><button type="button" class="dropdown-item" data-editar-agendamento="{{ {'id': a.id, 'acao': url_for('agendamento.editar', aid=a.id), 'tipo': a.tipo, 'data': a.data.isoformat(), 'hora': a.hora or '', 'doca': a.doca or '', 'cliente': a.cliente, 'nf_numero': a.nf_numero or '', 'pedido': a.pedido or '', 'transportadora': a.transportadora or '', 'placa': a.placa or '', 'motorista': a.motorista or '', 'volumes': ('%g'|format(a.volumes))|replace('.', ',') if a.volumes is not none else '', 'peso': ('%g'|format(a.peso))|replace('.', ',') if a.peso is not none else '', 'protocolo': a.protocolo or '', 'observacao': a.observacao or ''}|tojson|forceescape }}"><i class="fas fa-pen me-2"></i>Editar</button></li>
+                                    <li><button type="button" class="dropdown-item" data-ocorrencia="{{ {'id': a.id, 'nf': a.nf_numero or '', 'rotulo': a.cliente ~ ' · ' ~ a.data.strftime('%d/%m') ~ (' ' ~ a.hora if a.hora else '')}|tojson|forceescape }}"><i class="fas fa-triangle-exclamation me-2"></i>Registrar ocorrência</button></li>
+                                    {% if a.status == 'Agendado' %}
+                                    <li><form method="POST" action="{{ url_for('agendamento.mudar_status', aid=a.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" name="acao" value="faltou" class="dropdown-item" onclick="return confirm('Marcar que {{ a.cliente }} não compareceu? Isso abre uma ocorrência.');"><i class="fas fa-user-xmark me-2"></i>Não compareceu</button></form></li>
+                                    {% endif %}
+                                    {% if a.status in ('Agendado', 'No pátio', 'Em operação') %}
+                                    <li><button type="button" class="dropdown-item text-danger" data-cancelar="{{ {'acao': url_for('agendamento.mudar_status', aid=a.id), 'rotulo': a.cliente}|tojson|forceescape }}"><i class="fas fa-ban me-2"></i>Cancelar</button></li>
+                                    {% endif %}
+                                    {% if not a.chegada_em %}
+                                    <li><form method="POST" action="{{ url_for('agendamento.excluir', aid=a.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button type="submit" class="dropdown-item text-danger" onclick="return confirm('Excluir este agendamento de {{ a.cliente }}?');"><i class="fas fa-trash me-2"></i>Excluir</button></form></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+<div class="px-1">{{ paginacao('agendamento.lista', pagina, paginas, total, 'agendamento(s)', filtros) }}</div>
+{% else %}
+<div class="card"><div class="card-body bloco-dados-altura"><div class="text-center" style="max-width: 560px;">
+    {% if filtros or f.periodo != 'semana' %}
+    <h5>Nenhum agendamento com esse filtro</h5>
+    <p class="mb-0"><a href="{{ url_for('agendamento.lista', periodo='todos') }}">Ver todos os agendamentos</a></p>
+    {% else %}
+    <h5>Nada agendado para os próximos 7 dias</h5>
+    <p class="text-muted mb-0">{% if editar %}Use <strong>Novo agendamento</strong> para marcar uma entrada, saída ou retorno. Com a NF informada, a situação acompanha sozinha o que acontece com a nota no WMS.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+    {% endif %}
+</div></div></div>
+{% endif %}
+
+{% if editar %}
+{# Novo / editar agendamento (a mesma janela) #}
+<div class="modal fade" id="modalAgendamento" tabindex="-1" aria-labelledby="modalAgendamentoTitulo" aria-hidden="true"
+     data-novo="{{ url_for('agendamento.novo') }}" data-reabrir="{{ ({'editando': url_for('agendamento.editar', aid=editando) if editando else '', 'campos': form.to_dict()} if form else none)|tojson|forceescape }}">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" method="POST" autocomplete="off" id="formAgendamento">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAgendamentoTitulo"><i class="fas fa-calendar-plus me-2"></i><span id="agTitulo">Novo agendamento</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-6 col-md-3"><label class="form-label" for="aTipo">Tipo <span class="obrigatorio">*</span></label>
+                        <select class="form-select" id="aTipo" name="tipo" required>{% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aData">Data <span class="obrigatorio">*</span></label><input type="date" class="form-control" id="aData" name="data" required></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aHora">Hora</label><input type="time" class="form-control" id="aHora" name="hora"></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aDoca">Doca</label><input type="text" class="form-control" id="aDoca" name="doca" maxlength="10"></div>
+                    <div class="col-12 col-md-6"><label class="form-label" for="aCliente">Cliente / fornecedor <span class="obrigatorio">*</span></label><input type="text" class="form-control" id="aCliente" name="cliente" maxlength="150" required></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aNf">Nota fiscal</label><input type="text" inputmode="numeric" class="form-control" id="aNf" name="nf_numero" maxlength="15"></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aPedido">Pedido</label><input type="text" class="form-control" id="aPedido" name="pedido" maxlength="30"></div>
+                    <div class="col-12 col-md-6"><label class="form-label" for="aTransp">Transportadora</label><input type="text" class="form-control" id="aTransp" name="transportadora" maxlength="150"></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aPlaca">Placa</label><input type="text" class="form-control" id="aPlaca" name="placa" maxlength="8" style="text-transform: uppercase;"></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aMotorista">Motorista</label><input type="text" class="form-control" id="aMotorista" name="motorista" maxlength="120"></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aVolumes">Volumes</label><input type="text" inputmode="decimal" class="form-control" id="aVolumes" name="volumes"></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="aPeso">Peso (kg)</label><input type="text" inputmode="decimal" class="form-control" id="aPeso" name="peso"></div>
+                    <div class="col-12 col-md-6"><label class="form-label" for="aProtocolo">Protocolo</label><input type="text" class="form-control" id="aProtocolo" name="protocolo" maxlength="40"></div>
+                    <div class="col-12"><label class="form-label" for="aObs">Observação</label><input type="text" class="form-control" id="aObs" name="observacao" maxlength="300"></div>
+                    <div class="col-12">
+                        <div class="form-check"><input class="form-check-input" type="checkbox" id="aConflito" name="aceitar_conflito" value="1"><label class="form-check-label" for="aConflito">Agendar mesmo assim se a doca já estiver ocupada nesse horário</label></div>
+                    </div>
+                </div>
+                <p class="text-muted small mt-3 mb-0">Com a <strong>nota fiscal</strong> informada, o agendamento acompanha o WMS: passa a "Em operação" quando a nota entra em conferência (ou a carga começa a ser separada) e a "Concluído" quando ela é finalizada ou expedida.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalCancelarAg" tabindex="-1" aria-labelledby="modalCancelarAgTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" id="formCancelarAg" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="acao" value="cancelar">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCancelarAgTitulo"><i class="fas fa-ban me-2"></i>Cancelar agendamento de <span id="cancRotulo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="cancMotivo">Motivo <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="cancMotivo" name="motivo" maxlength="200" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                <button type="submit" class="btn btn-danger"><i class="fas fa-ban"></i>Cancelar agendamento</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalOcorrencia" tabindex="-1" aria-labelledby="modalOcorrenciaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('agendamento.ocorrencia_nova') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="agendamento_id" id="ocAgendamento">
+            <input type="hidden" name="voltar" value="{{ request.full_path.rstrip('?') }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalOcorrenciaTitulo"><i class="fas fa-triangle-exclamation me-2"></i>Registrar ocorrência</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small" id="ocRotulo"></p>
+                <div class="row g-3">
+                    <div class="col-7"><label class="form-label" for="ocTipo">Tipo <span class="obrigatorio">*</span></label>
+                        <select class="form-select" id="ocTipo" name="tipo" required><option value="">— escolher —</option>{% for t in tipos_ocorrencia %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+                    <div class="col-5"><label class="form-label" for="ocNf">Nota fiscal</label><input type="text" class="form-control" id="ocNf" name="nf_numero" maxlength="15"></div>
+                    <div class="col-12"><label class="form-label" for="ocDescricao">O que aconteceu <span class="obrigatorio">*</span></label>
+                        <textarea class="form-control" id="ocDescricao" name="descricao" rows="3" maxlength="500" required></textarea></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Registrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Agendamento: a mesma janela serve para criar e para editar; cancelar e ocorrência têm a sua.
+(function () {
+    var modalEl = document.getElementById('modalAgendamento');
+    if (!modalEl) return;
+    var modal = new bootstrap.Modal(modalEl), form = document.getElementById('formAgendamento');
+    var CAMPOS = ['tipo', 'data', 'hora', 'doca', 'cliente', 'nf_numero', 'pedido', 'transportadora', 'placa', 'motorista', 'volumes', 'peso', 'protocolo', 'observacao'];
+    function abrir(acao, titulo, valores) {
+        form.action = acao;
+        document.getElementById('agTitulo').textContent = titulo;
+        CAMPOS.forEach(function (c) { if (form[c]) form[c].value = valores[c] != null ? valores[c] : ''; });
+        if (!form.tipo.value) form.tipo.selectedIndex = 0;
+        form.aceitar_conflito.checked = valores.aceitar_conflito === '1';
+        modal.show();
+    }
+    document.getElementById('btnNovoAgendamento').addEventListener('click', function () {
+        abrir(modalEl.getAttribute('data-novo'), 'Novo agendamento', { data: {{ hoje.isoformat()|tojson }} });
+    });
+    document.querySelectorAll('[data-editar-agendamento]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var d = JSON.parse(b.getAttribute('data-editar-agendamento'));
+            abrir(d.acao, 'Editar agendamento de ' + d.cliente, d);
+        });
+    });
+    modalEl.addEventListener('shown.bs.modal', function () { form.cliente.focus(); });
+    // O servidor recusou: a janela volta aberta com o que foi preenchido.
+    var reabrir = JSON.parse(modalEl.getAttribute('data-reabrir'));
+    if (reabrir) abrir(reabrir.editando || modalEl.getAttribute('data-novo'), reabrir.editando ? 'Editar agendamento' : 'Novo agendamento', reabrir.campos);
+
+    var modalCanc = new bootstrap.Modal(document.getElementById('modalCancelarAg'));
+    document.querySelectorAll('[data-cancelar]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var d = JSON.parse(b.getAttribute('data-cancelar'));
+            document.getElementById('formCancelarAg').action = d.acao;
+            document.getElementById('cancRotulo').textContent = d.rotulo;
+            document.getElementById('cancMotivo').value = '';
+            modalCanc.show();
+        });
+    });
+    var modalOc = new bootstrap.Modal(document.getElementById('modalOcorrencia'));
+    document.querySelectorAll('[data-ocorrencia]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var d = JSON.parse(b.getAttribute('data-ocorrencia'));
+            document.getElementById('ocAgendamento').value = d.id;
+            document.getElementById('ocNf').value = d.nf;
+            document.getElementById('ocRotulo').textContent = 'Agendamento: ' + d.rotulo;
+            document.getElementById('ocTipo').value = '';
+            document.getElementById('ocDescricao').value = '';
+            modalOc.show();
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "coletor_base.html" %}
+{% block voltar %}<a href="{{ url_for('coletor.separacao') if carga else url_for('coletor.inicio') }}" class="coletor-voltar" aria-label="Voltar"><i class="fas fa-arrow-left"></i></a>{% endblock %}
+{% block corpo %}
+{% if not carga %}
+{% if cargas %}
+<div class="coletor-lista">
+    {% for c in cargas %}
+    <a href="{{ url_for('coletor.separacao_carga', cid=c.carga.id) }}">
+        <span><strong>Carga {{ c.carga.codigo }}</strong><small>{{ c.carga.status }}{% if c.carga.placa %} · {{ c.carga.placa }}{% endif %} · {{ c.total - c.pendentes }} de {{ c.total }} separada(s)</small></span>
+        <em>{{ c.pendentes if c.total else 'gerar lista' }}</em>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="coletor-vazio">Nenhuma carga aberta para separar.</p>
+{% endif %}
+
+{% else %}
+{% set aqui = url_for('coletor.separacao_carga', cid=carga.id) %}
+<div class="coletor-progresso" aria-label="Progresso da separação"><span style="width: {{ (100 * feitas / total)|round|int if total else 0 }}%"></span><b>{{ feitas }} de {{ total }}</b></div>
+{% if tarefa %}
+<section class="coletor-cartao coletor-destaque">
+    <span class="coletor-rotulo">Buscar em</span>
+    <p class="coletor-gigante">{{ tarefa.origem }}</p>
+    <p class="coletor-detalhe">Palete {{ tarefa.palete.etiqueta }}</p>
+</section>
+<section class="coletor-cartao">
+    <span class="coletor-rotulo">Separar</span>
+    <p class="coletor-codigo">{{ tarefa.quantidade|numero }} {{ tarefa.item.unidade }}</p>
+    <p class="coletor-detalhe"><strong>{{ tarefa.item.produto.sku }}</strong> · {{ tarefa.item.produto.descricao }}</p>
+    <p class="coletor-detalhe">{% if tarefa.palete_item.lote %}Lote {{ tarefa.palete_item.lote }}{% endif %}{% if tarefa.palete_item.validade %} · val. {{ tarefa.palete_item.validade.strftime('%d/%m/%Y') }}{% endif %}{% if tarefa.item.nf_numero %} · NF {{ tarefa.item.nf_numero }}{% endif %}</p>
+</section>
+{% if editar and aberta %}
+<form method="POST" action="{{ url_for('saida.confirmar_tarefa', tid=tarefa.id) }}" autocomplete="off" class="coletor-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
+    <label for="csCodigo">Bipe o palete ou a longarina de origem</label>
+    <input type="text" id="csCodigo" name="codigo" class="coletor-campo" required data-bipar autocapitalize="characters" enterkeyhint="go" placeholder="Palete ou longarina">
+    <button type="submit" class="coletor-acao"><i class="fas fa-check"></i>Confirmar separação</button>
+</form>
+{% endif %}
+{% if proximas %}
+<h2 class="coletor-subtitulo">Próximas</h2>
+<div class="coletor-lista coletor-lista--parada">
+    {% for t in proximas %}<div><span><strong>{{ t.origem }}</strong><small>{{ t.item.produto.sku }} · {{ t.item.produto.descricao }}</small></span><em>{{ t.quantidade|numero }} {{ t.item.unidade }}</em></div>{% endfor %}
+</div>
+{% endif %}
+{% elif total %}
+<div class="coletor-aviso coletor-aviso--ok"><i class="fas fa-circle-check"></i><span>Tudo separado. A carga está no stage, pronta para a conferência de carregamento.</span></div>
+{% else %}
+<p class="coletor-vazio">Esta carga ainda não tem lista de separação.</p>
+{% endif %}
+{% if editar and aberta and not tarefa %}
+<form method="POST" action="{{ url_for('saida.gerar_separacao', cid=carga.id) }}" class="coletor-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
+    <button type="submit" class="coletor-acao{% if total %} coletor-acao--leve{% endif %}"><i class="fas fa-list-check"></i>{{ 'Procurar o que falta separar' if total else 'Gerar lista de separação' }}</button>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from '_estoque_partes.html' import cartao_filtro %}
+{% block title %}Alertas · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-bell me-2"></i>Alertas</h2>
+    {% if pode_ver('admin') %}<a class="btn btn-outline-secondary" href="{{ url_for('sistema.configuracoes') }}"><i class="fas fa-sliders"></i>Configurar alertas</a>{% endif %}
+</div>
+
+<p class="text-muted small">Validade: produtos em estoque vencidos ou que vencem em até {{ dias }} dia(s). Estoque mínimo: saldo bom abaixo do mínimo do cadastro do produto. Temperatura: câmara com a última leitura fora da faixa.</p>
+
+<div class="cartoes-filtro mb-3" role="navigation" aria-label="Filtrar por tipo de alerta">
+    {{ cartao_filtro('Todos', todos, url_for('sistema.alertas'), not tipo) }}
+    {% for t, n in tipos %}{{ cartao_filtro(t, n, url_for('sistema.alertas', tipo=t), tipo == t) }}{% endfor %}
+    <div class="cartao-filtro cartao-filtro--vermelho"><strong>{{ graves }}</strong><span>Graves</span></div>
+</div>
+
+<div class="card"><div class="card-body">
+    {% if alertas %}
+    <ul class="fin-lista">
+        {% for a in alertas %}
+        <li>
+            <div><span class="badge bg-{{ 'danger' if a.grave else 'warning text-dark' }}">{{ a.tipo }}</span> <strong>{{ a.titulo }}</strong>
+                <small class="d-block text-muted">{{ a.detalhe }}</small></div>
+            <a class="btn btn-sm btn-outline-primary" href="{{ a.url }}">Ver</a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="bloco-dados-altura"><div class="text-center"><h5>Nenhum alerta</h5><p class="text-muted mb-0">Nada vencendo, nenhum produto abaixo do mínimo e nenhuma câmara fora da faixa.</p></div></div>
+    {% endif %}
+</div></div>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% from '_estoque_partes.html' import paginacao %}
+{% block title %}Ocorrências · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('agendamento') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-triangle-exclamation me-2"></i>Ocorrências</h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('agendamento.lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Agendamento</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('agendamento.ocorrencias', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+        {% if editar %}<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaOcorrencia"><i class="fas fa-plus"></i>Nova ocorrência</button>{% endif %}
+    </div>
+</div>
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    <div class="col-6 col-md-2">
+        <select class="form-select" name="status" aria-label="Situação" onchange="this.form.submit()">
+            <option value="Aberta" {% if f.status == 'Aberta' %}selected{% endif %}>Abertas ({{ abertas }})</option>
+            <option value="Resolvida" {% if f.status == 'Resolvida' %}selected{% endif %}>Resolvidas</option>
+            <option value="todas" {% if f.status == 'todas' %}selected{% endif %}>Todas</option>
+        </select>
+    </div>
+    <div class="col-6 col-md-3">
+        <select class="form-select" name="tipo" aria-label="Tipo" onchange="this.form.submit()"><option value="">Todos os tipos</option>{% for t in tipos %}<option value="{{ t }}" {% if f.tipo == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="input-group"><span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ f.q }}" placeholder="NF, cliente, placa ou texto" aria-label="Buscar ocorrência"></div>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if filtros %}<a href="{{ url_for('agendamento.ocorrencias') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if ocorrencias %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0 align-middle">
+                <thead><tr><th>Aberta em</th><th>Tipo</th><th>NF</th><th>Agendamento</th><th>O que aconteceu</th><th>Situação</th>{% if editar %}<th></th>{% endif %}</tr></thead>
+                <tbody>
+                    {% for o in ocorrencias %}
+                    <tr>
+                        <td class="text-nowrap">{{ o.criado_em|datahora }}<small class="d-block text-muted">{{ o.criado_por }}{% if o.origem != 'WMS' %} · {{ o.origem }}{% endif %}</small></td>
+                        <td>{{ o.tipo }}</td>
+                        <td>{% if o.nf_numero %}{% if pode_ver('estoque') %}<a href="{{ url_for('estoque.historico_nf', nf=o.nf_numero) }}" title="Histórico desta NF">{{ o.nf_numero }}</a>{% else %}{{ o.nf_numero }}{% endif %}{% else %}—{% endif %}</td>
+                        <td>{% if o.agendamento %}{{ o.agendamento.cliente }}<small class="d-block text-muted">{{ o.agendamento.tipo }} · {{ o.agendamento.data.strftime('%d/%m/%Y') }}{% if o.agendamento.hora %} {{ o.agendamento.hora }}{% endif %}</small>{% else %}—{% endif %}</td>
+                        <td>{{ o.descricao }}{% if o.resolucao %}<small class="d-block text-success-emphasis"><strong>Resolução:</strong> {{ o.resolucao }} — {{ o.resolvido_por }}, {{ o.resolvido_em|datahora }}</small>{% endif %}</td>
+                        <td>{{ selo(o.status) }}</td>
+                        {% if editar %}
+                        <td class="text-end text-nowrap">
+                            {% if o.status == 'Aberta' %}
+                            <button type="button" class="btn btn-sm btn-primary" data-resolver="{{ {'acao': url_for('agendamento.ocorrencia_resolver', oid=o.id), 'rotulo': o.tipo ~ (' · NF ' ~ o.nf_numero if o.nf_numero else '')}|tojson|forceescape }}"><i class="fas fa-check"></i>Resolver</button>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('agendamento.ocorrencia_resolver', oid=o.id) }}" class="d-inline">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <button type="submit" name="acao" value="reabrir" class="btn btn-sm btn-outline-secondary"><i class="fas fa-rotate-left"></i>Reabrir</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {{ paginacao('agendamento.ocorrencias', pagina, paginas, total, 'ocorrência(s)', filtros) }}
+        {% else %}
+        <div class="bloco-dados-altura"><div class="text-center" style="max-width: 520px;">
+            {% if filtros %}
+            <h5>Nenhuma ocorrência com esse filtro</h5>
+            <p class="mb-0"><a href="{{ url_for('agendamento.ocorrencias', status='todas') }}">Ver todas</a></p>
+            {% else %}
+            <h5>Nenhuma ocorrência aberta</h5>
+            <p class="text-muted mb-0">Atraso, avaria, falta, recusa e outros problemas de um agendamento ou de uma nota ficam registrados aqui até serem resolvidos.</p>
+            {% endif %}
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="modal fade" id="modalNovaOcorrencia" tabindex="-1" aria-labelledby="modalNovaOcorrenciaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('agendamento.ocorrencia_nova') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovaOcorrenciaTitulo"><i class="fas fa-triangle-exclamation me-2"></i>Nova ocorrência</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-7"><label class="form-label" for="noTipo">Tipo <span class="obrigatorio">*</span></label>
+                        <select class="form-select" id="noTipo" name="tipo" required><option value="">— escolher —</option>{% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+                    <div class="col-5"><label class="form-label" for="noNf">Nota fiscal</label><input type="text" class="form-control" id="noNf" name="nf_numero" maxlength="15"></div>
+                    <div class="col-12"><label class="form-label" for="noAg">Agendamento (opcional)</label>
+                        <select class="form-select" id="noAg" name="agendamento_id"><option value="">— nenhum —</option>
+                            {% for a in agendamentos %}<option value="{{ a.id }}">{{ a.data.strftime('%d/%m') }}{% if a.hora %} {{ a.hora }}{% endif %} · {{ a.tipo }} · {{ a.cliente }}{% if a.nf_numero %} · NF {{ a.nf_numero }}{% endif %}</option>{% endfor %}</select></div>
+                    <div class="col-12"><label class="form-label" for="noDescricao">O que aconteceu <span class="obrigatorio">*</span></label>
+                        <textarea class="form-control" id="noDescricao" name="descricao" rows="3" maxlength="500" required></textarea></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Registrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="modal fade" id="modalResolver" tabindex="-1" aria-labelledby="modalResolverTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" id="formResolver" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalResolverTitulo"><i class="fas fa-check me-2"></i>Resolver: <span id="resRotulo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="resTexto">Como foi resolvida <span class="obrigatorio">*</span></label>
+                <textarea class="form-control" id="resTexto" name="resolucao" rows="3" maxlength="300" required></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Marcar como resolvida</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var el = document.getElementById('modalResolver');
+    if (!el) return;
+    var modal = new bootstrap.Modal(el);
+    document.querySelectorAll('[data-resolver]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var d = JSON.parse(b.getAttribute('data-resolver'));
+            document.getElementById('formResolver').action = d.acao;
+            document.getElementById('resRotulo').textContent = d.rotulo;
+            document.getElementById('resTexto').value = '';
+            modal.show();
+        });
+    });
+    el.addEventListener('shown.bs.modal', function () { document.getElementById('resTexto').focus(); });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Movimentação · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('movimentacao') %}
+{% set pode_guardar = pode_editar('recebimento') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-right-left me-2"></i>Movimentação</h2>
+    <a href="{{ url_for('movimentacao.paletes') }}" class="btn btn-outline-primary"><i class="fas fa-pallet"></i>Controle de palete</a>
+</div>
+
+{% if editar %}
+<div class="card">
+    <div class="card-header"><i class="fas fa-dolly me-2"></i>Movimentar palete</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('movimentacao.executar') }}" autocomplete="off" id="formMover">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label" for="mPalete">Palete <span class="obrigatorio">*</span></label>
+                    <input type="text" class="form-control codigo-mono" id="mPalete" name="palete" required autofocus style="text-transform: uppercase;" placeholder="Etiqueta ou endereço atual">
+                    <div class="form-text">Bipe a etiqueta do palete ou a longarina onde ele está.</div>
+                </div>
+                <div class="col-12 col-lg-8">
+                    <span class="form-label d-block">O que fazer <span class="obrigatorio">*</span></span>
+                    <div class="opcoes-acao" role="radiogroup" aria-label="Ação">
+                        <input type="radio" class="btn-check" name="acao" id="aTransferir" value="transferir" checked>
+                        <label class="btn btn-outline-primary" for="aTransferir"><i class="fas fa-right-left"></i>Transferir de endereço</label>
+                        <input type="radio" class="btn-check" name="acao" id="aStage" value="stage">
+                        <label class="btn btn-outline-primary" for="aStage"><i class="fas fa-arrow-right-to-bracket"></i>Enviar ao stage</label>
+                        <input type="radio" class="btn-check" name="acao" id="aTirar" value="tirar_stage">
+                        <label class="btn btn-outline-primary" for="aTirar"><i class="fas fa-arrow-right-from-bracket"></i>Tirar do stage</label>
+                        <input type="radio" class="btn-check" name="acao" id="aBaixar" value="baixar">
+                        <label class="btn btn-outline-primary" for="aBaixar"><i class="fas fa-trash"></i>Remover do estoque</label>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4" id="blocoDestino">
+                    <label class="form-label" for="mDestino">Endereço de destino <span class="obrigatorio">*</span></label>
+                    <input type="text" class="form-control codigo-mono" id="mDestino" name="destino" style="text-transform: uppercase;" placeholder="Bipe a longarina de destino">
+                </div>
+                <div class="col-12 col-md-4" id="blocoMotivoBaixa" hidden>
+                    <label class="form-label" for="mMotivo">Motivo da remoção <span class="obrigatorio">*</span></label>
+                    <select class="form-select" id="mMotivo" name="motivo">
+                        <option value="">— escolher —</option>
+                        {% for m in motivos_baixa %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-8">
+                    <label class="form-label" for="mObs">Observação</label>
+                    <input type="text" class="form-control" id="mObs" name="observacao" maxlength="300">
+                </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
+                <button type="submit" class="btn btn-primary" id="btnMover"><i class="fas fa-check"></i>Confirmar movimentação</button>
+                <span class="text-muted small">{{ no_stage }} palete(s) no stage agora.</span>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-pallet me-2"></i>Guarda pendente <span class="text-muted fw-normal">({{ pendentes|length }})</span></div>
+    <div class="card-body">
+        {% include '_guarda_pendente.html' %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <span><i class="fas fa-clock-rotate-left me-2"></i>Últimas movimentações <span class="text-muted fw-normal">({{ historico|length }})</span></span>
+        <form method="GET" class="d-flex flex-wrap gap-2 ms-auto">
+            <input type="search" class="form-control form-control-sm" name="q" value="{{ busca }}" placeholder="Etiqueta ou endereço" aria-label="Filtrar por etiqueta ou endereço" style="width: 200px;">
+            <select class="form-select form-select-sm" name="tipo" aria-label="Tipo de movimentação" style="width: auto;" onchange="this.form.submit()">
+                <option value="">Todos os tipos</option>
+                {% for t in tipos %}<option value="{{ t }}" {% if tipo == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
+        </form>
+    </div>
+    <div class="card-body">
+        {% if historico %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Data</th><th>Tipo</th><th>Palete</th><th>Conteúdo</th><th>De</th><th>Para</th><th>Motivo / observação</th><th>Usuário</th></tr></thead>
+                <tbody>
+                    {% for m in historico %}
+                    <tr>
+                        <td class="text-nowrap">{{ m.criado_em|datahora }}</td>
+                        <td>{{ selo(m.tipo) }}</td>
+                        <td><a class="codigo-mono" href="{{ url_for('movimentacao.paletes', q=m.palete.etiqueta) }}">{{ m.palete.etiqueta }}</a></td>
+                        <td>{{ resumo_itens(m.palete) }}</td>
+                        <td class="codigo-mono">{{ m.origem or '—' }}</td>
+                        <td class="codigo-mono">{{ m.destino or '—' }}</td>
+                        <td>{{ m.motivo or '' }}{% if m.motivo and m.observacao %} · {% endif %}{{ m.observacao or '' }}</td>
+                        <td>{{ m.usuario }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">{% if busca or tipo %}Nenhuma movimentação com esse filtro.{% else %}Nenhuma movimentação registrada ainda. Elas começam quando o primeiro palete é montado no recebimento.{% endif %}</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Mostra só os campos que a ação escolhida usa.
+(function () {
+    var form = document.getElementById('formMover');
+    if (!form) return;
+    var destino = document.getElementById('blocoDestino'), motivo = document.getElementById('blocoMotivoBaixa');
+    var botao = document.getElementById('btnMover');
+    function ajustar() {
+        var acao = form.acao.value;
+        var comDestino = acao === 'transferir' || acao === 'tirar_stage';
+        destino.hidden = !comDestino;
+        document.getElementById('mDestino').required = comDestino;
+        motivo.hidden = acao !== 'baixar';
+        document.getElementById('mMotivo').required = acao === 'baixar';
+        botao.className = acao === 'baixar' ? 'btn btn-danger' : 'btn btn-primary';
+        botao.innerHTML = acao === 'baixar' ? '<i class="fas fa-trash"></i>Remover do estoque' : '<i class="fas fa-check"></i>Confirmar movimentação';
+    }
+    form.querySelectorAll('input[name="acao"]').forEach(function (r) { r.addEventListener('change', ajustar); });
+    form.addEventListener('submit', function (ev) {
+        if (form.acao.value === 'baixar' && !confirm('Remover este palete do estoque? O endereço é liberado e a ação fica registrada no histórico.')) ev.preventDefault();
+    });
+    ajustar();
+})();
+</script>
+{% endblock %}

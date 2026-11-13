@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Financeiro · WMS Doca Livre{% endblock %}
+
+{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
+{% macro kg(v) %}{{ v|round(3)|numero }} kg{% endmacro %}
+{% macro dia(d) %}{{ d.strftime('%d/%m/%Y') if d else '—' }}{% endmacro %}
+{% macro valor_campo(v) %}{{ ('%.2f'|format(v or 0))|replace('.', ',') }}{% endmacro %}
+{% macro paginas_nav() %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 my-3">
+    <span class="text-muted">{{ total }} NF(s){% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+    {% if paginas > 1 %}
+    <div class="d-flex gap-2">
+        {% if pagina > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('financeiro.painel', pagina=pagina - 1, **filtros) }}"><i class="fas fa-chevron-left"></i>Anterior</a>{% endif %}
+        {% if pagina < paginas %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('financeiro.painel', pagina=pagina + 1, **filtros) }}">Próxima<i class="fas fa-chevron-right"></i></a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+{% macro filtro_cliente() %}
+<form method="GET" class="row g-2 mb-3 align-items-end">
+    <input type="hidden" name="aba" value="{{ aba }}">
+    <div class="col-12 col-md-5 col-lg-4">
+        <label class="form-label" for="filtroCliente">Filtrar por cliente</label>
+        <select class="form-select" id="filtroCliente" name="cliente" onchange="this.form.submit()">
+            <option value="">Todos os clientes</option>
+            {% for e in empresas if com_nota.get(e.id) %}<option value="{{ e.id }}" {% if cliente and cliente.id == e.id %}selected{% endif %}>{{ e.nome }} ({{ com_nota[e.id] }})</option>{% endfor %}
+        </select>
+    </div>
+</form>
+{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-coins me-2"></i>Financeiro</h2>
+    {% if aba == 'movimentacao' and total %}
+    <a class="btn btn-outline-primary" href="{{ url_for('financeiro.painel', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Gerar Excel detalhado ({{ total }})</a>
+    {% endif %}
+</div>
+
+<ul class="sub-abas" role="tablist" aria-label="Partes do Financeiro">
+    {% for chave, nome, icone in abas %}
+    <li role="presentation"><a role="tab" aria-selected="{{ 'true' if aba == chave else 'false' }}" class="{% if aba == chave %}ativo{% endif %}"
+        href="{{ url_for('financeiro.painel', aba=chave) }}"><i class="fas fa-{{ icone }}"></i>{{ nome }}</a></li>
+    {% endfor %}
+    <li role="presentation"><a role="tab" aria-selected="false" href="{{ url_for('fechamento.lista') }}"><i class="fas fa-file-invoice-dollar"></i>Fechamento mensal</a></li>
+</ul>
+
+{# ================================================================ Tabela de cobrança #}
+{% if aba == 'tabelas' %}
+{% if editar %}
+<div class="card mb-3"><div class="card-body">
+    <h5 class="mb-3">{{ 'Editar tabela' if registro else 'Nova tabela de cobrança' }}</h5>
+    <form method="POST" action="{{ url_for('financeiro.tabela_salvar') }}" autocomplete="off">
+        {{ csrf() }}
+        {% if registro %}<input type="hidden" name="id" value="{{ registro.id }}">{% endif %}
+        <div class="row g-3">
+            <div class="col-12 col-lg-4"><label class="form-label" for="tbNome">Nome da tabela <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="tbNome" name="nome" maxlength="80" required placeholder="Ex.: Padrão congelados"
+                       value="{{ form.get('nome') if form else (registro.nome if registro else '') }}"></div>
+            {% for campo, rotulo in custos %}
+            <div class="col-6 col-md-4 col-lg-2"><label class="form-label" for="tb_{{ campo }}">{{ rotulo }}</label>
+                <input type="text" inputmode="decimal" class="form-control" id="tb_{{ campo }}" name="{{ campo }}" placeholder="0,00"
+                       value="{{ form.get(campo) if form else (valor_campo(registro[campo]) if registro else '') }}"></div>
+            {% endfor %}
+        </div>
+        <p class="text-muted small mt-2 mb-3">Posição, quilo e palete valem <strong>por ciclo</strong> do contrato (mês de 30 dias ou quinzena de 15 dias). Entrada e saída são cobradas uma vez, por palete.</p>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>{{ 'Atualizar' if registro else 'Cadastrar tabela' }}</button>
+        {% if registro %}<a class="btn btn-outline-secondary" href="{{ url_for('financeiro.painel', aba='tabelas') }}">Cancelar</a>{% endif %}
+    </form>
+</div></div>
+{% endif %}
+<div class="card"><div class="card-body">
+    <h5 class="mb-1">Tabelas cadastradas ({{ tabelas|length }})</h5>
+    <p class="text-muted small">As tabelas salvas aqui aparecem no cadastro de contrato.</p>
+    {% if tabelas %}
+    <ul class="fin-lista">
+        {% for t in tabelas %}
+        <li>
+            <div><strong>{{ t.nome }}</strong>
+                <small class="d-block text-muted">Posição {{ t.custo_posicao|moeda }} · Quilo {{ t.custo_kilo|moeda }} · Palete {{ t.custo_palete|moeda }} · Entrada {{ t.custo_entrada|moeda }} · Saída {{ t.custo_saida|moeda }}</small>
+                {% if em_uso.get(t.id) %}<small class="d-block text-muted">Em uso em {{ em_uso[t.id] }} contrato{{ 's' if em_uso[t.id] > 1 }}</small>{% endif %}</div>
+            {% if editar %}
+            <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('financeiro.painel', aba='tabelas', editar=t.id) }}"><i class="fas fa-pen"></i>Editar</a>
+                <form method="POST" action="{{ url_for('financeiro.tabela_excluir', tid=t.id) }}" onsubmit="return confirm('Excluir esta tabela de cobrança?');">{{ csrf() }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger" {% if em_uso.get(t.id) %}disabled title="Remova ou altere os contratos antes de excluir esta tabela."{% endif %}><i class="fas fa-trash"></i>Excluir</button></form>
+            </div>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted mb-0">Nenhuma tabela cadastrada ainda. Preencha os valores acima e clique em Cadastrar tabela.</p>
+    {% endif %}
+</div></div>
+
+{# ================================================================ Contrato #}
+{% elif aba == 'contratos' %}
+{% if editar %}
+<div class="card mb-3"><div class="card-body">
+    <h5 class="mb-3">{{ 'Editar contrato' if registro else 'Novo contrato de armazenagem' }}</h5>
+    {% set f_empresa = (form.get('empresa_id')|int(0)) if form else (registro.empresa_id if registro else 0) %}
+    {% set f_tabela = (form.get('tabela_id')|int(0)) if form else (registro.tabela_id if registro else 0) %}
+    {% set f_ciclo = form.get('ciclo') if form else (registro.ciclo if registro else 'mensal') %}
+    {% set f_regra = form.get('regra_tempo') if form else (registro.regra_tempo if registro else 'proporcional') %}
+    <form method="POST" action="{{ url_for('financeiro.contrato_salvar') }}" autocomplete="off">
+        {{ csrf() }}
+        {% if registro %}<input type="hidden" name="id" value="{{ registro.id }}">{% endif %}
+        <div class="row g-3">
+            <div class="col-12 col-lg-6"><label class="form-label" for="ctEmpresa">Cliente <span class="obrigatorio">*</span></label>
+                <select class="form-select" id="ctEmpresa" name="empresa_id" required>
+                    <option value="">Selecionar cliente…</option>
+                    {% for e in todas_empresas %}<option value="{{ e.id }}" {% if f_empresa == e.id %}selected{% endif %}>{{ e.nome }}{% if e.cnpj %} ({{ e.cnpj|cnpj }}){% endif %}</option>{% endfor %}
+                </select>
+                <div class="form-text">Não está na lista? Cadastre na aba <a href="{{ url_for('financeiro.painel', aba='clientes') }}">Clientes</a>.</div></div>
+            <div class="col-12 col-lg-6"><label class="form-label" for="ctTabela">Tabela de cobrança <span class="obrigatorio">*</span></label>
+                <select class="form-select" id="ctTabela" name="tabela_id" required {% if not tabelas %}disabled{% endif %}>
+                    <option value="">{{ 'Selecione uma tabela' if tabelas else 'Cadastre uma tabela primeiro' }}</option>
+                    {% for t in tabelas %}<option value="{{ t.id }}" {% if f_tabela == t.id %}selected{% endif %}>{{ t.nome }}</option>{% endfor %}
+                </select>
+                <div class="form-text">{{ 'O contrato usará os valores da tabela escolhida para calcular a cobrança.' if tabelas else 'Crie a tabela na aba Tabela de cobrança para poder vincular ao contrato.' }}</div></div>
+            <div class="col-6 col-lg-3"><label class="form-label" for="ctCiclo">Ciclo de cobrança</label>
+                <select class="form-select" id="ctCiclo" name="ciclo"><option value="mensal" {% if f_ciclo == 'mensal' %}selected{% endif %}>Mensal (30 dias)</option><option value="quinzenal" {% if f_ciclo == 'quinzenal' %}selected{% endif %}>Quinzenal (15 dias)</option></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label" for="ctRegra">Regra de tempo</label>
+                <select class="form-select" id="ctRegra" name="regra_tempo"><option value="proporcional" {% if f_regra == 'proporcional' %}selected{% endif %}>Proporcional (por dias)</option><option value="cheia" {% if f_regra == 'cheia' %}selected{% endif %}>Cheia (período inteiro)</option></select></div>
+            <div class="col-12 col-lg-6"><span class="form-label d-block">O que cobrar</span>
+                <div class="fin-checks">
+                    {% for campo, rotulo, _ in cobrancas %}
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ct_{{ campo }}" name="{{ campo }}" value="1"
+                        {% if ((form.get(campo) == '1') if form else (registro[campo] if registro else false)) %}checked{% endif %}><label class="form-check-label" for="ct_{{ campo }}">{{ rotulo }}</label></div>
+                    {% endfor %}
+                </div></div>
+            <div class="col-12 col-lg-9"><label class="form-label" for="ctObs">Observação</label>
+                <input type="text" class="form-control" id="ctObs" name="observacao" maxlength="300" placeholder="Opcional" value="{{ form.get('observacao') if form else (registro.observacao or '' if registro else '') }}"></div>
+            <div class="col-12 col-lg-3 d-flex align-items-end"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="ctAtivo" name="ativo" value="1"
+                {% if ((form.get('ativo') == '1') if form else (registro.ativo if registro else true)) %}checked{% endif %}><label class="form-check-label" for="ctAtivo">Contrato ativo</label></div></div>
+        </div>
+        <div class="mt-3">
+            <button type="submit" class="btn btn-primary" {% if not tabelas %}disabled{% endif %}><i class="fas fa-check"></i>{{ 'Atualizar contrato' if registro else 'Cadastrar contrato' }}</button>
+            {% if registro %}<a class="btn btn-outline-secondary" href="{{ url_for('financeiro.painel', aba='contratos') }}">Cancelar</a>{% endif %}
+        </div>
+    </form>
+</div></div>
+{% endif %}
+<div class="card"><div class="card-body">
+    <h5 class="mb-3">Contratos ({{ contratos|length }})</h5>
+    {% if contratos %}
+    <ul class="fin-lista">
+        {% for c in contratos %}
+        <li>
+            <div><strong>{{ c.empresa.nome }}</strong>
+                {% if not c.ativo %}<span class="badge bg-secondary">Inativo</span>{% elif ativos.get(c.empresa_id) and ativos[c.empresa_id].id != c.id %}<span class="badge bg-secondary" title="Este cliente tem um contrato ativo mais novo, que é o que vale">Substituído</span>{% endif %}
+                <small class="d-block text-muted">{{ c.empresa.cnpj|cnpj or 'Sem CNPJ' }}</small>
+                <small class="d-block text-muted">{{ rotulo_ciclo[c.ciclo] }} · {{ rotulo_regra[c.regra_tempo] }} · {{ c.tabela.nome }} · {{ o_que_cobra(c) }}</small>
+                {% if c.observacao %}<small class="d-block text-muted">{{ c.observacao }}</small>{% endif %}</div>
+            {% if editar %}
+            <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('financeiro.painel', aba='contratos', editar=c.id) }}"><i class="fas fa-pen"></i>Editar</a>
+                <form method="POST" action="{{ url_for('financeiro.contrato_excluir', cid=c.id) }}" onsubmit="return confirm('Excluir este contrato?');">{{ csrf() }}
+                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i>Excluir</button></form>
+            </div>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted mb-0">Nenhum contrato ainda. Sem contrato ativo, as notas do cliente não têm valor calculado.</p>
+    {% endif %}
+</div></div>
+
+{# ================================================================ Clientes #}
+{% elif aba == 'clientes' %}
+<div class="row g-3">
+    <div class="col-12 col-lg-5">
+        {% if editar %}
+        <div class="card mb-3"><div class="card-body">
+            <h5 class="mb-3">Cadastrar cliente manualmente</h5>
+            <form method="POST" action="{{ url_for('financeiro.cliente_novo') }}" autocomplete="off" class="row g-2 align-items-end">
+                {{ csrf() }}
+                <div class="col-12 col-sm-5"><label class="form-label" for="clCnpj">CNPJ</label><input type="text" class="form-control" id="clCnpj" name="cnpj" maxlength="18" placeholder="00.000.000/0000-00" value="{{ form.get('cnpj') if form else '' }}"></div>
+                <div class="col-12 col-sm-7"><label class="form-label" for="clNome">Razão social <span class="obrigatorio">*</span></label><input type="text" class="form-control" id="clNome" name="nome" maxlength="150" required value="{{ form.get('nome') if form else '' }}"></div>
+                <div class="col-12"><button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i>Cadastrar</button></div>
+            </form>
+            <p class="text-muted small mt-2 mb-0">Clientes também entram aqui sozinhos ao dar entrada de uma NF (é a empresa emitente da nota).</p>
+        </div></div>
+        {% endif %}
+        <div class="card"><div class="card-body">
+            <h5 class="mb-3">Clientes cadastrados ({{ empresas|length }})</h5>
+            {% if empresas %}
+            <ul class="fin-lista">
+                {% for e in empresas %}
+                <li class="{% if cliente and cliente.id == e.id %}ativo{% endif %}">
+                    <a class="fin-cliente" href="{{ url_for('financeiro.painel', aba='clientes', cliente=(none if cliente and cliente.id == e.id else e.id)) }}" {% if cliente and cliente.id == e.id %}aria-current="true"{% endif %}>
+                        <strong>{{ e.nome }}</strong>
+                        <small class="d-block text-muted">{{ e.cnpj|cnpj or 'Sem CNPJ' }} · {{ com_nota.get(e.id, 0) }} NF(s){% if not ativos.get(e.id) %} · <span class="text-danger">sem contrato</span>{% endif %}</small></a>
+                    <i class="fas fa-chevron-right text-muted"></i>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-0">Nenhum cliente ainda. Dê entrada de uma NF ou cadastre manualmente.</p>
+            {% endif %}
+        </div></div>
+    </div>
+    <div class="col-12 col-lg-7">
+        <div class="card"><div class="card-body">
+            {% if not cliente %}
+            <div class="bloco-dados-altura"><p class="text-muted mb-0">Escolha um cliente na lista para ver as notas e o total a cobrar.</p></div>
+            {% else %}
+            <h5 class="mb-1">{{ cliente.nome }}</h5>
+            {% if ativos.get(cliente.id) %}
+            {% set c = ativos[cliente.id] %}
+            <p class="text-muted small">{{ rotulo_ciclo[c.ciclo] }} · {{ rotulo_regra[c.regra_tempo] }} · {{ c.tabela.nome }} · {{ o_que_cobra(c) }}</p>
+            {% else %}
+            <div class="alert alert-warning py-2">Sem contrato ativo — <a href="{{ url_for('financeiro.painel', aba='contratos') }}">cadastre um contrato</a> para calcular cobranças.</div>
+            {% endif %}
+            <dl class="fin-grade mb-3">
+                <div><dt>NFs armazenadas</dt><dd>{{ armazenadas|length }}</dd></div>
+                <div><dt>NFs finalizadas</dt><dd>{{ finalizadas|length }}</dd></div>
+                <div class="fin-destaque"><dt>Total a cobrar</dt><dd>{{ total_cliente|moeda }}</dd></div>
+            </dl>
+            <p class="text-muted small">Total da estadia inteira de cada nota, da entrada até hoje (ou até a saída). Para cobrar por período, use a aba <a href="{{ url_for('financeiro.painel', aba='movimentacao', cliente=cliente.id) }}">Movimentação</a>.</p>
+            {% if not armazenadas and not finalizadas %}<p class="text-muted mb-0">Nenhuma NF vinculada a este cliente.</p>{% endif %}
+            {% if armazenadas %}
+            <h6 class="mt-3">Notas em armazenagem</h6>
+            {% for l in armazenadas %}{% set r = l.resumo %}
+            <div class="fin-nf">
+                <div class="fin-nf-topo"><h3>NF {{ l.nota.numero }}</h3>{{ selo(r.status) }}</div>
+                <p class="text-muted small mb-2">Armazenagem {{ dia(r.entrada) }} · {{ r.dias }} dias · {{ kg(l.peso) }} · {{ l.itens }} itens · {{ r.caixas|numero }} CX · {{ r.paletes }} paletes</p>
+                {% if l.cobranca.detalhes %}
+                <ul class="fin-composicao">{% for rotulo, valor in l.cobranca.detalhes %}<li><span>{{ rotulo }}</span><span>{{ valor|moeda }}</span></li>{% endfor %}<li><span>Total NF</span><span>{{ l.cobranca.total|moeda }}</span></li></ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% if finalizadas %}
+            <h6 class="mt-3">Notas finalizadas (saída concluída)</h6>
+            {% for l in finalizadas %}{% set r = l.resumo %}
+            <div class="fin-nf">
+                <div class="fin-nf-topo"><h3>NF {{ l.nota.numero }}</h3>{{ selo(r.status) }}</div>
+                <p class="text-muted small mb-2">Armazenagem {{ dia(r.entrada) }} → {{ dia(r.data_saida) }} · {{ r.dias }} dias · {{ kg(l.peso) }}</p>
+                {% if l.cobranca.detalhes %}
+                <ul class="fin-composicao">{% for rotulo, valor in l.cobranca.detalhes %}<li><span>{{ rotulo }}</span><span>{{ valor|moeda }}</span></li>{% endfor %}<li><span>Cobrança final</span><span>{{ l.cobranca.total|moeda }}</span></li></ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endif %}
+        </div></div>
+    </div>
+</div>
+
+{# ================================================================ Movimentação (controle de permanência) #}
+{% elif aba == 'movimentacao' %}
+{% set aqui = url_for('financeiro.painel', pagina=pagina, **filtros) %}
+<h5 class="mb-3">Controle de permanência</h5>
+{% if falta_configurar %}
+<div class="alert alert-warning">Para calcular a diária, cadastre uma <a href="{{ url_for('financeiro.painel', aba='tabelas') }}"><strong>tabela de cobrança</strong></a> e um <a href="{{ url_for('financeiro.painel', aba='contratos') }}"><strong>contrato</strong></a> ativo para o cliente (com posição, quilo ou palete marcados). Notas de cliente sem contrato aparecem com valor zero.</div>
+{% endif %}
+{{ filtro_cliente() }}
+
+<div class="card mb-3"><div class="card-body">
+    <h6 class="mb-3">Resumo geral{% if cliente %} · {{ cliente.nome }}{% endif %}</h6>
+    <dl class="fin-grade">
+        <div class="fin-destaque"><dt>Valor a cobrar</dt><dd>{{ totais.cobrar|moeda }}</dd></div>
+        <div><dt>Valor acumulado</dt><dd>{{ totais.acumulado|moeda }}</dd></div>
+        <div><dt>Posições</dt><dd>{{ totais.posicoes }}</dd></div>
+        <div><dt>Peso</dt><dd>{{ kg(totais.peso) }}</dd></div>
+        <div><dt>Caixas</dt><dd>{{ totais.caixas|numero }}</dd></div>
+        <div><dt>Paletes</dt><dd>{{ totais.paletes }}</dd></div>
+        <div><dt>Itens</dt><dd>{{ totais.itens }}</dd></div>
+        <div><dt>NFs</dt><dd>{{ totais.nfs }}</dd></div>
+    </dl>
+    <p class="text-muted small mt-2 mb-0"><strong>Valor a cobrar</strong> = armazenagem do período de cada nota + débitos de entrada e de saída do período. <strong>Valor acumulado</strong> = armazenagem desde a entrada, sem olhar o período.</p>
+</div></div>
+
+{% if editar and total %}
+<div class="card mb-3"><div class="card-body">
+    <h6 class="mb-3">Aplicar para todos — período de cobrança</h6>
+    <form method="POST" action="{{ url_for('financeiro.periodo') }}" id="formPeriodoMassa" class="row g-2 align-items-end" autocomplete="off">
+        {{ csrf() }}
+        <input type="hidden" name="voltar" value="{{ aqui }}">
+        {% if cliente %}<input type="hidden" name="cliente" value="{{ cliente.id }}">{% endif %}
+        <div class="col-6 col-md-2"><label class="form-label" for="pmInicio">Início</label><input type="date" class="form-control" id="pmInicio" name="inicio" value="{{ periodo_padrao[0].isoformat() }}"></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="pmFim">Fim</label><input type="date" class="form-control" id="pmFim" name="fim" value="{{ periodo_padrao[1].isoformat() }}"></div>
+        <div class="col-12 col-md-8 d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary" name="alvo" value="marcadas"><i class="fas fa-check"></i>Aplicar nos marcados (<span id="pmQtd">0</span>)</button>
+            <button type="submit" class="btn btn-outline-primary" name="alvo" value="todas" onclick="return confirm('Aplicar este período em todas as {{ total }} NF(s) da lista?');">Aplicar em todos ({{ total }})</button>
+            <button type="button" class="btn btn-outline-secondary" id="pmMarcarPagina">Marcar página</button>
+            <button type="submit" class="btn btn-outline-secondary" name="acao" value="padrao" title="As NFs marcadas voltam ao período padrão: do dia 1 do mês até hoje">Voltar ao mês atual</button>
+        </div>
+    </form>
+    <p class="text-muted small mt-2 mb-0">Sem período definido, cada NF usa do dia 1 do mês até hoje. O período escolhido fica gravado na NF.</p>
+</div></div>
+{% endif %}
+
+{{ paginas_nav() }}
+{% for l in linhas %}{% set r = l.resumo %}{% set p = l.periodo %}{% set n = l.nota %}
+<article class="fin-nf" aria-label="NF {{ n.numero }}">
+    <div class="fin-nf-topo">
+        {% if editar %}<input class="form-check-input mt-0 marca-nf" type="checkbox" name="nf" value="{{ n.id }}" form="formPeriodoMassa" aria-label="Marcar NF {{ n.numero }}">{% endif %}
+        <h3>NF {{ n.numero }}</h3>{{ selo(r.status) }}
+        <span class="text-muted">{{ l.empresa.nome if l.empresa else 'Sem emitente' }}</span>
+        {% if l.empresa %}<a class="small" href="{{ url_for('financeiro.painel', aba='clientes', cliente=l.empresa.id) }}">Ver cliente →</a>{% endif %}
+        {% if not l.contrato %}<span class="badge bg-warning text-dark">Sem contrato</span>{% endif %}
+        {% if l.sem_peso %}<span class="badge bg-danger" title="O contrato cobra por quilo, mas os produtos desta nota não têm peso no cadastro e a nota não tem XML com peso. Preencha o peso em Cadastros › Produtos ou anexe o XML no recebimento.">Sem peso: quilo não cobrado</span>{% endif %}
+        {% if pode_ver('recebimento') %}<a class="small ms-auto" href="{{ url_for('entrada.nota', nid=n.id) }}">Abrir recebimento</a>{% endif %}
+    </div>
+    <dl class="fin-grade">
+        <div><dt>Data de armazenagem</dt><dd>
+            {% if editar %}
+            <form method="POST" action="{{ url_for('financeiro.nota_data', nid=n.id) }}" class="d-flex gap-1">{{ csrf() }}<input type="hidden" name="voltar" value="{{ aqui }}">
+                <input type="date" class="form-control form-control-sm" name="data" value="{{ r.entrada.isoformat() }}" max="{{ hoje.isoformat() }}" required aria-label="Data de armazenagem da NF {{ n.numero }}" onchange="this.form.submit()"></form>
+            {% else %}{{ dia(r.entrada) }}{% endif %}</dd></div>
+        <div><dt>Entrada registrada</dt><dd>{{ n.criado_em|datahora }}</dd></div>
+        <div><dt>Saídas</dt><dd>{% if r.saidas %}{{ r.saidas|length }} registro(s){% else %}—{% endif %}</dd></div>
+        <div><dt>Dias</dt><dd>{% if r.armazenada and r.ultima_saida %}{{ r.dias_cobranca }} <small>(desde a última saída)</small>{% else %}{{ r.dias }}{% endif %}</dd></div>
+        <div><dt>Valor acumulado</dt><dd>{{ l.cobranca.valor_vigente|moeda }}</dd></div>
+        <div><dt>Valor diária</dt><dd>{{ l.cobranca.valor_diaria|moeda }}</dd></div>
+        <div><dt>Peso de entrada</dt><dd>{{ kg(r.peso_entrada) }}{% if l.peso_da_nota %} <small class="d-block">peso do XML da nota</small>{% endif %}</dd></div>
+        <div><dt>Peso atual</dt><dd>{{ kg(r.peso_atual) }}</dd></div>
+        <div><dt>Itens</dt><dd>{{ l.itens }}</dd></div>
+        <div><dt>Caixas</dt><dd>{{ r.caixas|numero }}</dd></div>
+        <div><dt>Paletes</dt><dd>{{ r.paletes }} <small>· {{ r.posicoes }} posição(ões)</small></dd></div>
+        <div><dt>Valor merc.</dt><dd>{{ l.valor_mercadoria|moeda }}</dd></div>
+    </dl>
+    <div class="fin-bloco">
+        <h4>Período de cobrança{% if not l.periodo_proprio %} <small class="text-muted text-lowercase">(mês atual)</small>{% endif %}</h4>
+        <div class="row g-3 align-items-start">
+            {% if editar %}
+            <form method="POST" action="{{ url_for('financeiro.periodo') }}" class="col-12 col-xl-4 d-flex gap-2 align-items-end" autocomplete="off">{{ csrf() }}
+                <input type="hidden" name="voltar" value="{{ aqui }}"><input type="hidden" name="nf" value="{{ n.id }}">
+                <div class="flex-fill"><label class="form-label small" for="pi{{ n.id }}">Início</label><input type="date" class="form-control form-control-sm" id="pi{{ n.id }}" name="inicio" value="{{ p.inicio.isoformat() }}" required></div>
+                <div class="flex-fill"><label class="form-label small" for="pf{{ n.id }}">Fim</label><input type="date" class="form-control form-control-sm" id="pf{{ n.id }}" name="fim" value="{{ p.fim.isoformat() }}" required></div>
+                <button type="submit" class="btn btn-sm btn-outline-primary" title="Calcular com este período" aria-label="Aplicar o período na NF {{ n.numero }}">Aplicar</button>
+            </form>
+            {% endif %}
+            <div class="col-12 col-xl-8">
+                <dl class="fin-grade">
+                    {% if not editar %}<div><dt>Período</dt><dd>{{ dia(p.inicio) }} a {{ dia(p.fim) }}</dd></div>{% endif %}
+                    <div><dt>Dias do período</dt><dd>{{ p.dias }}</dd></div>
+                    <div><dt>Valor diária</dt><dd>{{ p.valor_diaria|moeda }}</dd></div>
+                    <div><dt>Armazenagem</dt><dd>{{ p.armazenagem|moeda }}</dd></div>
+                    {% if p.debitos_entrada %}<div><dt>Débitos de entrada</dt><dd>{{ p.debitos_entrada|moeda }} <small class="d-block">{{ p.paletes_entrada }} palete(s) · {{ l.tabela.custo_entrada|moeda }}/palete</small></dd></div>{% endif %}
+                    {% if p.debitos_saida %}<div><dt>Débitos de saída</dt><dd>{{ p.debitos_saida|moeda }} <small class="d-block">{{ p.paletes_saida }} palete(s) · {{ l.tabela.custo_saida|moeda }}/palete</small></dd></div>{% endif %}
+                    <div class="fin-destaque"><dt>Valor a cobrar</dt><dd>{{ p.total|moeda }}</dd></div>
+                </dl>
+            </div>
+        </div>
+    </div>
+    {% if r.saidas %}
+    <div class="fin-bloco">
+        <h4>Saídas registradas</h4>
+        <p class="small mb-2">Total saído: <strong>{{ kg(r.peso_saido) }}</strong>{% if r.armazenada %} · Restante: <strong>{{ kg(r.peso_atual) }}</strong>{% endif %}</p>
+        <ul class="list-unstyled small mb-0">
+            {% for s in r.saidas %}<li>#{{ loop.index }} · {{ s.data|datahora }} · {{ s.ref }} · {{ kg(s.peso) }}{% if s.caixas %} · {{ s.caixas|numero }} CX{% endif %} · {{ s.paletes }} palete(s)</li>{% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</article>
+{% else %}
+<div class="card"><div class="card-body"><div class="bloco-dados-altura"><div class="text-center" style="max-width: 520px;">
+    <h5>Nenhuma NF encontrada</h5>
+    <p class="text-muted mb-0">Entram aqui as notas de entrada que já tiveram palete montado no recebimento.</p>
+</div></div></div></div>
+{% endfor %}
+{% if paginas > 1 %}{{ paginas_nav() }}{% endif %}
+
+{# ================================================================ Lógica de cobrança #}
+{% else %}
+<h5 class="mb-1">Lógica de cobrança</h5>
+<p class="text-muted small">Inclui NFs armazenadas e finalizadas. Mostra como o total da estadia de cada nota foi calculado.</p>
+{{ filtro_cliente() }}
+<div class="card mb-3"><div class="card-body">
+    <dl class="fin-grade">
+        <div class="fin-destaque"><dt>Total calculado</dt><dd>{{ totais.total|moeda }}</dd></div>
+        <div><dt>NFs</dt><dd>{{ totais.nfs }}</dd></div>
+        <div><dt>Armazenadas</dt><dd>{{ totais.armazenadas }}</dd></div>
+        <div><dt>Finalizadas</dt><dd>{{ totais.finalizadas }}</dd></div>
+        <div><dt>Dias somados</dt><dd>{{ totais.dias }}</dd></div>
+        <div><dt>Sem contrato</dt><dd>{{ totais.sem_contrato }}</dd></div>
+    </dl>
+</div></div>
+{{ paginas_nav() }}
+{% for l in linhas %}{% set r = l.resumo %}{% set n = l.nota %}{% set c = l.contrato %}
+<article class="fin-nf" aria-label="NF {{ n.numero }}">
+    <div class="fin-nf-topo"><h3>NF {{ n.numero }}</h3>{{ selo(r.status) }}<span class="text-muted">{{ l.empresa.nome if l.empresa else 'Sem emitente' }}</span>
+        {% if l.empresa %}<a class="small" href="{{ url_for('financeiro.painel', aba='clientes', cliente=l.empresa.id) }}">Ver cliente →</a>{% endif %}</div>
+    <dl class="fin-grade">
+        <div><dt>CNPJ</dt><dd>{{ (l.empresa.cnpj|cnpj if l.empresa else '') or '—' }}</dd></div>
+        <div><dt>Data de armazenagem</dt><dd>{{ dia(r.entrada) }}</dd></div>
+        <div><dt>Saída registrada</dt><dd>{{ dia(r.data_saida) if r.data_saida else 'Em estoque' }}</dd></div>
+        <div><dt>Última saída</dt><dd>{{ r.saidas[-1].ref if r.saidas else '—' }}</dd></div>
+        <div><dt>Tempo armazenado</dt><dd>{{ r.dias }} dia(s)</dd></div>
+        <div><dt>Ciclo de cobrança</dt><dd>{{ rotulo_ciclo[c.ciclo] if c else 'Sem contrato' }}</dd></div>
+        <div><dt>Regra de tempo</dt><dd>{{ rotulo_regra[c.regra_tempo] if c else 'Sem contrato' }}</dd></div>
+        <div><dt>Fator aplicado</dt><dd>{{ formatar_fator(l.cobranca.fator) if c else '—' }}</dd></div>
+        <div><dt>Tabela</dt><dd>{{ l.tabela.nome if l.tabela else '—' }}</dd></div>
+        <div><dt>O que cobra</dt><dd>{{ o_que_cobra(c) }}</dd></div>
+        <div><dt>Peso base</dt><dd>{{ kg(l.peso) }}</dd></div>
+        <div><dt>Caixas</dt><dd>{{ r.caixas|numero }}</dd></div>
+        <div><dt>Paletes</dt><dd>{{ r.paletes if r.armazenada else r.paletes_entrada }}{% if not r.armazenada %} <small>(entrada)</small>{% endif %}</dd></div>
+        <div><dt>Posições</dt><dd>{{ r.posicoes if r.armazenada else r.paletes_entrada }}{% if not r.armazenada %} <small>(entrada)</small>{% endif %}</dd></div>
+        <div><dt>Valor mercadoria</dt><dd>{{ l.valor_mercadoria|moeda }}</dd></div>
+    </dl>
+    <div class="fin-bloco">
+        <h4>Composição da cobrança</h4>
+        {% if l.cobranca.detalhes %}
+        <ul class="fin-composicao">{% for rotulo, valor in l.cobranca.detalhes %}<li><span>{{ rotulo }}</span><span>{{ valor|moeda }}</span></li>{% endfor %}<li><span>Total</span><span>{{ l.cobranca.total|moeda }}</span></li></ul>
+        {% else %}
+        <p class="text-muted small mb-0">Sem valor calculado. Verifique contrato ativo, tabela e opções de cobrança.</p>
+        {% endif %}
+    </div>
+</article>
+{% else %}
+<div class="card"><div class="card-body"><div class="bloco-dados-altura"><p class="text-muted mb-0">Nenhuma NF encontrada para lógica de cobrança.</p></div></div></div>
+{% endfor %}
+{% if paginas > 1 %}{{ paginas_nav() }}{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var marcas = document.querySelectorAll('.marca-nf');
+    var qtd = document.getElementById('pmQtd');
+    var botao = document.getElementById('pmMarcarPagina');
+    if (!qtd) return;
+    function contar() {
+        var n = document.querySelectorAll('.marca-nf:checked').length;
+        qtd.textContent = n;
+        if (botao) botao.textContent = (n === marcas.length && n) ? 'Desmarcar página' : 'Marcar página';
+    }
+    marcas.forEach(function (m) { m.addEventListener('change', contar); });
+    if (botao) botao.addEventListener('click', function () {
+        var todas = document.querySelectorAll('.marca-nf:checked').length === marcas.length;
+        marcas.forEach(function (m) { m.checked = !todas; });
+        contar();
+    });
+    contar();
+})();
+</script>
+{% endblock %}

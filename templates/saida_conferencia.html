@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Conferência de carga · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('expedicao') and aberta %}
+{% set passo = 'conferencia' %}
+
+{% block content %}
+{% include '_carga_cabecalho.html' %}
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-5">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-truck me-2"></i>Veículo, doca e responsáveis</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('saida.carga_dados', cid=carga.id) }}" autocomplete="off">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <fieldset {% if not editar %}disabled{% endif %}>
+                        <div class="row g-2">
+                            <div class="col-4"><label class="form-label" for="fDoca">Doca <span class="obrigatorio">*</span></label><input type="text" class="form-control" id="fDoca" name="doca" maxlength="10" value="{{ carga.doca or '' }}"></div>
+                            <div class="col-4"><label class="form-label" for="fPlaca">Placa <span class="obrigatorio">*</span></label><input type="text" class="form-control" id="fPlaca" name="placa" maxlength="8" value="{{ carga.placa or '' }}" style="text-transform: uppercase;"></div>
+                            <div class="col-4"><label class="form-label" for="fMotorista">Motorista</label><input type="text" class="form-control" id="fMotorista" name="motorista" maxlength="120" value="{{ carga.motorista or '' }}"></div>
+                            <div class="col-6"><label class="form-label" for="fCoord">Coordenador</label><input type="text" class="form-control" id="fCoord" name="coordenador" maxlength="120" value="{{ carga.coordenador or '' }}"></div>
+                            <div class="col-6"><label class="form-label" for="fConf">Conferente</label><input type="text" class="form-control" id="fConf" name="conferente" maxlength="120" value="{{ carga.conferente or '' }}"></div>
+                            <div class="col-12"><label class="form-label" for="fAjud">Ajudantes</label><input type="text" class="form-control" id="fAjud" name="ajudantes" maxlength="200" value="{{ carga.ajudantes or '' }}"></div>
+                        </div>
+                    </fieldset>
+                    {% if editar %}<button type="submit" class="btn btn-sm btn-outline-primary mt-3"><i class="fas fa-check"></i>Salvar</button>{% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-7">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-barcode me-2"></i>Bipagem{% if carga.doca %} <span class="badge bg-info ms-2">Você está na doca {{ carga.doca }}</span>{% endif %}</div>
+            <div class="card-body">
+                {% if not editar %}
+                <p class="text-muted mb-0">{% if aberta %}Seu perfil só visualiza esta tela.{% else %}Carga encerrada: não é possível bipar.{% endif %}</p>
+                {% elif not carga.doca %}
+                <div class="alert alert-warning mb-0">Informe a <strong>doca</strong> ao lado e salve para liberar a bipagem.</div>
+                {% else %}
+                <form method="POST" action="{{ url_for('saida.bipar', cid=carga.id) }}" autocomplete="off" class="row g-2 align-items-end">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <div class="col-12 col-md-6"><label class="form-label" for="bCodigo">Código de barras ou SKU</label><input type="text" class="form-control form-control-lg codigo-mono" id="bCodigo" name="codigo" required autofocus placeholder="Bipe o produto"></div>
+                    <div class="col-6 col-md-3"><label class="form-label" for="bQtd">Quantidade</label><input type="text" inputmode="decimal" class="form-control form-control-lg" id="bQtd" name="quantidade" value="1"></div>
+                    <div class="col-6 col-md-3"><button type="submit" class="btn btn-primary btn-lg w-100"><i class="fas fa-plus"></i>Bipar</button></div>
+                </form>
+                <p class="text-muted small mt-2 mb-0">O DUN (caixa) soma as unidades por caixa do cadastro; o EAN e o SKU somam a quantidade digitada.</p>
+                {% endif %}
+                <div class="d-flex flex-wrap align-items-center gap-3 mt-3">
+                    <div class="flex-grow-1">
+                        <div class="progress barra-ocupacao" role="progressbar" aria-label="Conferido" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100" style="height: 12px;"><div class="progress-bar" style="width: {{ pct }}%"></div></div>
+                    </div>
+                    <strong>{{ conferido|numero }} de {{ total|numero }} · {{ pct }}%</strong>
+                </div>
+                {% if editar %}
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalFinalizar"><i class="fas fa-flag-checkered"></i>Gerar comprovante</button>
+                    <form method="POST" action="{{ url_for('saida.zerar', cid=carga.id) }}" class="ms-auto" onsubmit="return confirm('Zerar toda a bipagem desta carga e recomeçar?');">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger"><i class="fas fa-rotate-left"></i>Zerar</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><i class="fas fa-list-check me-2"></i>Itens da carga <span class="text-muted fw-normal">({{ linhas|length }})</span></div>
+    <div class="card-body">
+        {% if linhas %}
+        <div class="tabela-scroll">
+            <table class="table mb-0">
+                <thead><tr><th>SKU</th><th>Descrição</th><th>Cód. barras</th><th>NF</th><th>Qtd NF</th><th>Separado</th><th>Bipado</th><th>Situação</th>{% if editar %}<th></th>{% endif %}</tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    {% set i = l.item %}
+                    <tr>
+                        <td><strong>{{ i.produto.sku }}</strong></td>
+                        <td>{{ i.produto.descricao }}</td>
+                        <td class="codigo-mono">{{ i.produto.ean or i.produto.dun or '—' }}</td>
+                        <td class="text-nowrap">{{ i.nf_numero or '—' }}{% if pdfs.get(i.nf_numero) %} <a href="{{ url_for('saida.nf_pdf', nfid=pdfs[i.nf_numero]) }}" target="_blank" rel="noopener" class="ms-1" title="Abrir a NF {{ i.nf_numero }} em PDF (DANFE)" aria-label="Abrir a NF {{ i.nf_numero }} em PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}</td>
+                        <td>{{ i.quantidade|numero }}</td>
+                        <td>{{ l.separado|numero if l.separado else '—' }}</td>
+                        <td><strong>{{ i.conferido|numero }}</strong></td>
+                        <td>
+                            {% if l.diferenca == 0 %}<span class="badge bg-success">Carregado</span>
+                            {% elif not i.conferido %}<span class="badge bg-secondary">Pendente</span>
+                            {% elif l.diferenca < 0 %}<span class="badge bg-warning">{{ l.situacao }}</span>
+                            {% else %}<span class="badge bg-danger">{{ l.situacao }}</span>{% endif %}
+                        </td>
+                        {% if editar %}
+                        <td class="text-end">
+                            <form method="POST" action="{{ url_for('saida.bipar', cid=carga.id) }}" class="d-flex justify-content-end gap-1">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <input type="hidden" name="item_id" value="{{ i.id }}">
+                                <button type="submit" name="acao" value="completar" class="btn btn-sm btn-secondary" title="Completar o que falta" {% if not carga.doca or l.diferenca >= 0 %}disabled{% endif %}><i class="fas fa-check"></i>Bipar</button>
+                                <button type="submit" name="acao" value="tirar1" class="btn btn-sm btn-secondary" title="Tirar 1" {% if not i.conferido %}disabled{% endif %}>−1</button>
+                                <button type="submit" name="acao" value="zerar" class="btn btn-sm btn-danger" title="Tirar tudo" aria-label="Tirar tudo" {% if not i.conferido %}disabled{% endif %}><i class="fas fa-xmark"></i></button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Esta carga ainda não tem itens. Inclua na aba Itens.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="modal fade" id="modalFinalizar" tabindex="-1" aria-labelledby="modalFinalizarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" method="POST" action="{{ url_for('saida.finalizar', cid=carga.id) }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalFinalizarTitulo"><i class="fas fa-flag-checkered me-2"></i>Gerar comprovante da carga {{ carga.codigo }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                {% if not carga.doca or not carga.placa %}
+                <div class="alert alert-warning">Informe a <strong>doca</strong> e a <strong>placa</strong> antes de gerar o comprovante.</div>
+                {% endif %}
+                <p><strong>{{ no_stage|length }}</strong> palete(s) separados no stage vão sair do estoque.</p>
+                {% if sem_separacao %}
+                <div class="alert alert-warning">
+                    <strong>{{ sem_separacao|length }} item(ns) foram bipados sem separação.</strong>
+                    O estoque desses itens <strong>não será baixado</strong>, porque nenhum palete foi levado ao stage para eles:
+                    {% for l in sem_separacao[:8] %}{{ l.item.produto.sku }}{{ ', ' if not loop.last }}{% endfor %}{% if sem_separacao|length > 8 %}…{% endif %}.
+                </div>
+                {% endif %}
+                {% if divergentes %}
+                <p>Comprovante <strong>divergente</strong>: {{ divergentes|length }} item(ns) com quantidade diferente da nota. Informe o motivo de cada um:</p>
+                {% for l in divergentes %}
+                <div class="row g-2 mb-3">
+                    <div class="col-12"><span class="form-label d-block mb-0">{{ l.item.produto.sku }} · {{ l.item.produto.descricao }} — nota {{ l.item.quantidade|numero }}, bipado {{ l.item.conferido|numero }} ({{ l.situacao if l.item.conferido else 'não carregado' }})</span></div>
+                    <div class="col-12 col-md-6">
+                        <select class="form-select" name="motivo_{{ l.item.id }}" required aria-label="Motivo da divergência de {{ l.item.produto.sku }}">
+                            <option value="">— motivo —</option>
+                            {% for m in motivos_divergencia %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6"><input type="text" class="form-control" name="obs_{{ l.item.id }}" maxlength="120" placeholder="Observação (opcional)" aria-label="Observação de {{ l.item.produto.sku }}"></div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="mb-0">Comprovante <strong>completo</strong>: todos os itens conferem com as notas.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
+                <button type="submit" class="btn btn-primary" {% if not carga.doca or not carga.placa %}disabled{% endif %}><i class="fas fa-flag-checkered"></i>Gerar comprovante e expedir</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

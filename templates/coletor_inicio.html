@@ -1,0 +1,17 @@
+{% extends "coletor_base.html" %}
+{% block voltar %}<span class="coletor-voltar" aria-hidden="true"><i class="fas fa-barcode"></i></span>{% endblock %}
+{% block corpo %}
+{% if opcoes %}
+<div class="coletor-menu">
+    {% for o in opcoes %}
+    <a class="coletor-botao" href="{{ o.url }}">
+        <i class="fas fa-{{ o.icone }}"></i>
+        <span><strong>{{ o.titulo }}</strong><small>{{ o.numero }} {{ o.rotulo }}</small></span>
+        {% if o.numero %}<em>{{ o.numero }}</em>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="coletor-vazio">Seu usuário não tem permissão para as operações do coletor. Fale com o administrador.</p>
+{% endif %}
+{% endblock %}

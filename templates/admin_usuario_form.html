@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if user else 'Novo' }} usuário · WMS Doca Livre{% endblock %}
+
+{% set v_username = form.get('username', '') if form else (user.username if user else '') %}
+{% set v_nome = form.get('nome', '') if form else (user.nome if user else '') %}
+{% set v_email = form.get('email', '') if form else ((user.email or '') if user else '') %}
+{% set v_perfil = form.get('perfil', '') if form else (user.perfil if user else 'operador') %}
+{% set v_ativo = (form.get('ativo') == '1') if form else (user.ativo if user else true) %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-user-pen me-2"></i>{{ 'Editar usuário' if user else 'Novo usuário' }}</h2>
+    <a href="{{ url_for('admin.usuarios') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Voltar</a>
+</div>
+
+<div class="row">
+    <div class="col-12 col-lg-8 col-xl-6">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" autocomplete="off">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="username">Login</label>
+                            <input type="text" class="form-control" id="username" name="username" required minlength="3" maxlength="80" value="{{ v_username }}">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="perfil">Perfil</label>
+                            <select class="form-select" id="perfil" name="perfil" required>
+                                {% for valor, rotulo in perfis %}
+                                <option value="{{ valor }}" {% if v_perfil == valor %}selected{% endif %}>{{ rotulo }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if user and user.perfil == 'super' %}<div class="form-text">O Super Usuário é criado na instalação do sistema; o perfil dele não muda.</div>{% elif not eh_super %}<div class="form-text">Administrador só pode ser atribuído pelo Super Usuário.</div>{% endif %}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="nome">Nome completo</label>
+                            <input type="text" class="form-control" id="nome" name="nome" required maxlength="120" value="{{ v_nome }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="email">E-mail <span class="text-muted">(opcional)</span></label>
+                            <input type="email" class="form-control" id="email" name="email" maxlength="120" value="{{ v_email }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="senha">{{ 'Nova senha' if user else 'Senha provisória' }}</label>
+                            <input type="password" class="form-control" id="senha" name="senha" minlength="6" autocomplete="new-password" {% if not user %}required{% endif %}>
+                            <div class="form-text">
+                                {% if user %}Deixe em branco para manter a senha atual. {% endif %}Mínimo de 6 caracteres. O usuário troca a senha no próximo acesso.
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="ativo" name="ativo" value="1" {% if v_ativo %}checked{% endif %}>
+                                <label class="form-check-label" for="ativo">Usuário ativo (pode entrar no sistema)</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

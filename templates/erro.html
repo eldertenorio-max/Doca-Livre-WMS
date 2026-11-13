@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} · WMS Doca Livre{% endblock %}
+
+{% block content %}
+<div class="bloco-dados-altura">
+    <div class="alert alert-warning text-center" style="max-width: 520px;">
+        <h5 class="mb-2">{{ codigo }} · {{ titulo }}</h5>
+        <p>{{ mensagem }}</p>
+        <a href="{{ url_for('principal.dashboard') }}" class="btn btn-primary"><i class="fas fa-house"></i>Voltar ao painel</a>
+    </div>
+</div>
+{% endblock %}

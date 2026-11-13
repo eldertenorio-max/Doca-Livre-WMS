@@ -1,0 +1,29 @@
+{# Fila de paletes aguardando guarda (usada na Conferência de entrada e na Movimentação).
+   Espera: pendentes, resumo_itens, pode_guardar. #}
+{% from '_selos.html' import selo, form_guardar with context %}
+{% if pendentes %}
+<div class="tabela-scroll">
+    <table class="table mb-0">
+        <thead><tr><th>Etiqueta</th><th>NF</th><th>Conteúdo</th><th>Classificação</th><th>Guardar em</th><th></th></tr></thead>
+        <tbody>
+            {% for p in pendentes %}
+            <tr>
+                <td class="codigo-mono">{{ p.etiqueta }}</td>
+                <td>{% if p.nota %}<a href="{{ url_for('entrada.nota', nid=p.nota_id) }}#palete-{{ p.id }}">{{ p.nota.numero }}</a>{% else %}—{% endif %}</td>
+                <td>{{ resumo_itens(p) }}</td>
+                <td>{{ selo(p.classificacao) }}</td>
+                <td>{% if p.sugerido %}<strong class="codigo-mono">{{ p.sugerido.codigo }}</strong>{% else %}<span class="badge bg-danger">Sem indicação</span>{% endif %}</td>
+                <td class="text-end">
+                    <div class="d-flex flex-wrap justify-content-end align-items-center gap-2">
+                        {% if pode_guardar %}{{ form_guardar(p) }}{% endif %}
+                        <a href="{{ url_for('entrada.etiqueta_palete', pid=p.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="Etiqueta do palete" aria-label="Etiqueta do palete"><i class="fas fa-tag"></i></a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="text-muted mb-0">Nenhum palete aguardando guarda.</p>
+{% endif %}

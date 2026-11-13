@@ -1,0 +1,10 @@
+{# Campo "Motivo do retorno" (lista fixa + texto livre em "Outro"). "prefixo" deixa os ids únicos em cada janela;
+   "escolhido" e "outro" repõem o que a pessoa tinha preenchido. #}
+<label class="form-label" for="{{ prefixo }}Motivo">Motivo do retorno <span class="obrigatorio">*</span></label>
+<select class="form-select" id="{{ prefixo }}Motivo" name="motivo_retorno" required
+        onchange="document.getElementById('{{ prefixo }}Outro').hidden = this.value !== 'Outro';">
+    <option value="">— escolher —</option>
+    {% for m in motivos %}<option value="{{ m }}" {% if escolhido == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+</select>
+<input type="text" class="form-control mt-2" id="{{ prefixo }}Outro" name="motivo_outro" maxlength="60" value="{{ outro or '' }}"
+       placeholder="Descreva o motivo" aria-label="Descreva o motivo do retorno" {% if escolhido != 'Outro' %}hidden{% endif %}>

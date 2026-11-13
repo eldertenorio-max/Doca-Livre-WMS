@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doca Livre WMS · Coletor{% if titulo != 'Coletor' %} · {{ titulo }}{% endif %}</title>
+    <meta name="theme-color" content="#1a237e">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/icon-192.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+    <meta name="application-name" content="Doca Livre WMS">
+    <script src="{{ url_for('static', filename='tema-inicial.js') }}?v={{ assets_version }}"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='wms.css') }}?v={{ assets_version }}">
+</head>
+<body class="coletor">
+    <header class="coletor-topo">
+        {% block voltar %}<a href="{{ url_for('coletor.inicio') }}" class="coletor-voltar" aria-label="Voltar ao início do coletor"><i class="fas fa-arrow-left"></i></a>{% endblock %}
+        <h1>{{ titulo }}</h1>
+        <a href="{{ url_for('principal.dashboard') }}" class="coletor-sair" title="Abrir o sistema completo" aria-label="Abrir o sistema completo"><i class="fas fa-display"></i></a>
+    </header>
+    <main class="coletor-corpo">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for cat, msg in messages %}
+            <div class="coletor-aviso coletor-aviso--{{ 'erro' if cat == 'error' else 'ok' }}" role="alert"><i class="fas fa-{{ 'circle-xmark' if cat == 'error' else 'circle-check' }}"></i><span>{{ msg }}</span></div>
+            {% endfor %}
+        {% endwith %}
+        {% block corpo %}{% endblock %}
+    </main>
+    <footer class="coletor-rodape">{{ usuario.nome }} · WMS Doca Livre</footer>
+    <script>
+    // o campo de bipar fica sempre pronto: foco ao abrir e de volta depois de tocar fora
+    (function () {
+        var campo = document.querySelector('[data-bipar]');
+        if (!campo) return;
+        campo.focus();
+        document.addEventListener('click', function (ev) {
+            if (!ev.target.closest('input, select, textarea, button, a, label')) campo.focus();
+        });
+    })();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

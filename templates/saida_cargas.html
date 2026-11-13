@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% block title %}Saída por XML · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('expedicao') %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-file-export me-2"></i>Saída por XML</h2>
+    {% if editar %}
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalPlanilha"><i class="fas fa-file-excel"></i>Importar planilha</button>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalNova"><i class="fas fa-keyboard"></i>Carga manual</button>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalXml"><i class="fas fa-file-code"></i>Importar XML</button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-folder-open"></i></span><div><div class="kpi-valor">{{ contagem.get('Aberta', 0) }}</div><div class="kpi-rotulo">Abertas</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-cart-flatbed"></i></span><div><div class="kpi-valor">{{ contagem.get('Em separação', 0) }}</div><div class="kpi-rotulo">Em separação</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-barcode"></i></span><div><div class="kpi-valor">{{ contagem.get('Em conferência', 0) }}</div><div class="kpi-rotulo">Em conferência</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-truck-fast"></i></span><div><div class="kpi-valor">{{ contagem.get('Expedida', 0) }}</div><div class="kpi-rotulo">Expedidas</div></div></div></div>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-12 col-md-5">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Carga, placa, NF ou cliente" aria-label="Buscar carga">
+        </div>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+        <select class="form-select" name="situacao" aria-label="Situação" onchange="this.form.submit()">
+            <option value="abertas" {% if situacao == 'abertas' %}selected{% endif %}>Em aberto</option>
+            {% for s in ('Aberta', 'Em separação', 'Em conferência', 'Expedida', 'Cancelada') %}<option value="{{ s }}" {% if situacao == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            <option value="todas" {% if situacao == 'todas' %}selected{% endif %}>Todas</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca or situacao != 'abertas' %}<a href="{{ url_for('saida.cargas') }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if cargas %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Carga</th><th>Notas</th><th>Itens</th><th>Placa</th><th>Doca</th><th>Motivo</th><th style="min-width: 150px;">Conferido</th><th>Situação</th><th></th></tr></thead>
+                <tbody>
+                    {% for c, r in cargas %}
+                    <tr>
+                        <td><strong>{{ c.codigo }}</strong><br><small>{{ c.criado_em|datahora }}</small></td>
+                        <td>{{ r.notas|join(', ') or '—' }}</td>
+                        <td>{{ c.itens|length }}</td>
+                        <td>{{ c.placa or '—' }}</td>
+                        <td>{{ c.doca or '—' }}</td>
+                        <td>{{ c.motivo }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress barra-ocupacao flex-grow-1" role="progressbar" aria-label="Conferido da carga {{ c.codigo }}" aria-valuenow="{{ r.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ r.pct }}%"></div></div>
+                                <span class="small">{{ r.pct }}%</span>
+                            </div>
+                        </td>
+                        <td>{{ selo(c.status) }}</td>
+                        <td class="text-end text-nowrap">
+                            {% if c.status in ('Aberta', 'Em separação', 'Em conferência') and c.itens %}
+                            <a href="{{ url_for('saida.conferencia_carga', cid=c.id) }}" class="btn btn-sm btn-primary"><i class="fas fa-barcode"></i>Conferir</a>
+                            {% elif c.status == 'Expedida' %}
+                            <a href="{{ url_for('saida.extrato', cid=c.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="Extrato" aria-label="Extrato da carga {{ c.codigo }}"><i class="fas fa-receipt"></i></a>
+                            {% endif %}
+                            <a href="{{ url_for('saida.carga', cid=c.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-arrow-right"></i>Abrir</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+            <span class="text-muted">{{ total }} carga(s){% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+            {% if paginas > 1 %}
+            <div class="d-flex gap-2">
+                {% if pagina > 1 %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('saida.cargas', q=busca, situacao=situacao, pagina=pagina - 1) }}"><i class="fas fa-chevron-left"></i>Anterior</a>{% endif %}
+                {% if pagina < paginas %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('saida.cargas', q=busca, situacao=situacao, pagina=pagina + 1) }}">Próxima<i class="fas fa-chevron-right"></i></a>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="bloco-dados-altura">
+            <div class="text-center" style="max-width: 540px;">
+                {% if busca or situacao != 'abertas' %}
+                <h5>Nenhuma carga encontrada com esse filtro</h5>
+                <p class="mb-0"><a href="{{ url_for('saida.cargas', situacao='todas') }}">Ver todas as cargas</a></p>
+                {% else %}
+                <h5>Nenhuma carga em aberto</h5>
+                <p class="text-muted mb-0">{% if editar %}Use <strong>Importar XML</strong> com as NF-e de saída do veículo (elas formam uma carga), <strong>Importar planilha</strong> com o romaneio ou <strong>Carga manual</strong>.{% else %}Seu perfil só visualiza esta tela.{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar %}
+<div class="modal fade" id="modalXml" tabindex="-1" aria-labelledby="modalXmlTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('saida.importar_xml') }}" enctype="multipart/form-data" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalXmlTitulo"><i class="fas fa-file-code me-2"></i>Importar XML de NF-e de saída</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="xmlArquivos">Arquivos XML (todas as notas do mesmo veículo)</label>
+                <input type="file" class="form-control" id="xmlArquivos" name="arquivos" accept=".xml,text/xml,application/xml" multiple required>
+                <p class="text-muted small mt-3 mb-0">As notas escolhidas formam uma carga nova, numerada pelo sistema.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPlanilha" tabindex="-1" aria-labelledby="modalPlanilhaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('saida.importar_planilha') }}" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPlanilhaTitulo"><i class="fas fa-file-excel me-2"></i>Importar planilha de romaneio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <ol class="mb-3">
+                    <li>Baixe o <a href="{{ url_for('saida.modelo_planilha') }}">modelo de planilha</a>.</li>
+                    <li>Preencha uma linha por item; linhas com a mesma Carga vão no mesmo veículo.</li>
+                    <li>Envie o arquivo aqui.</li>
+                </ol>
+                <input type="file" class="form-control" name="arquivo" accept=".xlsx" required aria-label="Planilha .xlsx">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i>Importar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNova" tabindex="-1" aria-labelledby="modalNovaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('saida.carga_nova') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovaTitulo"><i class="fas fa-keyboard me-2"></i>Abrir carga manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-6"><label class="form-label" for="nCodigo">Código (viagem / roteiro)</label><input type="text" class="form-control" id="nCodigo" name="codigo" maxlength="20" style="text-transform: uppercase;" placeholder="Em branco = automático"></div>
+                    <div class="col-6"><label class="form-label" for="nData">Data de expedição</label><input type="date" class="form-control" id="nData" name="data_expedicao"></div>
+                    <div class="col-12">
+                        <label class="form-label" for="nMotivo">Motivo da saída</label>
+                        <select class="form-select" id="nMotivo" name="motivo">{% for m in motivos %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select>
+                    </div>
+                </div>
+                <p class="text-muted small mt-3 mb-0">Os itens são incluídos na tela seguinte.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Abrir carga</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

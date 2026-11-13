@@ -1,0 +1,12 @@
+{# Filtros da tela de Divergências (carga, NF, cliente, cidade, produto). Espera: filtros (dict), rota (endpoint). #}
+<form method="GET" class="row g-2 mb-3 nao-imprimir" autocomplete="off">
+    <div class="col-6 col-md-2"><input type="search" class="form-control" name="carga" value="{{ filtros.carga }}" placeholder="Carga" aria-label="Carga"></div>
+    <div class="col-6 col-md-2"><input type="search" class="form-control" name="nf" value="{{ filtros.nf }}" placeholder="NF" aria-label="Nota fiscal"></div>
+    <div class="col-6 col-md-2"><input type="search" class="form-control" name="cliente" value="{{ filtros.cliente }}" placeholder="Cliente" aria-label="Cliente"></div>
+    <div class="col-6 col-md-2"><input type="search" class="form-control" name="cidade" value="{{ filtros.cidade }}" placeholder="Cidade" aria-label="Cidade"></div>
+    <div class="col-6 col-md-2"><input type="search" class="form-control" name="produto" value="{{ filtros.produto }}" placeholder="Produto" aria-label="Produto (SKU ou descrição)"></div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+        {% if filtros.values()|select|list %}<a href="{{ url_for(rota) }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>

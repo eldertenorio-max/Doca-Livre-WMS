@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% from '_selos.html' import selo %}
+{% from '_estoque_partes.html' import paginacao, cartao_filtro %}
+{% block title %}Inventário nº {{ inventario.id }} · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('estoque') %}
+{% set filtros = {'iid': inventario.id} %}
+{% if filtro %}{% set _ = filtros.update({'status': filtro}) %}{% endif %}
+{% if busca %}{% set _ = filtros.update({'q': busca}) %}{% endif %}
+{% macro data(d) %}{{ d.strftime('%d/%m/%Y') if d else '—' }}{% endmacro %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-clipboard-check me-2"></i>Inventário nº {{ inventario.id }} <span class="ms-2 align-middle">{{ selo(inventario.status) }}</span></h2>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('inventario.lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Inventários</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('inventario.detalhe', formato='xlsx', **filtros) }}"><i class="fas fa-file-excel"></i>Baixar Excel</a>
+        {% if editar and aberto %}
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalFinalizar"><i class="fas fa-flag-checkered"></i>Finalizar sem atualizar</button>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAplicar"><i class="fas fa-database"></i>Aplicar na base e finalizar</button>
+        {% endif %}
+        {% if editar and not inventario.aplicado %}
+        <form method="POST" action="{{ url_for('inventario.excluir', iid=inventario.id) }}" onsubmit="return confirm('Excluir o inventário nº {{ inventario.id }} e todas as contagens dele? O estoque não é alterado.');">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger" title="Excluir inventário" aria-label="Excluir inventário"><i class="fas fa-trash"></i></button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<p class="text-muted mb-3">{{ inventario.descricao }} · {{ inventario.camara.nome if inventario.camara else 'Todas as câmaras' }} · iniciado em {{ inventario.criado_em|datahora }} por {{ inventario.criado_por }}{% if inventario.cego %} · <strong>contagem cega</strong>{% endif %}
+    {% if inventario.status == 'Finalizado' %} · finalizado em {{ inventario.finalizado_em|datahora }} por {{ inventario.finalizado_por }} — <strong>{{ 'contagens aplicadas na base' if inventario.aplicado else 'estoque não alterado' }}</strong>{% endif %}</p>
+
+<div class="cartoes-filtro mb-3" role="navigation" aria-label="Filtrar pela situação da linha">
+    {{ cartao_filtro('Todas', resumo.total, url_for('inventario.detalhe', iid=inventario.id, q=busca or none), not filtro) }}
+    {{ cartao_filtro('Pendentes', resumo.Pendente, url_for('inventario.detalhe', iid=inventario.id, status='Pendente', q=busca or none), filtro == 'Pendente', 'cartao-filtro--amarelo') }}
+    {{ cartao_filtro('Conferidos', resumo.Conferido, url_for('inventario.detalhe', iid=inventario.id, status='Conferido', q=busca or none), filtro == 'Conferido', 'cartao-filtro--verde') }}
+    {{ cartao_filtro('Divergentes', resumo.Divergente, url_for('inventario.detalhe', iid=inventario.id, status='Divergente', q=busca or none), filtro == 'Divergente', 'cartao-filtro--vermelho') }}
+    {{ cartao_filtro('Extras', resumo.Extra, url_for('inventario.detalhe', iid=inventario.id, status='Extra', q=busca or none), filtro == 'Extra', 'cartao-filtro--excedido') }}
+    <div class="cartao-filtro" style="min-width: 220px;">
+        <strong>{{ resumo.pct }}%</strong><span>contado · {{ resumo.contadas }} de {{ resumo.da_fotografia }}</span>
+        <div class="progress barra-ocupacao mt-1" role="progressbar" aria-label="Progresso" aria-valuenow="{{ resumo.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ resumo.pct }}%"></div></div>
+    </div>
+</div>
+
+{% if editar and aberto %}
+<div class="card mb-3">
+    <div class="card-header"><i class="fas fa-barcode me-2"></i>Contar<span class="text-muted small ms-2" id="contandoLinha"></span></div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('inventario.bipar', iid=inventario.id) }}" autocomplete="off" id="formContar">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="linha_id" id="cLinha" value="{{ form.get('linha_id', '') if form else '' }}">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-4 col-xl-2">
+                    <label class="form-label" for="cLocal">Palete ou endereço</label>
+                    <input type="text" class="form-control codigo-mono" id="cLocal" name="local" maxlength="26" style="text-transform: uppercase;" value="{{ form.get('local', '') if form else '' }}" placeholder="opcional">
+                </div>
+                <div class="col-12 col-md-4 col-xl-2">
+                    <label class="form-label" for="cCodigo">Produto <span class="obrigatorio">*</span></label>
+                    <input type="text" class="form-control" id="cCodigo" name="codigo" required style="text-transform: uppercase;" value="{{ form.get('codigo', '') if form else '' }}" placeholder="EAN, DUN ou SKU" {% if not form %}autofocus{% endif %}>
+                </div>
+                <div class="col-6 col-md-2 col-xl-1">
+                    <label class="form-label" for="cQtd">Qtd. <span class="obrigatorio">*</span></label>
+                    <input type="text" inputmode="decimal" class="form-control" id="cQtd" name="quantidade" required value="{{ form.get('quantidade', '') if form else '' }}">
+                </div>
+                <div class="col-6 col-md-2 col-xl-1">
+                    <label class="form-label" for="cUp">UP</label>
+                    <input type="text" class="form-control" id="cUp" name="up" maxlength="20" value="{{ form.get('up', '') if form else '' }}">
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="cLote">Lote</label>
+                    <input type="text" class="form-control" id="cLote" name="lote" maxlength="30" value="{{ form.get('lote', '') if form else '' }}">
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="cFab">Fabricação</label>
+                    <input type="date" class="form-control" id="cFab" name="fabricacao" value="{{ form.get('fabricacao', '') if form else '' }}">
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="cVal">Validade</label>
+                    <input type="date" class="form-control" id="cVal" name="validade" value="{{ form.get('validade', '') if form else '' }}">
+                </div>
+                <div class="col-12 col-md-9 col-xl-9">
+                    <label class="form-label" for="cObs">Observação</label>
+                    <input type="text" class="form-control" id="cObs" name="observacao" maxlength="200" value="{{ form.get('observacao', '') if form else '' }}" placeholder="Ex.: caixa amassada, etiqueta ilegível">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Registrar contagem</button>
+                    <button type="button" class="btn btn-outline-secondary" id="cLimpar">Limpar</button>
+                </div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">O sistema procura a linha pendente pelo palete/endereço, pela UP ou pelo produto. Tudo igual ao sistema = <strong>conferido</strong>; qualquer diferença = <strong>divergente</strong>; produto que não estava na fotografia = <strong>extra</strong>.{% if not esconder %} Na lista, <strong>Confere</strong> confirma a linha com um clique e <strong>Contar</strong> traz os dados dela para cá.{% endif %}</p>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<form method="GET" class="row g-2 mb-3" autocomplete="off">
+    {% if filtro %}<input type="hidden" name="status" value="{{ filtro }}">{% endif %}
+    <div class="col-12 col-md-5 col-lg-4">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+            <input type="search" class="form-control" name="q" value="{{ busca }}" placeholder="Endereço, palete, SKU, descrição ou lote" aria-label="Buscar linha">
+        </div>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Buscar</button>
+        {% if busca or filtro %}<a href="{{ url_for('inventario.detalhe', iid=inventario.id) }}" class="btn btn-outline-secondary">Limpar</a>{% endif %}
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body">
+        {% if linhas %}
+        <div class="tabela-scroll">
+            <table class="table mb-0 align-middle tabela-semaforo">
+                <thead><tr><th>Situação</th><th>Endereço</th><th>Produto</th>
+                    <th>Lote</th><th>Fab.</th><th>Validade</th><th class="text-end">Qtd. sistema</th>
+                    <th>Lote contado</th><th>Fab. contada</th><th>Val. contada</th><th class="text-end">Qtd. contada</th><th class="text-end">Diferença</th>
+                    <th>Quem / quando</th>{% if editar and aberto %}<th></th>{% endif %}</tr></thead>
+                <tbody>
+                    {% for l in linhas %}
+                    {% set oculto = esconder and l.status == 'Pendente' %}
+                    <tr class="linha-semaforo linha-semaforo--{{ {'Conferido': 'verde', 'Divergente': 'vermelho', 'Extra': 'excedido'}.get(l.status, 'neutro') }}">
+                        <td>{{ selo(l.status) }}</td>
+                        <td class="codigo-mono text-nowrap">{{ l.endereco or '—' }}{% if l.palete_etiqueta %}<small class="d-block text-muted">{{ l.palete_etiqueta }}</small>{% endif %}</td>
+                        <td>{% if oculto %}<span class="text-muted">— contagem cega —</span>{% else %}<strong>{{ l.bip_sku if l.status == 'Extra' else l.sku }}</strong> · {{ l.descricao }}{% if l.bip_sku and l.bip_sku != l.sku %}<small class="d-block text-danger fw-semibold">contado: {{ l.bip_sku }}</small>{% endif %}{% endif %}</td>
+                        {% if oculto or l.status == 'Extra' %}
+                        <td>—</td><td>—</td><td>—</td><td class="text-end">—</td>
+                        {% else %}
+                        <td>{{ l.lote or '—' }}</td><td class="text-nowrap">{{ data(l.fabricacao) }}</td><td class="text-nowrap">{{ data(l.validade) }}</td>
+                        <td class="text-end text-nowrap">{{ l.quantidade_esperada|numero }} {{ l.unidade }}</td>
+                        {% endif %}
+                        {% if l.status == 'Pendente' %}
+                        <td>—</td><td>—</td><td>—</td><td class="text-end">—</td><td class="text-end">—</td><td>—</td>
+                        {% else %}
+                        <td class="{{ 'text-danger fw-semibold' if l.status == 'Divergente' and (l.bip_lote or '')|upper != (l.lote or '')|upper }}">{{ l.bip_lote or '—' }}</td>
+                        <td class="text-nowrap {{ 'text-danger fw-semibold' if l.status == 'Divergente' and l.bip_fabricacao != l.fabricacao }}">{{ data(l.bip_fabricacao) }}</td>
+                        <td class="text-nowrap {{ 'text-danger fw-semibold' if l.status == 'Divergente' and l.bip_validade != l.validade }}">{{ data(l.bip_validade) }}</td>
+                        <td class="text-end text-nowrap"><strong>{{ l.bip_quantidade|numero }}</strong> {{ l.unidade }}</td>
+                        <td class="text-end text-nowrap {{ 'text-danger fw-semibold' if l.diferenca }}">{{ ('+' if l.diferenca > 0 else '') ~ (l.diferenca|numero) if l.diferenca else '—' }}</td>
+                        <td class="small">{{ l.contado_por }}<span class="d-block text-muted">{{ l.contado_em|datahora }}</span>{% if l.observacao %}<span class="d-block">{{ l.observacao }}</span>{% endif %}</td>
+                        {% endif %}
+                        {% if editar and aberto %}
+                        <td class="text-end text-nowrap">
+                            {% if l.status == 'Pendente' %}
+                                {% if not esconder %}
+                                <form method="POST" action="{{ url_for('inventario.bipar', iid=inventario.id) }}" class="d-inline">
+                                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="acao" value="confere">
+                                    <input type="hidden" name="linha_id" value="{{ l.id }}"><input type="hidden" name="voltar_status" value="{{ filtro }}">
+                                    <button type="submit" class="btn btn-sm btn-primary" title="Está tudo igual ao sistema"><i class="fas fa-check"></i>Confere</button>
+                                </form>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-contar="{{ {'id': l.id, 'codigo': l.sku, 'local': l.palete_etiqueta or l.endereco or '', 'lote': l.lote or '', 'up': l.up or '', 'fabricacao': l.fabricacao.isoformat() if l.fabricacao else '', 'validade': l.validade.isoformat() if l.validade else '', 'rotulo': (l.endereco or '') ~ ' · ' ~ l.sku}|tojson|forceescape }}"><i class="fas fa-pen"></i>Contar</button>
+                                {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-contar="{{ {'id': l.id, 'codigo': '', 'local': l.palete_etiqueta or l.endereco or '', 'lote': '', 'up': '', 'fabricacao': '', 'validade': '', 'rotulo': l.endereco or l.palete_etiqueta or ''}|tojson|forceescape }}"><i class="fas fa-pen"></i>Contar</button>
+                                {% endif %}
+                            {% else %}
+                            <form method="POST" action="{{ url_for('inventario.desfazer', iid=inventario.id, lid=l.id) }}" class="d-inline" onsubmit="return confirm('Desfazer esta contagem?');">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_status" value="{{ filtro }}">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Desfazer a contagem desta linha"><i class="fas fa-rotate-left"></i>Desfazer</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {{ paginacao('inventario.detalhe', pagina, paginas, total, 'linha(s)', filtros) }}
+        {% else %}
+        <div class="bloco-dados-altura"><div class="text-center">
+            <h5>Nenhuma linha com esse filtro</h5>
+            <p class="mb-0"><a href="{{ url_for('inventario.detalhe', iid=inventario.id) }}">Ver todas as linhas</a></p>
+        </div></div>
+        {% endif %}
+    </div>
+</div>
+
+{% if editar and aberto %}
+<div class="modal fade" id="modalAplicar" tabindex="-1" aria-labelledby="modalAplicarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('inventario.aplicar', iid=inventario.id) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAplicarTitulo"><i class="fas fa-database me-2"></i>Aplicar na base e finalizar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>O estoque passa a valer o que foi contado nas <strong>{{ resumo.Divergente }} linha(s) divergente(s)</strong>: quantidade, lote, fabricação, validade, UP e produto. Cada correção fica no histórico de movimentação como "Inventário".</p>
+                <ul class="mb-0">
+                    <li>{{ resumo.Conferido }} linha(s) conferida(s): nada muda.</li>
+                    <li>{{ resumo.Pendente }} linha(s) sem contar: o estoque delas <strong>não</strong> é alterado.</li>
+                    <li>{{ resumo.Extra }} extra(s): não entram no estoque sozinhos; se a mercadoria existe, dê entrada dela.</li>
+                </ul>
+                <div class="alert alert-danger mt-3 mb-0">Esta ação altera o estoque e não pode ser desfeita.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-database"></i>Aplicar e finalizar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="modal fade" id="modalFinalizar" tabindex="-1" aria-labelledby="modalFinalizarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('inventario.finalizar', iid=inventario.id) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalFinalizarTitulo"><i class="fas fa-flag-checkered me-2"></i>Finalizar sem atualizar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">O inventário é encerrado e o resultado fica guardado ({{ resumo.Conferido }} conferida(s), {{ resumo.Divergente }} divergente(s), {{ resumo.Extra }} extra(s), {{ resumo.Pendente }} sem contar), mas <strong>o estoque continua como está</strong>. Depois de finalizado não dá mais para contar nem aplicar.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-flag-checkered"></i>Finalizar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// "Contar" numa linha traz os dados dela para o formulário de contagem (a quantidade fica para digitar).
+(function () {
+    var form = document.getElementById('formContar');
+    if (!form) return;
+    var aviso = document.getElementById('contandoLinha');
+    function limpar() {
+        ['cLinha', 'cLocal', 'cCodigo', 'cQtd', 'cUp', 'cLote', 'cFab', 'cVal', 'cObs'].forEach(function (id) { document.getElementById(id).value = ''; });
+        aviso.textContent = '';
+        document.getElementById('cCodigo').focus();
+    }
+    document.querySelectorAll('[data-contar]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var d = JSON.parse(b.getAttribute('data-contar'));
+            document.getElementById('cLinha').value = d.id;
+            document.getElementById('cLocal').value = d.local;
+            document.getElementById('cCodigo').value = d.codigo;
+            document.getElementById('cLote').value = d.lote;
+            document.getElementById('cUp').value = d.up;
+            document.getElementById('cFab').value = d.fabricacao;
+            document.getElementById('cVal').value = d.validade;
+            document.getElementById('cQtd').value = '';
+            aviso.textContent = '— contando a linha ' + d.rotulo;
+            form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById(d.codigo ? 'cQtd' : 'cCodigo').focus();
+        });
+    });
+    document.getElementById('cLimpar').addEventListener('click', limpar);
+})();
+</script>
+{% endblock %}

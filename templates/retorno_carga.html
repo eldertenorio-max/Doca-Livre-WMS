@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Retorno da carga {{ carga.codigo }} · WMS Doca Livre{% endblock %}
+
+{% set editar = pode_editar('devolucoes') %}
+{% set tudo_voltou = linhas|selectattr('pode')|list|length == 0 %}
+
+{% block content %}
+<div class="panel-page-header">
+    <h2><i class="fas fa-rotate-left me-2"></i>Retorno da carga {{ carga.codigo }}</h2>
+    <a href="{{ url_for('retornos.lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i>Retornos</a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <dl class="detalhe-endereco" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
+            <div><dt>Saiu em</dt><dd>{{ carga.fim_conferencia|datahora }}</dd></div>
+            <div><dt>Motivo da saída</dt><dd>{{ carga.motivo }}</dd></div>
+            <div><dt>Placa</dt><dd>{{ carga.placa or '—' }}</dd></div>
+            <div><dt>Motorista</dt><dd>{{ carga.motorista or '—' }}</dd></div>
+            <div><dt>Doca</dt><dd>{{ carga.doca or '—' }}</dd></div>
+        </dl>
+    </div>
+</div>
+
+<form method="POST" autocomplete="off" id="formRetorno">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="card mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center gap-2">
+            <span><i class="fas fa-boxes-stacked me-2"></i>O que voltou</span>
+            {% if editar and not tudo_voltou %}
+            <button type="button" class="btn btn-sm btn-outline-primary ms-auto" id="btnVoltouTudo"><i class="fas fa-check-double"></i>Voltou tudo</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnLimpar">Limpar</button>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            <div class="tabela-scroll">
+                <table class="table table-striped mb-0 align-middle">
+                    <thead><tr><th>NF</th><th>Cliente</th><th>Produto</th><th class="text-end">Saiu</th><th class="text-end">Já voltou</th><th style="width: 170px;">Voltou agora</th></tr></thead>
+                    <tbody>
+                        {% for l in linhas %}
+                        {% set i = l.item %}
+                        <tr>
+                            <td><strong>{{ i.nf_numero or '—' }}</strong></td>
+                            <td>{{ i.cliente or '—' }}{% if i.cidade %}<small class="text-muted d-block">{{ i.cidade }}</small>{% endif %}</td>
+                            <td><strong>{{ i.produto.sku }}</strong> · {{ i.produto.descricao }}</td>
+                            <td class="text-end">{{ l.saiu|numero }} {{ i.unidade or i.produto.unidade }}</td>
+                            <td class="text-end">{{ l.voltou|numero if l.voltou else '—' }}</td>
+                            <td>
+                                {% if l.pode %}
+                                <input type="text" inputmode="decimal" class="form-control form-control-sm qtd-retorno" name="qtd_{{ i.id }}" data-pode="{{ '%g'|format(l.pode) }}"
+                                       value="{{ form.get('qtd_' ~ i.id, '') if form else '' }}" placeholder="até {{ l.pode|numero }}" aria-label="Quantidade que voltou de {{ i.produto.sku }} (NF {{ i.nf_numero }})" {% if not editar %}disabled{% endif %}>
+                                {% else %}
+                                <span class="text-muted small">{{ 'Nada saiu' if not l.saiu else 'Já voltou tudo' }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="small text-danger fw-semibold mb-0 mt-2" id="avisoRetorno" role="status"></p>
+        </div>
+    </div>
+
+    {% if editar and not tudo_voltou %}
+    <div class="card">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-5">
+                    {% with prefixo = 'rc', escolhido = form.get('motivo_retorno') if form else none, outro = form.get('motivo_outro') if form else none %}{% include '_motivo_retorno.html' %}{% endwith %}
+                </div>
+                <div class="col-12 col-md-7">
+                    <label class="form-label" for="rcObs">Observação</label>
+                    <input type="text" class="form-control" id="rcObs" name="observacao" maxlength="300" value="{{ form.get('observacao', '') if form else '' }}" placeholder="Ex.: cliente fechado, reagendar para segunda">
+                </div>
+            </div>
+            <p class="text-muted small mt-3 mb-0">É aberto um retorno para cada nota fiscal com quantidade informada. Na tela seguinte você confere por bipagem, monta os paletes e classifica: <strong>Reentrega</strong> (vai sair de novo para o cliente), <strong>Bom</strong> (volta ao estoque), avaria, descarte ou bloqueado.</p>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary" id="btnAbrirRetorno"><i class="fas fa-check"></i>Abrir retorno</button>
+            </div>
+        </div>
+    </div>
+    {% elif tudo_voltou %}
+    <div class="alert alert-info mb-0">Tudo o que saiu nesta carga já tem retorno aberto. Veja em <a href="{{ url_for('retornos.lista', q=carga.codigo, situacao='todas') }}">Retornos</a>.</div>
+    {% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Retorno de carga: "Voltou tudo" preenche o que ainda pode voltar; quantidade acima do que saiu é avisada na hora.
+(function () {
+    var campos = Array.prototype.slice.call(document.querySelectorAll('.qtd-retorno'));
+    var aviso = document.getElementById('avisoRetorno'), botao = document.getElementById('btnAbrirRetorno');
+    if (!campos.length || !botao) return;
+    function numero(texto) {
+        texto = texto.trim();
+        if (texto.indexOf(',') !== -1) texto = texto.replace(/\./g, '').replace(',', '.');
+        return texto === '' ? 0 : Number(texto);
+    }
+    function conferir() {
+        var problemas = 0, informados = 0;
+        campos.forEach(function (c) {
+            var n = numero(c.value), ruim = isNaN(n) || n < 0 || n > Number(c.getAttribute('data-pode'));
+            c.classList.toggle('is-invalid', ruim);
+            if (ruim) problemas++; else if (n > 0) informados++;
+        });
+        aviso.textContent = problemas ? 'Há ' + problemas + ' quantidade(s) inválida(s) ou acima do que ainda pode voltar.' : '';
+        botao.disabled = problemas > 0 || informados === 0;
+    }
+    var tudo = document.getElementById('btnVoltouTudo'), limpar = document.getElementById('btnLimpar');
+    if (tudo) tudo.addEventListener('click', function () {
+        campos.forEach(function (c) { c.value = c.getAttribute('data-pode').replace('.', ','); });
+        conferir();
+    });
+    if (limpar) limpar.addEventListener('click', function () { campos.forEach(function (c) { c.value = ''; }); conferir(); });
+    campos.forEach(function (c) { c.addEventListener('input', conferir); });
+    conferir();
+})();
+</script>
+{% endblock %}
