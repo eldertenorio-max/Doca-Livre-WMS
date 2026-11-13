@@ -897,6 +897,14 @@ tr:target > td { box-shadow: inset 0 0 0 9999px var(--primaria-suave); }
 /* ============================================================ Dashboard do estoque e relatórios */
 .titulo-secao { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--texto-secundario); margin: 18px 0 8px; }
 .kpi-detalhe { font-size: .74rem; color: var(--texto-secundario); margin-top: 2px; }
+/* divisão por climatização dentro do cartão (Câmaras e endereços) */
+.kpi-climas { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; font-size: .78rem; color: var(--texto-secundario); }
+.kpi-clima { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.kpi-clima strong { color: var(--texto-titulo); font-weight: 700; }
+.kpi-clima::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
+.kpi-clima--congelado::before { background: #2563eb; }
+.kpi-clima--resfriado::before { background: #06b6d4; }
+.kpi-clima--seco::before { background: #d97706; }
 .kpi--alerta { border-left: 4px solid #dc2626; }
 .kpi--alerta .kpi-valor { color: #dc2626; }
 .kpi--alerta .kpi-icone { background: #fee2e2; color: #991b1b; }

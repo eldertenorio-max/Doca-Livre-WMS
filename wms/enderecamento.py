@@ -85,6 +85,30 @@ def resumo_camaras():
     return linhas
 
 
+# Climatizacao (categoria da camara): como aparece nos resumos. (chave, no feminino para camaras, no masculino
+# para posicoes). Camara sem categoria entra como "sem climatizacao".
+CLIMATIZACOES = [('Congelado', 'congelada', 'congeladas', 'congelado', 'congelados'),
+                 ('Resfriado', 'resfriada', 'resfriadas', 'resfriado', 'resfriados'),
+                 ('Seco', 'seca', 'secas', 'seco', 'secos'),
+                 (None, 'sem climatização', 'sem climatização', 'sem climatização', 'sem climatização')]
+
+
+def resumo_por_climatizacao(linhas):
+    """Soma as linhas de resumo_camaras() por climatizacao (Congelado / Resfriado / Seco / sem climatizacao).
+    So devolve as climatizacoes que tem camara."""
+    grupos = []
+    for chave, fem_um, fem_varios, masc_um, masc_varios in CLIMATIZACOES:
+        do_grupo = [l for l in linhas if (l['camara'].categoria if l['camara'].categoria in CATEGORIAS else None) == chave]
+        if not do_grupo:
+            continue
+        soma = {campo: sum(l[campo] for l in do_grupo) for campo in ('total', 'bloqueados', 'ocupados', 'livres')}
+        grupos.append({'chave': chave or 'sem', 'nome': chave or 'Sem climatização', 'camaras': len(do_grupo), **soma,
+                       'ocupacao': round(100.0 * soma['ocupados'] / soma['total'], 1) if soma['total'] else 0,
+                       'rotulo_camaras': fem_um if len(do_grupo) == 1 else fem_varios,
+                       'rotulo': lambda n, um=masc_um, varios=masc_varios: um if n == 1 else varios})
+    return grupos
+
+
 def _dados_etiqueta(endereco, camara):
     """Campos que o modelo de etiqueta de longarina (padrao do WMS Pro) espera."""
     fixo = bool(endereco.destino_fixo and endereco.destino)
@@ -131,6 +155,7 @@ def _pagina_camaras(reabrir=None):
     linhas = resumo_camaras()
     return render_template('enderecamento_camaras.html', linhas=linhas, tipos=TIPOS_CAMARA,
                            categorias=CATEGORIAS, total_enderecos=sum(l['total'] for l in linhas),
+                           climas=resumo_por_climatizacao(linhas),
                            ruas_em_uso=sorted({rua for l in linhas for rua in l['ruas']}), reabrir=reabrir,
                            # clientes para reservar espaco no desenho; cadastrar na hora so com permissao em Cadastros
                            empresas=[{'id': e.id, 'nome': e.fantasia or e.nome} for e in _empresas_para_reserva()],

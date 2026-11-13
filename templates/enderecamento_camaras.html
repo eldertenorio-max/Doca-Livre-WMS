@@ -19,10 +19,14 @@
 
 {% if linhas %}
 <div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-warehouse"></i></span><div><div class="kpi-valor">{{ linhas|length }}</div><div class="kpi-rotulo">Câmaras</div></div></div></div>
-    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-table-cells"></i></span><div><div class="kpi-valor">{{ total_enderecos }}</div><div class="kpi-rotulo">Endereços</div></div></div></div>
-    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-ban"></i></span><div><div class="kpi-valor">{{ linhas|sum(attribute='bloqueados') }}</div><div class="kpi-rotulo">Bloqueados</div></div></div></div>
-    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-circle-check"></i></span><div><div class="kpi-valor">{{ linhas|sum(attribute='livres') }}</div><div class="kpi-rotulo">Livres</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-warehouse"></i></span><div><div class="kpi-valor">{{ linhas|length }}</div><div class="kpi-rotulo">Câmaras</div>
+        <div class="kpi-climas">{% for c in climas %}<span class="kpi-clima kpi-clima--{{ c.chave|lower }}"><strong>{{ c.camaras }}</strong> {{ c.rotulo_camaras }}</span>{% endfor %}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-table-cells"></i></span><div><div class="kpi-valor">{{ total_enderecos }}</div><div class="kpi-rotulo">Endereços</div>
+        <div class="kpi-climas">{% for c in climas %}{% if c.total or 'total' == 'total' %}<span class="kpi-clima kpi-clima--{{ c.chave|lower }}"><strong>{{ c.total }}</strong> {{ c.rotulo(c.total) }}</span>{% endif %}{% endfor %}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-ban"></i></span><div><div class="kpi-valor">{{ linhas|sum(attribute='bloqueados') }}</div><div class="kpi-rotulo">Bloqueados</div>
+        <div class="kpi-climas">{% for c in climas %}{% if c.bloqueados or 'bloqueados' == 'total' %}<span class="kpi-clima kpi-clima--{{ c.chave|lower }}"><strong>{{ c.bloqueados }}</strong> {{ c.rotulo(c.bloqueados) }}</span>{% endif %}{% endfor %}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="kpi"><span class="kpi-icone"><i class="fas fa-circle-check"></i></span><div><div class="kpi-valor">{{ linhas|sum(attribute='livres') }}</div><div class="kpi-rotulo">Livres</div>
+        <div class="kpi-climas">{% for c in climas %}{% if c.livres or 'livres' == 'total' %}<span class="kpi-clima kpi-clima--{{ c.chave|lower }}"><strong>{{ c.livres }}</strong> {{ c.rotulo(c.livres) }}</span>{% endif %}{% endfor %}</div></div></div></div>
 </div>
 
 <div class="row g-3">

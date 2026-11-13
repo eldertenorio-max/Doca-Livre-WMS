@@ -77,6 +77,19 @@ def _grafico_ocupacao(camaras):
                    links=[url_for('enderecamento.mapa', camara=l['camara'].codigo) for l in linhas])
 
 
+def _grafico_climatizacao(camaras):
+    from .enderecamento import resumo_por_climatizacao
+    grupos = [g for g in resumo_por_climatizacao(camaras) if g['total']]
+    return grafico('colunas', 'Ocupação por climatização (%)', [g['nome'] for g in grupos], [('Ocupação', [g['ocupacao'] for g in grupos])],
+                   'Posições ocupadas sobre o total de posições das câmaras congeladas, resfriadas e secas: '
+                   + '; '.join(f"{g['nome']}: {g['ocupados']} de {g['total']} em {g['camaras']} câmara(s)" for g in grupos) + '.', '%')
+
+
+def _texto_climatizacao(camaras):
+    from .enderecamento import resumo_por_climatizacao
+    return ' · '.join(f"{g['nome']} {g['ocupacao']:g}%".replace('.', ',') for g in resumo_por_climatizacao(camaras) if g['total'])
+
+
 def _geral():
     from .enderecamento import resumo_camaras
     from .sistema import resumo_alertas
@@ -86,13 +99,14 @@ def _geral():
         camaras = resumo_camaras()
         total, ocupadas = sum(l['total'] for l in camaras), sum(l['ocupados'] for l in camaras)
         kpis.append(kpi('warehouse', f'{round(100.0 * ocupadas / total, 1) if total else 0:g}%'.replace('.', ','), 'Ocupação do armazém',
-                        url_for('enderecamento.mapa') if pode_ver('enderecamento') else None, detalhe=f'{ocupadas} de {total} posições'))
+                        url_for('enderecamento.mapa') if pode_ver('enderecamento') else None, detalhe=f'{ocupadas} de {total} posições' + (' · ' + _texto_climatizacao(camaras) if total else '')))
         kpis.append(kpi('pallet', Palete.query.filter(Palete.status.in_(NO_ARMAZEM)).count(), 'Paletes no armazém',
                         url_for('estoque.atual') if pode_ver('estoque') else None))
         aguardando = Palete.query.filter_by(status='Aguardando guarda').count()
         kpis.append(kpi('dolly', aguardando, 'Paletes aguardando guarda', alerta=aguardando > 0))
         graficos.append(_grafico_movimento(_dias()))
         graficos.append(_grafico_ocupacao(camaras))
+        graficos.append(_grafico_climatizacao(camaras))
     if pode_ver('recebimento'):
         abertas = NotaFiscal.query.filter(NotaFiscal.tipo == 'Entrada', NotaFiscal.status.in_(('Aguardando', 'Em conferência'))).count()
         kpis.append(kpi('file-invoice', abertas, 'Notas de entrada em aberto', url_for('entrada.notas')))
@@ -148,6 +162,7 @@ def _estoque():
             grafico('colunas', '10 produtos com mais estoque', [sku for sku, _ in top], [('Quantidade', [round(q or 0, 3) for _, q in top])],
                     'Soma da quantidade em estoque de cada produto.', links=[url_for('estoque.atual', q=sku) for sku, _ in top]),
             _grafico_ocupacao(resumo_camaras()),
+            _grafico_climatizacao(resumo_camaras()),
         ]}
 
 
