@@ -118,8 +118,9 @@ def _empresa_para(nome, cnpj=None, cidade=None, uf=None):
     return empresa, False
 
 
-def _produto_para(codigo, ean=None, descricao=None, unidade=None):
-    """Acha o produto pelo EAN ou pelo SKU; se nao existir, cadastra com os dados da nota."""
+def _produto_para(codigo, ean=None, descricao=None, unidade=None, empresa=None):
+    """Acha o produto pelo EAN ou pelo SKU; se nao existir, cadastra com os dados da nota.
+    "empresa": quem emitiu a nota de entrada; vira a empresa do produto quando ele ainda nao tem uma."""
     codigo = (codigo or '').strip().upper()[:40]
     produto = None
     if ean:
@@ -127,15 +128,34 @@ def _produto_para(codigo, ean=None, descricao=None, unidade=None):
     if not produto and codigo:
         produto = Produto.query.filter(db.func.upper(Produto.sku) == codigo).first()
     if produto:
+        if empresa is not None and produto.depositante_id is None:
+            produto.depositante = empresa
         return produto, False
     if not codigo:
         return None, False
     ean_livre = ean if ean and len(ean) <= 14 else None
     produto = Produto(sku=codigo, descricao=(descricao or codigo).strip()[:200], ean=ean_livre,
-                      unidade=unidade if unidade in UNIDADES else 'UN', fator_caixa=1)
+                      unidade=unidade if unidade in UNIDADES else 'UN', fator_caixa=1, depositante=empresa)
     db.session.add(produto)
     db.session.flush()
     return produto, True
+
+
+def preencher_empresa_dos_produtos():
+    """Produtos sem empresa recebem a de quem emitiu a nota de entrada mais recente em que aparecem.
+    Roda na inicializacao (acerta os produtos cadastrados antes de a empresa ser puxada da nota) e nao mexe em
+    produto que ja tem empresa. Devolve quantos foram preenchidos."""
+    pares = (db.session.query(NotaItem.produto_id, NotaFiscal.empresa_id)
+             .join(NotaFiscal, NotaFiscal.id == NotaItem.nota_id).join(Produto, Produto.id == NotaItem.produto_id)
+             .filter(Produto.depositante_id.is_(None), NotaFiscal.tipo == 'Entrada', NotaFiscal.status != 'Cancelada',
+                     NotaFiscal.empresa_id.isnot(None))
+             .order_by(NotaFiscal.id).all())
+    dono = dict(pares)                       # a nota mais recente fica por ultimo e vence
+    for produto_id, empresa_id in dono.items():
+        Produto.query.filter_by(id=produto_id, depositante_id=None).update({'depositante_id': empresa_id})
+    if dono:
+        db.session.commit()
+    return len(dono)
 
 
 def _nota_repetida(numero, serie, empresa, tipo='Entrada'):
@@ -156,7 +176,8 @@ def _criar_nota(dados, origem, tipo='Entrada', motivo_retorno=None):
     db.session.add(nota)
     novos = 0
     for item in dados['itens']:
-        produto, criado = _produto_para(item.get('codigo'), item.get('ean'), item.get('descricao'), item.get('unidade'))
+        produto, criado = _produto_para(item.get('codigo'), item.get('ean'), item.get('descricao'), item.get('unidade'),
+                                        empresa=empresa if tipo == 'Entrada' else None)
         novos += criado
         nota.itens.append(NotaItem(produto=produto, codigo=(item.get('codigo') or produto.sku)[:60],
                                    descricao=(item.get('descricao') or produto.descricao)[:200],

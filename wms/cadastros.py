@@ -59,8 +59,10 @@ CADASTROS = {
              'ajuda': 'Abaixo dele (e acima do mínimo), amarelo.'},
             {'nome': 'estoque_maximo', 'rotulo': 'Estoque máximo', 'tipo': 'decimal', 'col': 3,
              'ajuda': 'Acima dele, excedido.'},
-            {'nome': 'depositante_id', 'rotulo': 'Depositante', 'tipo': 'empresa', 'rel': 'depositante',
-             'lista': True, 'col': 6, 'ajuda': 'Dono da mercadoria (cliente da armazenagem).'},
+            # Na lista aparece primeiro, com o logo. Vem sozinha de quem emitiu a nota de entrada do produto.
+            {'nome': 'depositante_id', 'rotulo': 'Empresa', 'tipo': 'empresa', 'rel': 'depositante',
+             'lista': True, 'primeira': True, 'apelidos': ['Depositante'], 'col': 6,
+             'ajuda': 'Empresa a que o produto pertence (dona da mercadoria). É preenchida sozinha com quem emitiu a nota de entrada.'},
         ],
     },
     'empresas': {
@@ -244,7 +246,7 @@ def _filtrar(definicao):
 def _valor_exibicao(registro, campo):
     if campo['tipo'] == 'empresa':
         relacionado = getattr(registro, campo['rel'])
-        return relacionado.nome if relacionado else None
+        return (relacionado.fantasia or relacionado.nome) if relacionado else None
     return getattr(registro, campo['nome'])
 
 
@@ -258,7 +260,7 @@ def lista(slug):
     pagina = max(request.args.get('pagina', 1, type=int), 1)
     total = consulta.count()
     registros = consulta.offset((pagina - 1) * POR_PAGINA).limit(POR_PAGINA).all()
-    colunas = [c for c in definicao['campos'] if c.get('lista')]
+    colunas = sorted((c for c in definicao['campos'] if c.get('lista')), key=lambda c: not c.get('primeira'))
     return render_template('cadastro_lista.html', slug=slug, d=definicao, registros=registros,
                            colunas=colunas, valor=_valor_exibicao, busca=busca, situacao=situacao,
                            pagina=pagina, total=total, paginas=max((total + POR_PAGINA - 1) // POR_PAGINA, 1),
@@ -517,6 +519,8 @@ def importar(slug):
     for campo in definicao['campos']:
         por_titulo[_normalizar(campo['rotulo'])] = campo
         por_titulo[_normalizar(campo['nome'])] = campo
+        for apelido in campo.get('apelidos', ()):               # titulo antigo da coluna continua valendo
+            por_titulo[_normalizar(apelido)] = campo
     colunas, coluna_ativo = {}, None
     for indice, titulo in enumerate(linhas[0]):
         chave = _normalizar(titulo)

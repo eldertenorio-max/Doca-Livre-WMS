@@ -165,6 +165,7 @@
                             <div class="d-flex flex-wrap align-items-center gap-2">
                                 <label class="form-label mb-0" for="clienteSel">Reservar para</label>
                                 <select class="form-select form-select-sm" id="clienteSel" style="width: auto; min-width: 220px; max-width: 100%;"></select>
+                                <button type="button" class="btn btn-sm btn-primary" id="btnCamaraInteira" title="Reserva todas as posições desta câmara para a empresa escolhida"><i class="fas fa-fill-drip"></i>Câmara inteira</button>
                                 {% if pode_cadastrar_empresa %}
                                 <button type="button" class="btn btn-sm btn-outline-primary" id="btnNovaEmpresa"><i class="fas fa-plus"></i>Nova empresa</button>
                                 {% endif %}
@@ -636,6 +637,22 @@
         campo.focus(); campo.select();
     });
 
+    // "Câmara inteira": todas as posições de palete da câmara ficam para a empresa escolhida
+    // (com "Uso livre" escolhido, tira a reserva de todas). Depois ainda dá para ajustar posição por posição.
+    document.getElementById('btnCamaraInteira').addEventListener('click', function () {
+        var escolhido = clienteSel.value ? Number(clienteSel.value) : null;
+        linhas().forEach(function (l) {
+            var colunas = Math.min(Math.max(inteiro(l.querySelector('[name="rua_colunas"]')), 0), 99);
+            var niveis = Math.min(Math.max(inteiro(l.querySelector('[name="rua_niveis"]')), 0), 99);
+            l.clientes = {};
+            l.vaos = l.vaos || {};
+            if (!escolhido) return;
+            for (var col = 1; col <= colunas; col++) for (var nivel = 1; nivel <= niveis; nivel++) {
+                if (!l.vaos[col + '|' + nivel]) l.clientes[col + '|' + nivel] = escolhido;
+            }
+        });
+        desenhar();
+    });
     // Ferramenta "Espaço de cliente": mostra a escolha da empresa.
     form.addEventListener('change', function (ev) {
         if (ev.target.name === 'ferramenta') clienteBarra.hidden = form.ferramenta.value !== 'C';
