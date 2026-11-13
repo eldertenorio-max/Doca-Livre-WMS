@@ -32,7 +32,8 @@ Variáveis de ambiente (nunca escreva os valores no código):
 | `SESSION_COOKIE_SECURE` | `1` em produção (HTTPS). |
 | `ADMIN_PASSWORD` | Senha do `admin` criado no primeiro início, quando o banco está vazio. |
 | `MEU_DANFE_API_KEY` | Chave do Meu Danfe, para o PDF oficial das notas. Opcional. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | E-mail diário dos alertas. Opcional. |
+| `ACS_ENDPOINT`, `EMAIL_FROM` | E-mail de confirmação de cadastro e resumo dos alertas, pelo Azure Communication Services (o mesmo do Faz um Freela). Na Azure o sistema se autentica pela identidade gerenciada; fora dela, use `ACS_CONNECTION_STRING`. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Alternativa ao ACS: servidor de e-mail comum. Opcional. |
 
 Logos e fotos de perfil ficam guardados também no banco, porque em produção o disco do aplicativo é apagado a cada
 reinício.

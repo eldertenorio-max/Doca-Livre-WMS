@@ -36,12 +36,17 @@
                         <td><span class="badge bg-{{ 'danger' if u.perfil == 'super' else ('warning' if u.perfil == 'admin' else 'info') }}">{{ perfis.get(u.perfil, u.perfil) }}</span></td>
                         <td>
                             {% if u.ativo %}<span class="badge bg-success">Ativo</span>{% else %}<span class="badge bg-secondary">Inativo</span>{% endif %}
-                            {% if u.trocar_senha %}<span class="badge bg-primary" title="Vai trocar a senha no próximo acesso">Senha provisória</span>{% endif %}
+                            {% if u.confirmacao_hash %}<span class="badge bg-warning text-dark" title="A pessoa ainda não abriu o link do e-mail de confirmação">{{ 'Link de confirmação vencido' if u.confirmacao_expira and u.confirmacao_expira < agora else 'Aguardando confirmar o e-mail' }}</span>
+                            {% elif u.trocar_senha %}<span class="badge bg-primary" title="Vai trocar a senha no próximo acesso">Senha provisória</span>{% endif %}
                         </td>
                         <td>{{ u.ultimo_acesso|datahora }}</td>
                         <td class="text-end">
                             {% if eh_super or u.perfil not in gestao or u.id == eu.id %}
                             {% if eh_super and u.perfil not in gestao %}<a href="{{ url_for('admin.permissoes_usuario', usuario=u.id) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-user-gear"></i>Permissões</a>{% endif %}
+                            {% if u.confirmacao_hash %}<form method="POST" action="{{ url_for('admin.reenviar_confirmacao', uid=u.id) }}" class="d-inline">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-envelope"></i>Reenviar e-mail</button>
+                            </form>{% endif %}
                             <a href="{{ url_for('admin.usuario_form', uid=u.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-pen"></i>Editar</a>
                             {% else %}
                             <span class="text-muted small" title="Só um Super Usuário edita outro administrador">Só o Super Usuário edita</span>

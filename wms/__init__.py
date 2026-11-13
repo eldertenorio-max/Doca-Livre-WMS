@@ -8,7 +8,7 @@ from flask import Flask, render_template
 from .core import garantir_permissoes_padrao, registrar_nucleo
 from .models import LogAcao, Usuario, db
 
-ASSETS_VERSION = '48'
+ASSETS_VERSION = '49'
 VERSAO = 'v1.0'
 
 
@@ -224,6 +224,8 @@ def create_app():
     app.register_blueprint(aplicativo_bp)
     sistema.registrar(app)
     app.register_blueprint(admin_bp)
+    from .confirmacao import bp as confirmacao_bp
+    app.register_blueprint(confirmacao_bp)
 
     if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
         # O SQLite so respeita chave estrangeira se pedirmos em cada conexao.

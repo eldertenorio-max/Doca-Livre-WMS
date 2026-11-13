@@ -38,14 +38,27 @@
                             <input type="text" class="form-control" id="nome" name="nome" required maxlength="120" value="{{ v_nome }}">
                         </div>
                         <div class="col-12">
-                            <label class="form-label" for="email">E-mail <span class="text-muted">(opcional)</span></label>
+                            <label class="form-label" for="email">E-mail</label>
                             <input type="email" class="form-control" id="email" name="email" maxlength="120" value="{{ v_email }}">
+                            {% if not user %}
+                            <div class="form-text">
+                                Com e-mail, a pessoa recebe uma <strong>mensagem de confirmação de cadastro</strong> com um link (vale {{ validade_horas }} horas)
+                                para confirmar o e-mail e criar a própria senha. Ela só entra depois disso.
+                                {% if not email_configurado %}<br><span class="text-warning-emphasis">O envio de e-mail não está configurado neste ambiente: ao salvar, o sistema mostra o link para você repassar.</span>{% endif %}
+                            </div>
+                            {% elif user.confirmacao_hash %}
+                            <div class="form-text text-warning-emphasis">Aguardando {{ user.nome }} confirmar o cadastro pelo link enviado a este e-mail. Se trocar o e-mail, um link novo é enviado para o novo endereço.</div>
+                            {% elif user.email_confirmado_em %}
+                            <div class="form-text"><i class="fas fa-circle-check text-success"></i> E-mail confirmado em {{ user.email_confirmado_em|datahora }}.</div>
+                            {% endif %}
                         </div>
                         <div class="col-12">
-                            <label class="form-label" for="senha">{{ 'Nova senha' if user else 'Senha provisória' }}</label>
-                            <input type="password" class="form-control" id="senha" name="senha" minlength="6" autocomplete="new-password" {% if not user %}required{% endif %}>
+                            <label class="form-label" for="senha">{{ 'Nova senha' if user else 'Senha provisória' }}{% if not user %} <span class="text-muted">(só para cadastro sem e-mail)</span>{% endif %}</label>
+                            <input type="password" class="form-control" id="senha" name="senha" minlength="6" autocomplete="new-password">
                             <div class="form-text">
-                                {% if user %}Deixe em branco para manter a senha atual. {% endif %}Mínimo de 6 caracteres. O usuário troca a senha no próximo acesso.
+                                {% if user and user.confirmacao_hash %}Para liberar o acesso sem esperar a confirmação por e-mail, defina uma senha aqui (mínimo de 6 caracteres); a pessoa troca no primeiro acesso.
+                                {% elif user %}Deixe em branco para manter a senha atual. Mínimo de 6 caracteres. O usuário troca a senha no próximo acesso.
+                                {% else %}Se informar o e-mail, deixe em branco: a pessoa cria a senha pelo link. Sem e-mail, informe uma senha de pelo menos 6 caracteres, que o usuário troca no primeiro acesso.{% endif %}
                             </div>
                         </div>
                         <div class="col-12">
@@ -59,6 +72,12 @@
                         <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
                     </div>
                 </form>
+                {% if user and user.confirmacao_hash %}
+                <form method="POST" action="{{ url_for('admin.reenviar_confirmacao', uid=user.id) }}" class="mt-3">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline-primary"><i class="fas fa-envelope"></i>Reenviar e-mail de confirmação</button>
+                </form>
+                {% endif %}
             </div>
         </div>
     </div>

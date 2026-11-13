@@ -1,9 +1,14 @@
 """Administracao: usuarios, matriz de permissoes por perfil e log de acoes."""
+import re
+import secrets
+
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
+from . import correio
+from .confirmacao import VALIDADE_HORAS, avisar_resultado, enviar_confirmacao
 from .core import GESTAO, MODULOS, NIVEIS, PERFIS, eh_super, perm, registrar_log, usuario_atual
 from .hierarquia import ROTULO_TIPO
-from .models import LogAcao, Organizacao, Permissao, PermissaoUsuario, Usuario, db
+from .models import LogAcao, Organizacao, Permissao, PermissaoUsuario, Usuario, agora, db
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -35,7 +40,7 @@ def usuarios():
                                           db.func.lower(Usuario.nome).like(like)))
     lista = consulta.order_by(Usuario.ativo.desc(), Usuario.nome).all()
     return render_template('admin_usuarios.html', usuarios=lista, busca=busca, perfis=dict(PERFIS), gestao=GESTAO,
-                           eu=usuario_atual())
+                           eu=usuario_atual(), agora=agora())
 
 
 @bp.route('/usuarios/novo', methods=['GET', 'POST'])
@@ -67,10 +72,19 @@ def usuario_form(uid=None):
             erros.append('O Super Usuário não pode ser rebaixado.' if user and user.perfil == 'super'
                          else 'Não é possível criar outro Super Usuário pela tela.' if perfil == 'super'
                          else 'Só o Super Usuário pode criar ou promover administradores.')
-        if not user and len(senha) < 6:
-            erros.append('A senha precisa ter pelo menos 6 caracteres.')
+        if email and not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+            erros.append('Informe um e-mail válido.')
+        elif email and (not user or (user.email or '').lower() != email.lower()) and Usuario.query.filter(
+                db.func.lower(Usuario.email) == email.lower(), Usuario.id != (user.id if user else 0)).first():
+            erros.append('Já existe um usuário com esse e-mail.')
+        # Cadastro novo com e-mail: a pessoa confirma pelo link e cria a propria senha. Sem e-mail, senha provisoria.
+        if not user and not email and len(senha) < 6:
+            erros.append('Informe o e-mail (a pessoa recebe o link e cria a própria senha) ou uma senha provisória de '
+                         'pelo menos 6 caracteres.')
         if user and senha and len(senha) < 6:
             erros.append('A nova senha precisa ter pelo menos 6 caracteres.')
+        if user and user.confirmacao_hash and not email:
+            erros.append('Este cadastro aguarda confirmação por e-mail: mantenha o e-mail ou defina uma senha para liberar.')
         duplicado = Usuario.query.filter(db.func.lower(Usuario.username) == username.lower())
         if user:
             duplicado = duplicado.filter(Usuario.id != user.id)
@@ -81,24 +95,60 @@ def usuario_form(uid=None):
         if erros:
             for erro in erros:
                 flash(erro, 'error')
-            return render_template('admin_usuario_form.html', user=user, form=request.form, perfis=perfis)
+            return render_template('admin_usuario_form.html', user=user, form=request.form, perfis=perfis, **_email_ctx())
 
         novo = user is None
         if novo:
             user = Usuario(trocar_senha=True)
             db.session.add(user)
+        email_mudou = not novo and bool(user.confirmacao_hash) and (user.email or '').lower() != (email or '').lower()
         user.username, user.nome, user.email, user.perfil, user.ativo = username, nome, email, perfil, ativo
-        if senha:
+        confirmar_por_email = (novo and bool(email)) or (email_mudou and not senha)
+        liberado_sem_email = False
+        if confirmar_por_email and novo:
+            user.set_password(secrets.token_urlsafe(24))          # ninguem conhece: a senha nasce no link do e-mail
+        elif senha:
             user.set_password(senha)
             # Senha definida por outra pessoa: o dono troca no proximo acesso.
             user.trocar_senha = user.id != usuario_atual().id
+            if user.confirmacao_hash:                             # administrador liberou sem esperar o e-mail
+                user.confirmacao_hash = user.confirmacao_expira = None
+                liberado_sem_email = True
+        envio = enviar_confirmacao(user) if confirmar_por_email else None
         registrar_log('Criou usuário' if novo else 'Alterou usuário',
                       f'{username} · perfil {perfil} · {"ativo" if ativo else "inativo"}'
-                      f'{" · senha redefinida" if senha and not novo else ""}', modulo='admin')
+                      f'{" · senha redefinida" if senha and not novo else ""}'
+                      f'{" · liberado sem confirmar o e-mail" if liberado_sem_email else ""}'
+                      f'{" · e-mail de confirmação: " + envio[0] if envio else ""}', modulo='admin')
         db.session.commit()
-        flash('Usuário salvo.', 'success')
+        flash('Usuário salvo.' + (' Cadastro liberado sem a confirmação por e-mail.' if liberado_sem_email else ''), 'success')
+        if envio:
+            avisar_resultado(user, *envio)
         return redirect(url_for('admin.usuarios'))
-    return render_template('admin_usuario_form.html', user=user, form=None, perfis=perfis)
+    return render_template('admin_usuario_form.html', user=user, form=None, perfis=perfis, **_email_ctx())
+
+
+def _email_ctx():
+    return {'email_configurado': correio.configurado(), 'validade_horas': VALIDADE_HORAS}
+
+
+@bp.route('/usuarios/<int:uid>/reenviar-confirmacao', methods=['POST'])
+@perm('admin')
+def reenviar_confirmacao(uid):
+    """Manda de novo o e-mail de confirmacao de um cadastro que ainda esta aguardando (o link anterior deixa de valer)."""
+    user = db.session.get(Usuario, uid)
+    if not user or (user.perfil == 'super' and not eh_super()):
+        abort(404)
+    if user.perfil in GESTAO and not eh_super():
+        abort(403)
+    if not user.confirmacao_hash or not user.email:
+        flash('Este cadastro não está aguardando confirmação por e-mail.', 'error')
+        return redirect(url_for('admin.usuarios'))
+    situacao, link = enviar_confirmacao(user)
+    registrar_log('Reenviou confirmação de cadastro', f'{user.username} · {user.email} · {situacao}', modulo='admin')
+    db.session.commit()
+    avisar_resultado(user, situacao, link)
+    return redirect(url_for('admin.usuarios'))
 
 
 @bp.route('/permissoes', methods=['GET', 'POST'])

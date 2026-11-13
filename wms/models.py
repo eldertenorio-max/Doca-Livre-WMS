@@ -31,6 +31,11 @@ class Usuario(db.Model):
     ativo = db.Column(db.Boolean, nullable=False, default=True)
     trocar_senha = db.Column(db.Boolean, nullable=False, default=False)
     avatar = db.Column(db.String(40))           # arquivo da foto de perfil em instance/avatars/
+    # Confirmacao de cadastro por e-mail: enquanto houver confirmacao_hash o cadastro esta aguardando a pessoa abrir
+    # o link (guardamos so o hash do codigo do link) e ela nao entra no sistema.
+    confirmacao_hash = db.Column(db.String(64), index=True)
+    confirmacao_expira = db.Column(db.DateTime)
+    email_confirmado_em = db.Column(db.DateTime)
     # Aplicativo Android: codigo pessoal usado pelo widget e pelos avisos (vazio = app nao ativado),
     # a versao do app que buscou o resumo por ultimo e quando.
     app_token = db.Column(db.String(64), unique=True)

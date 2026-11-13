@@ -18,6 +18,7 @@ from email.message import EmailMessage
 
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, send_from_directory, url_for
 
+from . import correio
 from .core import eh_super, perm, registrar_log
 from .models import Camara, Configuracao, Palete, PaleteItem, Produto, TemperaturaCamara, agora, db
 
@@ -174,7 +175,8 @@ def resumo_alertas():
 
 
 def smtp_configurado():
-    return bool(os.environ.get('SMTP_HOST'))
+    """Ha por onde enviar e-mail (Azure Communication Services ou servidor SMTP)?"""
+    return correio.configurado()
 
 
 def destinatarios():
@@ -190,19 +192,12 @@ def enviar_resumo_alertas(forcar=False):
     alertas = calcular_alertas()
     if not alertas and not forcar:
         return 0
-    mensagem = EmailMessage()
-    mensagem['Subject'] = f'WMS Doca Livre: {len(alertas)} alerta(s) em {agora().strftime("%d/%m/%Y")}'
-    mensagem['From'] = os.environ.get('SMTP_FROM') or os.environ.get('SMTP_USER') or 'wms@localhost'
-    mensagem['To'] = ', '.join(para)
     linhas = [f'[{a["tipo"]}{" · GRAVE" if a["grave"] else ""}] {a["titulo"]} — {a["detalhe"]}' for a in alertas]
-    mensagem.set_content('Alertas do WMS Doca Livre\n\n' + ('\n'.join(linhas) if linhas else 'Nenhum alerta no momento.') + '\n')
-    porta = int(os.environ.get('SMTP_PORT') or 587)
-    with smtplib.SMTP(os.environ['SMTP_HOST'], porta, timeout=15) as servidor:
-        if os.environ.get('SMTP_TLS', '1') != '0':
-            servidor.starttls()
-        if os.environ.get('SMTP_USER'):
-            servidor.login(os.environ['SMTP_USER'], os.environ.get('SMTP_PASSWORD') or '')
-        servidor.send_message(mensagem)
+    situacao = correio.enviar_email(para, f'WMS Doca Livre: {len(alertas)} alerta(s) em {agora().strftime("%d/%m/%Y")}',
+                                    'Alertas do WMS Doca Livre\n\n' + ('\n'.join(linhas) if linhas else 'Nenhum alerta no momento.') + '\n',
+                                    rotulo='resumo dos alertas')
+    if situacao != 'ok':
+        raise RuntimeError('o servidor de e-mail recusou o envio')
     definir('alerta_ultimo_envio', hoje)
     db.session.commit()
     return len(alertas) or 1

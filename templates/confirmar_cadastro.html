@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="claro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar cadastro · Doca Livre WMS</title>
+    <meta name="robots" content="noindex">
+    <meta name="referrer" content="no-referrer">
+    <meta name="description" content="Doca Livre WMS — gestão de armazém: entrada, endereçamento, estoque, separação, expedição e inventário.">
+
+    {# Prévia do link (WhatsApp, Telegram, Facebook, LinkedIn): igual ao Oferta de Carga e ao fazumfreela.
+       Quem abre o link sem estar logado cai nesta tela, por isso as etiquetas ficam aqui. #}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Doca Livre — WMS">
+    <meta property="og:locale" content="pt_BR">
+    <meta property="og:title" content="Doca Livre — WMS">
+    <meta property="og:description" content="Gestão de armazém: entrada, endereçamento, estoque, separação, expedição e inventário.">
+    {# Quadrado primeiro: WhatsApp usa como miniatura #}
+    <meta property="og:image" content="https://wms.docalivre.com.br/static/img/og-square.png?v=marca9">
+    <meta property="og:image:secure_url" content="https://wms.docalivre.com.br/static/img/og-square.png?v=marca9">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="1200">
+    <meta property="og:image:alt" content="Logo Doca Livre WMS">
+    <meta property="og:image" content="https://wms.docalivre.com.br/static/img/og-image.png?v=marca9">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Doca Livre — WMS">
+    <meta name="twitter:description" content="Gestão de armazém: entrada, endereçamento, estoque, separação, expedição e inventário.">
+    <meta name="twitter:image" content="https://wms.docalivre.com.br/static/img/og-square.png?v=marca9">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.svg') }}?v={{ assets_version }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/icon-192.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+    <meta name="application-name" content="Doca Livre WMS">
+    <script src="{{ url_for('static', filename='so-apk.js') }}?v={{ assets_version }}"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}?v={{ assets_version }}">
+</head>
+<body class="login-page-body">
+    <div class="login-page">
+        <div class="login-bg">
+            <img src="{{ url_for('static', filename='img/login-bg.svg') }}?v={{ assets_version }}" alt="" loading="eager">
+            <div class="login-bg-overlay"></div>
+        </div>
+
+        <main class="login-card">
+            <div class="login-logo">
+                <img src="{{ url_for('static', filename='img/logo-doca-livre-claro.png') }}" alt="Doca Livre">
+                <strong class="login-wms">WMS</strong>
+            </div>
+            <div class="login-heading">
+                <h1>{{ 'Confirmar cadastro' if user else 'Link inválido ou vencido' }}</h1>
+                <p>{% if user %}Olá, {{ user.nome }}! Seu usuário é <strong>{{ user.username }}</strong>. Crie a sua senha para concluir.{% else %}Este link de confirmação não vale mais. Peça um novo envio a quem cadastrou você no WMS.{% endif %}</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for cat, msg in messages %}
+                <div class="{{ 'error-message' if cat == 'error' else 'ok-message' }}" role="alert">
+                    <i class="fas fa-{{ 'circle-exclamation' if cat == 'error' else 'circle-check' }}"></i>{{ msg }}
+                </div>
+                {% endfor %}
+            {% endwith %}
+
+            {% if user %}
+            <form method="POST" class="login-form" autocomplete="off">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <div class="input-group">
+                    <label for="senha">Crie sua senha</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input id="senha" type="password" name="senha" placeholder="Mínimo de 6 caracteres" required minlength="6" autofocus autocomplete="new-password">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="senha2">Repita a senha</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input id="senha2" type="password" name="senha2" placeholder="Digite de novo" required minlength="6" autocomplete="new-password">
+                    </div>
+                </div>
+                <button type="submit" class="btn-login">Confirmar e criar senha</button>
+            </form>
+            {% else %}
+            <a class="btn-login" style="display:block;text-align:center;text-decoration:none" href="{{ url_for('principal.login') }}">Ir para a tela de entrada</a>
+            {% endif %}
+
+            <div class="login-footer">
+                <p>© DocaLivre. Todos os direitos reservados.</p>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

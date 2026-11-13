@@ -33,7 +33,7 @@ def login():
         username = (request.form.get('username') or '').strip()
         senha = request.form.get('password') or ''
         user = Usuario.query.filter(db.func.lower(Usuario.username) == username.lower()).first()
-        if user and user.ativo and user.check_password(senha):
+        if user and user.ativo and not user.confirmacao_hash and user.check_password(senha):
             destino = _destino_seguro(request.form.get('next'))
             session.clear()
             session.permanent = True
@@ -41,7 +41,11 @@ def login():
             user.ultimo_acesso = agora()
             db.session.commit()
             return redirect(destino or url_for('principal.dashboard'))
-        flash('Usuário ou senha inválidos.', 'error')
+        if user and user.ativo and user.confirmacao_hash:
+            flash('Seu cadastro ainda não foi confirmado. Abra o link que enviamos para o seu e-mail e crie a sua senha. '
+                  'Se não encontrar o e-mail, peça um novo envio a quem cadastrou você.', 'error')
+        else:
+            flash('Usuário ou senha inválidos.', 'error')
     return render_template('login.html')
 
 
