@@ -99,9 +99,13 @@ def _garantir_super(app):
 
 # Endereco oficial do WMS: o dominio proprio, que aponta para a Azure (Container Apps, ao lado do banco).
 # O servico antigo do Render continua existindo so para quem tem o endereco antigo salvo: la, todo acesso e
-# redirecionado para ca. O endereco comprido da Azure continua respondendo (o aplicativo 1.0.1 abre por ele).
+# redirecionado para ca. O endereco comprido da Azure tambem encaminha para o dominio oficial (so as chamadas do
+# aplicativo e a verificacao de saude continuam respondendo nele).
 URL_OFICIAL = 'https://wms.docalivre.com.br'
-HOSTS_DE_PRODUCAO = ('wms.docalivre.com.br', 'doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io')
+HOST_ANTIGO_DA_AZURE = 'doca-livre-wms-pro.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io'
+HOSTS_DE_PRODUCAO = ('wms.docalivre.com.br', HOST_ANTIGO_DA_AZURE)
+# caminhos que continuam valendo no endereco antigo: saude, chamadas do app ja instalado e o instalador
+CAMINHOS_SEM_ENCAMINHAR = ('/api/', '/.well-known/', '/static/app/')
 
 
 def destino_do_redirecionamento():
@@ -165,6 +169,15 @@ def create_app():
             return redirect(destino)
 
         return app
+
+    @app.before_request
+    def _endereco_antigo_da_azure():
+        """Quem ainda usa o endereco comprido da Azure e levado para o dominio oficial, na mesma tela."""
+        from flask import redirect, request
+        if request.host.split(':')[0].lower() != HOST_ANTIGO_DA_AZURE or request.path.startswith(CAMINHOS_SEM_ENCAMINHAR):
+            return None
+        caminho = request.full_path if request.query_string else request.path
+        return redirect(URL_OFICIAL + caminho, code=301 if request.method in ('GET', 'HEAD') else 308)
 
     db.init_app(app)
     registrar_nucleo(app)
