@@ -4215,29 +4215,31 @@ function _wmsPainelShellLocal() {
         ok: true,
         shell: true,
         camaras: [
-            cam(11, 142), cam(12, 133), cam(13, 142), cam(21, 28),
+            cam(6, 142), cam(7, 133), cam(14, 142), cam(15, 28), cam(16, 150),
             cam(98, 0, 'Quarentena'), cam(99, 0, 'Stage')
         ],
         distribuicao_categoria: [],
         zoneamento: [
-            { categoria: 'A', camara: 11, prioridade: 1, camara_descricao: 'Câmara 11' },
-            { categoria: 'A', camara: 12, prioridade: 2, camara_descricao: 'Câmara 12' },
-            { categoria: 'B', camara: 11, prioridade: 1, camara_descricao: 'Câmara 11' },
-            { categoria: 'B', camara: 12, prioridade: 2, camara_descricao: 'Câmara 12' },
-            { categoria: 'C', camara: 12, prioridade: 1, camara_descricao: 'Câmara 12' },
-            { categoria: 'C', camara: 13, prioridade: 2, camara_descricao: 'Câmara 13' },
-            { categoria: 'D', camara: 13, prioridade: 1, camara_descricao: 'Câmara 13' },
-            { categoria: 'D', camara: 21, prioridade: 2, camara_descricao: 'Câmara 21' }
+            { categoria: 'A', camara: 6, prioridade: 1, camara_descricao: 'Câmara 6' },
+            { categoria: 'A', camara: 7, prioridade: 2, camara_descricao: 'Câmara 7' },
+            { categoria: 'B', camara: 6, prioridade: 1, camara_descricao: 'Câmara 6' },
+            { categoria: 'B', camara: 7, prioridade: 2, camara_descricao: 'Câmara 7' },
+            { categoria: 'C', camara: 7, prioridade: 1, camara_descricao: 'Câmara 7' },
+            { categoria: 'C', camara: 14, prioridade: 2, camara_descricao: 'Câmara 14' },
+            { categoria: 'D', camara: 14, prioridade: 1, camara_descricao: 'Câmara 14' },
+            { categoria: 'D', camara: 15, prioridade: 2, camara_descricao: 'Câmara 15' }
         ],
         sequencia_rota: [
-            { camara: 11, rua: 'A', sentido_posicao: 'asc', sentido_nivel: 'asc' },
-            { camara: 11, rua: 'B', sentido_posicao: 'desc', sentido_nivel: 'asc' },
-            { camara: 12, rua: 'C', sentido_posicao: 'asc', sentido_nivel: 'asc' },
-            { camara: 12, rua: 'D', sentido_posicao: 'desc', sentido_nivel: 'asc' },
-            { camara: 13, rua: 'E', sentido_posicao: 'asc', sentido_nivel: 'asc' },
-            { camara: 13, rua: 'F', sentido_posicao: 'desc', sentido_nivel: 'asc' },
-            { camara: 21, rua: 'G', sentido_posicao: 'asc', sentido_nivel: 'asc' },
-            { camara: 21, rua: 'H', sentido_posicao: 'desc', sentido_nivel: 'asc' }
+            { camara: 6, rua: 'A', sentido_posicao: 'asc', sentido_nivel: 'asc' },
+            { camara: 6, rua: 'B', sentido_posicao: 'desc', sentido_nivel: 'asc' },
+            { camara: 7, rua: 'C', sentido_posicao: 'asc', sentido_nivel: 'asc' },
+            { camara: 7, rua: 'D', sentido_posicao: 'desc', sentido_nivel: 'asc' },
+            { camara: 14, rua: 'E', sentido_posicao: 'asc', sentido_nivel: 'asc' },
+            { camara: 14, rua: 'F', sentido_posicao: 'desc', sentido_nivel: 'asc' },
+            { camara: 15, rua: 'G', sentido_posicao: 'asc', sentido_nivel: 'asc' },
+            { camara: 15, rua: 'H', sentido_posicao: 'desc', sentido_nivel: 'asc' },
+            { camara: 16, rua: 'I', sentido_posicao: 'asc', sentido_nivel: 'asc' },
+            { camara: 16, rua: 'J', sentido_posicao: 'desc', sentido_nivel: 'asc' }
         ],
         pesos_categoria: { A: 1, B: 1, C: 1, D: 1 },
         pesos_posicoes_categoria: { A: 1, B: 1, C: 1, D: 1 },
@@ -4922,7 +4924,7 @@ function _wmsMostrarSubtab(tab) {
 
 var _wmsMapa3dScriptPromise = null;
 var _WMS_THREE_LEGACY_CDN = 'https://cdn.jsdelivr.net/npm/three@0.128.0';
-var _WMS_MAPA3D_VER = '20260920c';
+var _WMS_MAPA3D_VER = '20261110a';
 
 function _wmsScriptJaPronto(key) {
     if (key.indexOf('three.min.js') >= 0) return !!window.THREE;
@@ -5869,7 +5871,7 @@ function _wmsEndDrawCamaraFria(ctx, cam, x, y, bw, bh, regions) {
     var totalPos = slots.length || 0;
     var pct = cam._pct != null ? cam._pct : 0;
     var ocup = cam._ocup != null ? cam._ocup : 0;
-    var isRefrig = cam.codigo === 21;
+    var isRefrig = cam.codigo === 15;
     var isSelected = _wmsEndState.selectedCamara === cam.codigo;
     var maxNiv = _wmsEndMaxNiveisCamara(cam, slots, ruas);
 
@@ -6540,7 +6542,7 @@ function _wmsEndRender2DPlanta() {
                 camByCod[cod]._total = c.slots || c.total_slots || (camByCod[cod].slots || []).length;
             }
         });
-        var camOrder = [11, 12, 13, 21].filter(function(cod) { return !!camByCod[cod]; });
+        var camOrder = [6, 7, 14, 15, 16].filter(function(cod) { return !!camByCod[cod]; });
         var selCam = _wmsEndState.selectedCamara;
         var html = '';
 
@@ -6781,7 +6783,7 @@ async function wmsEndAbrir3d(opts) {
         var camRaw = opts.camara;
         var cam = camRaw != null && camRaw !== '' ? parseInt(camRaw, 10) : null;
         if (cam === 98) {
-            showMessage('Visualização 3D disponível para câmaras 11, 12, 13 e 21.', 'info');
+            showMessage('Visualização 3D disponível para câmaras 6, 7, 14, 15 e 16.', 'info');
             return;
         }
         if (selCam) selCam.value = cam ? String(cam) : '';
@@ -6790,7 +6792,7 @@ async function wmsEndAbrir3d(opts) {
             requestAnimationFrame(function() { requestAnimationFrame(r); });
         });
         if (_wmsEndLoadCancelled('3d', gen3d)) return;
-        if (titulo) titulo.textContent = opts.label || (cam ? ('Câmara ' + cam) : 'Todas as câmaras (11–21)');
+        if (titulo) titulo.textContent = opts.label || (cam ? ('Câmara ' + cam) : 'Todas as câmaras (6–16)');
         _wmsEndState.selectedCamara = cam;
         _wmsEndHighlightRow(cam);
         setLoad(true, 'Carregando mapa 3D…', 'Iniciando módulo de visualização…', 10);

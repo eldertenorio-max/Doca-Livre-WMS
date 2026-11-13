@@ -35,7 +35,7 @@ const emptyForm = () => ({
 })
 
 const emptyLote = () => ({
-  camara: '11',
+  camara: '6',
   rua: 'A',
   nivelDe: '1',
   nivelAte: '5',
@@ -46,7 +46,7 @@ const emptyLote = () => ({
 })
 
 const emptyExclusao = () => ({
-  camara: '11',
+  camara: '6',
   rua: 'A',
   nivel: '',
 })
@@ -507,7 +507,7 @@ export default function CadastroEnderecamento() {
   const exemploCodigo =
     previewLote.length > 0
       ? previewLote[0].codigo
-      : buildCodigoEndereco(11, 'A', 1, 1)
+      : buildCodigoEndereco(6, 'A', 1, 1)
 
   return (
     <div className="page-panel">
@@ -894,7 +894,7 @@ export default function CadastroEnderecamento() {
           <input
             value={form.codigo}
             onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
-            placeholder="Ex.: 11-A-05-02"
+            placeholder="Ex.: 06-A-05-02"
             required
           />
         </label>

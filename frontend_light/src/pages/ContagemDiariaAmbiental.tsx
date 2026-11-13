@@ -295,7 +295,7 @@ const CHART_ANIM_CSS = `
 }
 `
 
-/** Cor da série geral (ocupação): visível no tema escuro e distinta da câmara 12. */
+/** Cor da série geral (ocupação): visível no tema escuro e distinta da câmara 7. */
 const OCUP_COLOR_GERAL = '#22d3ee'
 
 function isOcupGeralStroke(color: string) {
@@ -1313,9 +1313,9 @@ function TinyLineChart<T extends { data_registro: string }>({
 }
 
 const COMBINED_SERIES = [
-  { color: '#22c55e', valueOf: (r: TempRow) => r.camara11_temp, label: 'Câmara 11' },
-  { color: '#38bdf8', valueOf: (r: TempRow) => r.camara12_temp, label: 'Câmara 12' },
-  { color: '#f59e0b', valueOf: (r: TempRow) => r.camara13_temp, label: 'Câmara 13' },
+  { color: '#22c55e', valueOf: (r: TempRow) => r.camara11_temp, label: 'Câmara 6' },
+  { color: '#38bdf8', valueOf: (r: TempRow) => r.camara12_temp, label: 'Câmara 7' },
+  { color: '#f59e0b', valueOf: (r: TempRow) => r.camara13_temp, label: 'Câmara 14' },
 ] as const
 
 type CombTempLayout = {
@@ -1490,7 +1490,7 @@ function CombinedTempChart({ rows }: { rows: TempRow[] }) {
                   backgroundClip: 'text',
                 }}
               >
-                Comparativo — Câmaras 11, 12 e 13
+                Comparativo — Câmaras 6, 7 e 14
               </div>
               <button
                 type="button"
@@ -1574,13 +1574,13 @@ function CombinedTempChart({ rows }: { rows: TempRow[] }) {
                   </div>
                   <div style={{ display: 'grid', gap: 6 }}>
                     <div style={{ color: '#22c55e' }}>
-                      Câm. 11: <strong>{rows[tip.idx].camara11_temp.toFixed(1)} °C</strong>
+                      Câm. 6: <strong>{rows[tip.idx].camara11_temp.toFixed(1)} °C</strong>
                     </div>
                     <div style={{ color: '#38bdf8' }}>
-                      Câm. 12: <strong>{rows[tip.idx].camara12_temp.toFixed(1)} °C</strong>
+                      Câm. 7: <strong>{rows[tip.idx].camara12_temp.toFixed(1)} °C</strong>
                     </div>
                     <div style={{ color: '#f59e0b' }}>
-                      Câm. 13: <strong>{rows[tip.idx].camara13_temp.toFixed(1)} °C</strong>
+                      Câm. 14: <strong>{rows[tip.idx].camara13_temp.toFixed(1)} °C</strong>
                     </div>
                   </div>
                 </div>
@@ -1819,7 +1819,7 @@ function CombinedTempChart({ rows }: { rows: TempRow[] }) {
             backgroundClip: 'text',
           }}
         >
-          Comparativo — Câmaras 11, 12 e 13
+          Comparativo — Câmaras 6, 7 e 14
         </div>
         <button
           type="button"
@@ -1907,13 +1907,13 @@ function CombinedTempChart({ rows }: { rows: TempRow[] }) {
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
                   <div style={{ color: '#22c55e' }}>
-                    Câm. 11: <strong>{rows[tip.idx].camara11_temp.toFixed(1)} °C</strong>
+                    Câm. 6: <strong>{rows[tip.idx].camara11_temp.toFixed(1)} °C</strong>
                   </div>
                   <div style={{ color: '#38bdf8' }}>
-                    Câm. 12: <strong>{rows[tip.idx].camara12_temp.toFixed(1)} °C</strong>
+                    Câm. 7: <strong>{rows[tip.idx].camara12_temp.toFixed(1)} °C</strong>
                   </div>
                   <div style={{ color: '#f59e0b' }}>
-                    Câm. 13: <strong>{rows[tip.idx].camara13_temp.toFixed(1)} °C</strong>
+                    Câm. 14: <strong>{rows[tip.idx].camara13_temp.toFixed(1)} °C</strong>
                   </div>
                 </div>
               </div>
@@ -2122,10 +2122,10 @@ function CombinedTempChart({ rows }: { rows: TempRow[] }) {
 }
 
 const COMBINED_OCP_SERIES = [
-  { color: OCUP_COLOR_GERAL, valueOf: ocupPercGeral, label: 'Geral (11+12+13 + avaria)', strokeWidth: 3.35 },
-  { color: '#22c55e', valueOf: ocupPercCam11, label: 'Câmara 11', strokeWidth: 2.7 },
-  { color: '#38bdf8', valueOf: ocupPercCam12, label: 'Câmara 12', strokeWidth: 2.7 },
-  { color: '#f59e0b', valueOf: ocupPercCam13, label: 'Câmara 13', strokeWidth: 2.7 },
+  { color: OCUP_COLOR_GERAL, valueOf: ocupPercGeral, label: 'Geral (6+7+14 + avaria)', strokeWidth: 3.35 },
+  { color: '#22c55e', valueOf: ocupPercCam11, label: 'Câmara 6', strokeWidth: 2.7 },
+  { color: '#38bdf8', valueOf: ocupPercCam12, label: 'Câmara 7', strokeWidth: 2.7 },
+  { color: '#f59e0b', valueOf: ocupPercCam13, label: 'Câmara 14', strokeWidth: 2.7 },
 ] as const
 
 const COMB_OCP_LAYOUT_CARD: CombTempLayout = { width: 1100, height: 292, padL: 54, padR: 18, padT: 20, padB: 50 }
@@ -2393,13 +2393,13 @@ function CombinedOcupacaoChart({ rows }: { rows: OcupRow[] }) {
                     Geral: <strong>{ocupPercGeral(rows[tip.idx]).toFixed(1)} %</strong>
                   </div>
                     <div style={{ color: '#22c55e' }}>
-                      Câm. 11: <strong>{ocupPercCam11(rows[tip.idx]).toFixed(1)} %</strong>
+                      Câm. 6: <strong>{ocupPercCam11(rows[tip.idx]).toFixed(1)} %</strong>
                     </div>
                     <div style={{ color: '#38bdf8' }}>
-                      Câm. 12: <strong>{ocupPercCam12(rows[tip.idx]).toFixed(1)} %</strong>
+                      Câm. 7: <strong>{ocupPercCam12(rows[tip.idx]).toFixed(1)} %</strong>
                     </div>
                     <div style={{ color: '#f59e0b' }}>
-                      Câm. 13: <strong>{ocupPercCam13(rows[tip.idx]).toFixed(1)} %</strong>
+                      Câm. 14: <strong>{ocupPercCam13(rows[tip.idx]).toFixed(1)} %</strong>
                     </div>
                     <div
                       style={{
@@ -2665,7 +2665,7 @@ function CombinedOcupacaoChart({ rows }: { rows: OcupRow[] }) {
         </button>
       </div>
       <div style={{ fontSize: 12, color: 'var(--chart-caption)', marginBottom: 14, lineHeight: 1.45 }}>
-        Linha <strong style={{ color: 'var(--chart-legend-pill-text)' }}>geral</strong> inclui avaria no total ocupado. As outras três curvas são só as câmaras 11, 12 e 13 (percentual sobre a capacidade de cada uma).
+        Linha <strong style={{ color: 'var(--chart-legend-pill-text)' }}>geral</strong> inclui avaria no total ocupado. As outras três curvas são só as câmaras 6, 7 e 14 (percentual sobre a capacidade de cada uma).
       </div>
       {!rows.length || !chart ? (
         <div style={{ fontSize: 13, color: 'var(--text, #9ca3af)' }}>Sem dados ainda.</div>
@@ -2750,13 +2750,13 @@ function CombinedOcupacaoChart({ rows }: { rows: OcupRow[] }) {
                     Geral: <strong>{ocupPercGeral(rows[tip.idx]).toFixed(1)} %</strong>
                   </div>
                   <div style={{ color: '#22c55e' }}>
-                    Câm. 11: <strong>{ocupPercCam11(rows[tip.idx]).toFixed(1)} %</strong>
+                    Câm. 6: <strong>{ocupPercCam11(rows[tip.idx]).toFixed(1)} %</strong>
                   </div>
                   <div style={{ color: '#38bdf8' }}>
-                    Câm. 12: <strong>{ocupPercCam12(rows[tip.idx]).toFixed(1)} %</strong>
+                    Câm. 7: <strong>{ocupPercCam12(rows[tip.idx]).toFixed(1)} %</strong>
                   </div>
                   <div style={{ color: '#f59e0b' }}>
-                    Câm. 13: <strong>{ocupPercCam13(rows[tip.idx]).toFixed(1)} %</strong>
+                    Câm. 14: <strong>{ocupPercCam13(rows[tip.idx]).toFixed(1)} %</strong>
                   </div>
                   <div
                     style={{
@@ -3352,7 +3352,7 @@ function OcupacaoCamaras111213Secao({
               <div style={{ fontSize: 10, color: 'var(--chart-caption)', lineHeight: 1.35, marginTop: 6 }}>
                 Complemento do painel <strong style={{ color: '#7dd3fc' }}>Ocupação (c/ avaria)</strong>:{' '}
                 <strong style={{ color: 'var(--chart-footer-muted)' }}>% ocupada + % livre = 100%</strong> sobre as {resumoDia.totalPos} pos.{' '}
-                <strong style={{ color: '#6ee7b7' }}>Vagas físicas vazias</strong> (soma câmaras 11+12+13):{' '}
+                <strong style={{ color: '#6ee7b7' }}>Vagas físicas vazias</strong> (soma câmaras 6+7+14):{' '}
                 <strong style={{ color: 'var(--chart-insight-strong)', fontVariantNumeric: 'tabular-nums' }}>{resumoDia.totalVaz}</strong> pos. (
                 {resumoDia.percLivre.toFixed(1)}% do armazém — fecha com ocupação <em>física</em>).
               </div>
@@ -3453,9 +3453,9 @@ function OcupacaoCamaras111213Secao({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
             {(
               [
-                { id: 11, v: resumoDia.r.camara11_vazias, cap: OCUP_TOTAL.camara11 },
-                { id: 12, v: resumoDia.r.camara12_vazias, cap: OCUP_TOTAL.camara12 },
-                { id: 13, v: resumoDia.r.camara13_vazias, cap: OCUP_TOTAL.camara13 },
+                { id: 6, v: resumoDia.r.camara11_vazias, cap: OCUP_TOTAL.camara11 },
+                { id: 7, v: resumoDia.r.camara12_vazias, cap: OCUP_TOTAL.camara12 },
+                { id: 14, v: resumoDia.r.camara13_vazias, cap: OCUP_TOTAL.camara13 },
               ] as const
             ).map((c) => {
               const oc = c.cap - c.v
@@ -3586,15 +3586,15 @@ function OcupacaoCamaras111213Secao({
             }}
           >
             <label style={{ display: 'grid', gap: 4, minWidth: 0, alignContent: 'start' }}>
-              <span style={{ fontSize: 12, lineHeight: 1.25, color: 'var(--chart-footer-muted)' }}>Câm. 11 — vazias</span>
+              <span style={{ fontSize: 12, lineHeight: 1.25, color: 'var(--chart-footer-muted)' }}>Câm. 6 — vazias</span>
               <input value={v11} onChange={(e) => setV11(e.target.value)} type="number" min="0" style={inOcupNum} />
             </label>
             <label style={{ display: 'grid', gap: 4, minWidth: 0, alignContent: 'start' }}>
-              <span style={{ fontSize: 12, lineHeight: 1.25, color: 'var(--chart-footer-muted)' }}>Câm. 12 — vazias</span>
+              <span style={{ fontSize: 12, lineHeight: 1.25, color: 'var(--chart-footer-muted)' }}>Câm. 7 — vazias</span>
               <input value={v12} onChange={(e) => setV12(e.target.value)} type="number" min="0" style={inOcupNum} />
             </label>
             <label style={{ display: 'grid', gap: 4, minWidth: 0, alignContent: 'start' }}>
-              <span style={{ fontSize: 12, lineHeight: 1.25, color: 'var(--chart-footer-muted)' }}>Câm. 13 — vazias</span>
+              <span style={{ fontSize: 12, lineHeight: 1.25, color: 'var(--chart-footer-muted)' }}>Câm. 14 — vazias</span>
               <input value={v13} onChange={(e) => setV13(e.target.value)} type="number" min="0" style={inOcupNum} />
             </label>
             <label style={{ display: 'grid', gap: 4, minWidth: 0, alignContent: 'start' }}>
@@ -3618,7 +3618,7 @@ function OcupacaoCamaras111213Secao({
             }}
           >
             O valor de <strong style={{ color: t.avariaDestaque }}>Avaria</strong> soma-se ao total de ocupadas no mesmo
-            lançamento (câmaras 11, 12 e 13).
+            lançamento (câmaras 6, 7 e 14).
           </p>
         </div>
 
@@ -3643,13 +3643,13 @@ function OcupacaoCamaras111213Secao({
           <div style={{ fontWeight: 700, marginBottom: 8 }}>Resumo automático (rascunho)</div>
           <div style={{ display: 'grid', gap: 4, fontSize: 14 }}>
             <div>
-              Câmara 11: {resumoRascunho.o11} ocupadas / {asInt(v11)} vazias (total {OCUP_TOTAL.camara11})
+              Câmara 6: {resumoRascunho.o11} ocupadas / {asInt(v11)} vazias (total {OCUP_TOTAL.camara11})
             </div>
             <div>
-              Câmara 12: {resumoRascunho.o12} ocupadas / {asInt(v12)} vazias (total {OCUP_TOTAL.camara12})
+              Câmara 7: {resumoRascunho.o12} ocupadas / {asInt(v12)} vazias (total {OCUP_TOTAL.camara12})
             </div>
             <div>
-              Câmara 13: {resumoRascunho.o13} ocupadas / {asInt(v13)} vazias (total {OCUP_TOTAL.camara13})
+              Câmara 14: {resumoRascunho.o13} ocupadas / {asInt(v13)} vazias (total {OCUP_TOTAL.camara13})
             </div>
             <div style={{ color: t.avariaDestaque }}>
               Avaria (acréscimo): {resumoRascunho.avariaAcrescimo} posição(ões)
@@ -3670,9 +3670,9 @@ function OcupacaoCamaras111213Secao({
             <tr>
               <th style={th}>Data / horário</th>
               <th style={th}>Conferente</th>
-              <th style={th}>Cam 11 (vazias)</th>
-              <th style={th}>Cam 12 (vazias)</th>
-              <th style={th}>Cam 13 (vazias)</th>
+              <th style={th}>Cam 6 (vazias)</th>
+              <th style={th}>Cam 7 (vazias)</th>
+              <th style={th}>Cam 14 (vazias)</th>
               <th style={{ ...th, color: t.avariaDestaque }}>Avaria (+ ocup.)</th>
               <th style={th}>Livre</th>
               <th style={th}>Total ocupadas</th>
@@ -3834,7 +3834,7 @@ export default function ContagemDiariaAmbiental({
       return
     }
     if (cam11.trim() === '' || cam12.trim() === '' || cam13.trim() === '') {
-      setError('Preencha as três temperaturas (Câmaras 11, 12 e 13).')
+      setError('Preencha as três temperaturas (Câmaras 6, 7 e 14).')
       return
     }
     setLoading(true)
@@ -3873,7 +3873,7 @@ export default function ContagemDiariaAmbiental({
       return
     }
     if (vazias11.trim() === '' || vazias12.trim() === '' || vazias13.trim() === '') {
-      setError('Preencha as posições vazias das câmaras 11, 12 e 13.')
+      setError('Preencha as posições vazias das câmaras 6, 7 e 14.')
       return
     }
     const n11 = asInt(vazias11)
@@ -4072,15 +4072,15 @@ export default function ContagemDiariaAmbiental({
                 <input type="date" value={tempData} onChange={(e) => setTempData(e.target.value)} />
               </label>
               <label style={{ display: 'grid', gap: 5 }}>
-                <span>Câmara 11 (°C)</span>
+                <span>Câmara 6 (°C)</span>
                 <input value={cam11} onChange={(e) => setCam11(e.target.value)} type="number" step="0.1" />
               </label>
               <label style={{ display: 'grid', gap: 5 }}>
-                <span>Câmara 12 (°C)</span>
+                <span>Câmara 7 (°C)</span>
                 <input value={cam12} onChange={(e) => setCam12(e.target.value)} type="number" step="0.1" />
               </label>
               <label style={{ display: 'grid', gap: 5 }}>
-                <span>Câmara 13 (°C)</span>
+                <span>Câmara 14 (°C)</span>
                 <input value={cam13} onChange={(e) => setCam13(e.target.value)} type="number" step="0.1" />
               </label>
             </div>
@@ -4125,7 +4125,7 @@ export default function ContagemDiariaAmbiental({
                   Gráficos de temperatura por câmara
                 </div>
                 <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
-                  Acompanhe a variação diária das Câmaras 11, 12 e 13.
+                  Acompanhe a variação diária das Câmaras 6, 7 e 14.
                 </div>
               </div>
             </div>
@@ -4233,9 +4233,9 @@ export default function ContagemDiariaAmbiental({
           </div>
 
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-            <TinyLineChart title="Câmara 11" color="#22c55e" rows={tempRows} valueOf={(r) => r.camara11_temp} showPointValues />
-            <TinyLineChart title="Câmara 12" color="#38bdf8" rows={tempRows} valueOf={(r) => r.camara12_temp} showPointValues />
-            <TinyLineChart title="Câmara 13" color="#f59e0b" rows={tempRows} valueOf={(r) => r.camara13_temp} showPointValues />
+            <TinyLineChart title="Câmara 6" color="#22c55e" rows={tempRows} valueOf={(r) => r.camara11_temp} showPointValues />
+            <TinyLineChart title="Câmara 7" color="#38bdf8" rows={tempRows} valueOf={(r) => r.camara12_temp} showPointValues />
+            <TinyLineChart title="Câmara 14" color="#f59e0b" rows={tempRows} valueOf={(r) => r.camara13_temp} showPointValues />
           </div>
           <CombinedTempChart rows={tempRows} />
 
@@ -4246,9 +4246,9 @@ export default function ContagemDiariaAmbiental({
                 <tr>
                   <th style={th}>Conferente</th>
                   <th style={th}>Data / horário</th>
-                  <th style={{ ...th, color: '#22c55e' }}>Câm. 11 (°C)</th>
-                  <th style={{ ...th, color: '#38bdf8' }}>Câm. 12 (°C)</th>
-                  <th style={{ ...th, color: '#f59e0b' }}>Câm. 13 (°C)</th>
+                  <th style={{ ...th, color: '#22c55e' }}>Câm. 6 (°C)</th>
+                  <th style={{ ...th, color: '#38bdf8' }}>Câm. 7 (°C)</th>
+                  <th style={{ ...th, color: '#f59e0b' }}>Câm. 14 (°C)</th>
                 </tr>
               </thead>
               <tbody>
@@ -4291,13 +4291,13 @@ export default function ContagemDiariaAmbiental({
               textTransform: 'uppercase',
             }}
           >
-            Ocupação (câmaras 11, 12 e 13)
+            Ocupação (câmaras 6, 7 e 14)
           </div>
 
           <OcupacaoCamaras111213Secao
             labels={{
               resumo: 'Resumo do dia',
-              form: 'Lançar ocupação (vagas vazias nas câmaras 11, 12 e 13 + avaria, se houver)',
+              form: 'Lançar ocupação (vagas vazias nas câmaras 6, 7 e 14 + avaria, se houver)',
               tabela: 'Últimos lançamentos de ocupação',
               emptyHint: ocupData
                 ? `Ainda não há lançamento salvo para ${formatDataBr(ocupData)}. Preencha o formulário abaixo e salve.`
@@ -4358,7 +4358,7 @@ export default function ContagemDiariaAmbiental({
 
             <div style={{ marginTop: 18 }}>
               <TinyLineChart
-                title="% Ocupada geral (11+12+13, inclui avaria)"
+                title="% Ocupada geral (6+7+14, inclui avaria)"
                 color={OCUP_COLOR_GERAL}
                 rows={ocupRowsChronoCharts}
                 valueOf={ocupPercGeral}
@@ -4380,7 +4380,7 @@ export default function ContagemDiariaAmbiental({
               }}
             >
               <TinyLineChart
-                title="% Ocupada — Câmara 11"
+                title="% Ocupada — Câmara 6"
                 color="#22c55e"
                 rows={ocupRowsChronoCharts}
                 valueOf={ocupPercCam11}
@@ -4392,7 +4392,7 @@ export default function ContagemDiariaAmbiental({
                 compact
               />
               <TinyLineChart
-                title="% Ocupada — Câmara 12"
+                title="% Ocupada — Câmara 7"
                 color="#38bdf8"
                 rows={ocupRowsChronoCharts}
                 valueOf={ocupPercCam12}
@@ -4404,7 +4404,7 @@ export default function ContagemDiariaAmbiental({
                 compact
               />
               <TinyLineChart
-                title="% Ocupada — Câmara 13"
+                title="% Ocupada — Câmara 14"
                 color="#f59e0b"
                 rows={ocupRowsChronoCharts}
                 valueOf={ocupPercCam13}

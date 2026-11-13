@@ -87,7 +87,13 @@
         _onWindowResize: null
     };
 
-    var CAM_ORDER = [11, 12, 13, 21];
+    /* Renumeração 2026-11: 11→6, 12→7, 13→14, 21→15 e nova 16 (ruas I/J).
+       Bloco principal em fila (com paredes divisórias): 6 · 7 · 14 · 16.
+       Câmara refrigerada (2 níveis, na frente da 14): 15. */
+    var CAM_BLOCO = [6, 7, 14, 16];
+    var CAM_PASSAGEM = 14;
+    var CAM_REFRIG = 15;
+    var CAM_ORDER = CAM_BLOCO.concat([CAM_REFRIG]);
 
     function T() {
         if (!global.THREE) throw new Error('Three.js não carregou');
@@ -121,13 +127,13 @@
     }
 
     function _maxNivCam(cod) {
-        return parseInt(cod, 10) === 21 ? 2 : MAX_NIV;
+        return parseInt(cod, 10) === CAM_REFRIG ? 2 : MAX_NIV;
     }
 
     function _levelHForCam(cod) {
         /* câmaras com poucos níveis ganham nível mais alto (armazenamento a granel) */
         var mn = _maxNivCam(cod);
-        if (parseInt(cod, 10) === 21) return LEVEL_H * 1.38;
+        if (parseInt(cod, 10) === CAM_REFRIG) return LEVEL_H * 1.38;
         return mn <= 2 ? LEVEL_H * 2.1 : LEVEL_H;
     }
 
@@ -149,7 +155,7 @@
         }
         var beamH = geom.beamH || BEAM_H;
         var shelfTh = geom.shelfTh || SHELF_TH;
-        var head = parseInt(geom.camCod, 10) === 21 ? LEVEL_H * 0.82 : (maxNiv >= MAX_NIV ? 0.55 : 0.28);
+        var head = parseInt(geom.camCod, 10) === CAM_REFRIG ? LEVEL_H * 0.82 : (maxNiv >= MAX_NIV ? 0.55 : 0.28);
         return topY + beamH + shelfTh + head;
     }
 
@@ -173,7 +179,7 @@
             braceBands: maxNiv <= 2 ? [0, 0.52] : [0, 0.36, 0.68],
             braceNodes: maxNiv <= 2 ? [0, 0.5, 1.0] : [0, 0.34, 0.68, 1.0]
         };
-        if (c === 21) {
+        if (c === CAM_REFRIG) {
             var midY = LEVEL_H * 1.38;
             geom.uprW = 0.26;
             geom.uprD = 0.24;
@@ -194,7 +200,7 @@
 
     function _camMeta(cod) {
         cod = parseInt(cod, 10);
-        if (cod === 21) return { tipo: 'Refrigerado', temp: '-18' };
+        if (cod === CAM_REFRIG) return { tipo: 'Refrigerado', temp: '-18' };
         return { tipo: 'Congelado', temp: '-20' };
     }
 
@@ -1246,14 +1252,17 @@
     function _rackXBaseForCam(camCod, ruaIndex, totalRuas) {
         var base = _rackXBase(ruaIndex, totalRuas);
         var c = parseInt(camCod, 10);
-        if (c !== 11 && c !== 12 && c !== 13) return base;
+        var idxBloco = CAM_BLOCO.indexOf(c);
+        if (idxBloco < 0) return base;
+        var temVizEsq = idxBloco > 0;
+        var temVizDir = idxBloco < CAM_BLOCO.length - 1;
 
         var fpsW = AISLE_W + SLOT_D * 1.28 + CAM_FLOOR_PAD;
         var wallLine = fpsW / 2 + GAP_CAM_ADJ / 2 - WALL_DIV_TH / 2;
         var half = RACK_HALF_DEPTH;
         var gap = WALL_RACK_GAP;
 
-        if (c === 12 && totalRuas >= 2) {
+        if (temVizEsq && temVizDir && totalRuas >= 2) {
             if (ruaIndex === 0) {
                 var minBack = -wallLine + gap;
                 if (base - half < minBack) base = minBack + half;
@@ -1263,12 +1272,12 @@
             }
             return base;
         }
-        if (c === 13) {
+        if (temVizEsq) {
             var minOuter = -wallLine + gap;
             if (base - half < minOuter) base = minOuter + half;
             return base;
         }
-        if (c === 11) {
+        if (temVizDir) {
             var maxOuter11 = wallLine - gap;
             if (base + half > maxOuter11) base = maxOuter11 - half;
         }
@@ -1314,7 +1323,7 @@
         for (var i = 0; i < list.length; i++) {
             var c = list[i];
             if (!c) continue;
-            if (c.axis === 'z' || (c.label && c.label.indexOf('CÂM 21') >= 0)) return c;
+            if (c.axis === 'z' || (c.label && c.label.indexOf('CÂM ' + CAM_REFRIG) >= 0)) return c;
         }
         return null;
     }
@@ -1366,14 +1375,14 @@
         };
     }
 
-    /** Planta CD: 11/12/13 em fila; corredor cinza na frente do bloco e na frente da cam 21. */
+    /** Planta CD: bloco 6/7/14/16 em fila; corredor cinza na frente do bloco e na frente da câm. 15. */
     function _layoutCdPlanta(camarasByCode) {
-        var leftCodes = [11, 12, 13];
+        var leftCodes = CAM_BLOCO;
         var fps = {};
         leftCodes.forEach(function (c) {
             if (camarasByCode[c]) fps[c] = _camFootprint(camarasByCode[c]);
         });
-        var fp21 = camarasByCode[21] ? _camFootprint(camarasByCode[21]) : null;
+        var fp21 = camarasByCode[CAM_REFRIG] ? _camFootprint(camarasByCode[CAM_REFRIG]) : null;
 
         var leftSpan = 0;
         var maxDepthLeft = 0;
@@ -1397,20 +1406,20 @@
 
         if (leftSpan) {
             var mainCorridorZ = maxDepthLeft + MAIN_AISLE_W / 2;
-            if (fp21 && positions[13]) {
-                var passageX = positions[13].x;
+            if (fp21 && positions[CAM_PASSAGEM]) {
+                var passageX = positions[CAM_PASSAGEM].x;
                 var passageW = Math.max((fp21.width || AISLE_W) * 0.92, AISLE_W);
                 var blockLeft = -leftSpan / 2;
                 var passageLeft = passageX - passageW / 2;
                 var passageRight = passageX + passageW / 2;
-                var mainW = passageRight - blockLeft;
+                var mainW = Math.max(passageRight, blockLeft + leftSpan) - blockLeft;
                 if (mainW > 0.8) {
                     corridors.push({
                         width: mainW,
                         depth: MAIN_AISLE_W,
                         x: blockLeft + mainW / 2,
                         z: mainCorridorZ,
-                        label: 'CORREDOR PRINCIPAL — CÂM 11 · 12 · 13'
+                        label: 'CORREDOR PRINCIPAL — CÂM ' + CAM_BLOCO.join(' · ')
                     });
                 }
                 corridors.push({
@@ -1426,29 +1435,29 @@
                     depth: MAIN_AISLE_W,
                     x: 0,
                     z: mainCorridorZ,
-                    label: 'CORREDOR PRINCIPAL — CÂM 11 · 12 · 13'
+                    label: 'CORREDOR PRINCIPAL — CÂM ' + CAM_BLOCO.join(' · ')
                 });
             }
         }
 
         if (leftSpan && fp21) {
-            var x13 = positions[13] ? positions[13].x : 0;
-            positions[21] = { x: x13, z: maxDepthLeft + MAIN_AISLE_W };
+            var x13 = positions[CAM_PASSAGEM] ? positions[CAM_PASSAGEM].x : 0;
+            positions[CAM_REFRIG] = { x: x13, z: maxDepthLeft + MAIN_AISLE_W };
             corridors.push({
                 width: leftSpan,
                 depth: MAIN_AISLE_W,
                 x: 0,
                 z: maxDepthLeft + MAIN_AISLE_W + fp21.depth + MAIN_AISLE_W / 2,
-                label: 'CORREDOR — CÂM. 21'
+                label: 'CORREDOR — CÂM. ' + CAM_REFRIG
             });
         } else if (fp21) {
-            positions[21] = { x: 0, z: 0 };
+            positions[CAM_REFRIG] = { x: 0, z: 0 };
         }
 
         var passagem21 = null;
-        if (leftSpan && fp21 && positions[13]) {
+        if (leftSpan && fp21 && positions[CAM_PASSAGEM]) {
             passagem21 = {
-                x: positions[13].x,
+                x: positions[CAM_PASSAGEM].x,
                 z: maxDepthLeft + MAIN_AISLE_W / 2,
                 width: Math.max((fp21.width || AISLE_W) * 0.92, AISLE_W)
             };
@@ -1515,7 +1524,7 @@
         }
     }
 
-    /** Paredes divisórias verticais entre câmaras 11|12 e 12|13 (vãos laterais). */
+    /** Paredes divisórias verticais entre câmaras vizinhas do bloco (6|7, 7|14, 14|16). */
     function _addChamberDividerWalls(THREE, parent, leftCodes, fps, positions, rackBounds, wallH) {
         if (!leftCodes || leftCodes.length < 2 || !rackBounds || !wallH) return;
         var group = new THREE.Group();
@@ -1688,13 +1697,13 @@
         group.add(knob);
     }
 
-    /** Paredes externas rente ao bloco 11–13 e envoltório da câm. 21 (por fora dos racks). */
+    /** Paredes externas rente ao bloco 6/7/14/16 e envoltório da câm. 15 (por fora dos racks). */
     function _addPerimeterWalls(THREE, parent, wallH, positions, camarasByCode, corridors, passagem21) {
         if (!wallH || !positions || !camarasByCode) return;
-        var b113 = _computeRackBounds(camarasByCode, positions, [11, 12, 13]);
+        var b113 = _computeRackBounds(camarasByCode, positions, CAM_BLOCO);
         if (!b113) return;
-        var bAll = _computeRackBounds(camarasByCode, positions, [11, 12, 13, 21]) || b113;
-        var b21 = positions[21] ? _computeRackBounds(camarasByCode, positions, [21]) : null;
+        var bAll = _computeRackBounds(camarasByCode, positions, CAM_ORDER) || b113;
+        var b21 = positions[CAM_REFRIG] ? _computeRackBounds(camarasByCode, positions, [CAM_REFRIG]) : null;
 
         var group = new THREE.Group();
         group.name = 'paredes-perimetro';
@@ -1713,7 +1722,7 @@
         _addWallRunZ(group, mats, wallH, rightX, b113.minZ + d113 / 2, d113, 'parede-dir-bloco');
 
         if (b21) {
-            var f21 = _camFloorBounds(21, positions, camarasByCode, b21);
+            var f21 = _camFloorBounds(CAM_REFRIG, positions, camarasByCode, b21);
             var leftX21 = f21.minX - halfTh - out;
             var rightX21 = f21.maxX + halfTh + out;
             var frontZ21 = f21.minZ - halfTh - out;
@@ -1727,7 +1736,7 @@
             _addWallRunXWithDoor(THREE, group, mats, wallH, rearW21, rearCx, rearZ21, 'parede-fundo-21');
             _addWallRunZ(group, mats, wallH, leftX21, cz21, d21Full, 'parede-esq-21');
 
-            /* fechamento das laterais do corredor entre o bloco 11-13 e a câm. 21 */
+            /* fechamento das laterais do corredor entre o bloco e a câm. 15 */
             var corrZ0 = b113.maxZ + halfTh;
             var corrZ1 = frontZ21 - halfTh;
             if (corrZ1 > corrZ0 + 0.2) {
@@ -1822,7 +1831,7 @@
                 camarasByCode[parseInt(c.codigo, 10)] = c;
             });
             var layout = _layoutCdPlanta(camarasByCode);
-            var leftCodes = [11, 12, 13];
+            var leftCodes = CAM_BLOCO;
             var fpsLayout = {};
             leftCodes.forEach(function (c) {
                 if (camarasByCode[c]) fpsLayout[c] = _camFootprint(camarasByCode[c]);
@@ -1835,8 +1844,8 @@
                 if (fpsLayout[c].depth > maxDepthLeft) maxDepthLeft = fpsLayout[c].depth;
             });
             if (leftSpan > 0) leftSpan -= GAP_CAM_ADJ;
-            var fp21 = camarasByCode[21] ? _camFootprint(camarasByCode[21]) : null;
-            if (fp21) fpsLayout[21] = fp21;
+            var fp21 = camarasByCode[CAM_REFRIG] ? _camFootprint(camarasByCode[CAM_REFRIG]) : null;
+            if (fp21) fpsLayout[CAM_REFRIG] = fp21;
             var rightEdge = 0;
             leftCodes.forEach(function (c) {
                 if (layout.positions[c] && fpsLayout[c]) {
@@ -1844,8 +1853,8 @@
                     if (edge > rightEdge) rightEdge = edge;
                 }
             });
-            if (layout.positions[21] && fp21) {
-                var e21 = layout.positions[21].x + fp21.width / 2;
+            if (layout.positions[CAM_REFRIG] && fp21) {
+                var e21 = layout.positions[CAM_REFRIG].x + fp21.width / 2;
                 if (e21 > rightEdge) rightEdge = e21;
             }
             state.layoutMeta = {
@@ -1866,7 +1875,7 @@
             var shelfGeo = new THREE.BoxGeometry(BEAM_FACE * 1.02, SHELF_TH, SLOT_D * 0.92);
             var dummy = new THREE.Object3D();
             var col = new THREE.Color();
-            var buildOrder = [11, 12, 13, 21].filter(function (cod) {
+            var buildOrder = CAM_ORDER.filter(function (cod) {
                 return camarasByCode[cod] && layout.positions[cod];
             });
             var idx = 0;
@@ -1894,7 +1903,7 @@
                     var n = layoutNiv > 0 ? Math.min(layoutNiv, cap) : cap;
                     if (n > maxNivWall) maxNivWall = n;
                 });
-                var rackBounds113 = _computeRackBounds(camarasByCode, layout.positions, [11, 12, 13]);
+                var rackBounds113 = _computeRackBounds(camarasByCode, layout.positions, CAM_BLOCO);
                 _addChamberDividerWalls(
                     THREE,
                     state.rackGroup,
@@ -2573,13 +2582,13 @@
         return meta.corridorMainZ != null ? meta.corridorMainZ : (maxD + MAIN_AISLE_W / 2);
     }
 
-    /** Porta da câmara no eixo Z: 11/12/13 viradas para o corredor (+Z); 21 do outro lado. */
+    /** Porta da câmara no eixo Z: bloco virado para o corredor (+Z); câm. 15 do outro lado. */
     function _chamberDoorZ(camCod) {
         var meta = state.layoutMeta || {};
         var camPos = meta.positions[camCod];
         if (!camPos) return _mainCorridorZ();
         var cam = parseInt(camCod, 10);
-        if (cam === 21) return camPos.z;
+        if (cam === CAM_REFRIG) return camPos.z;
         return camPos.z + (meta.maxDepthLeft || 18);
     }
 
@@ -2619,7 +2628,7 @@
         var cam = parseInt(camCod, 10);
         var floorW = AISLE_W + SLOT_D * 1.28 + CAM_FLOOR_PAD;
         var maxD = meta.maxDepthLeft || 18;
-        if (cam === 21) {
+        if (cam === CAM_REFRIG) {
             var fp21D = maxD * 0.55 + MAIN_AISLE_W * 0.35;
             return {
                 minX: camPos.x - floorW / 2 + 0.45,
@@ -2677,7 +2686,7 @@
         if (Math.abs(hubX - aisleX) < 5) hubX = aisleX - 12;
         var pts = [];
 
-        if (cam === 21) {
+        if (cam === CAM_REFRIG) {
             var passX = _passagem21NavX(meta, 'right') || aisleX;
             _pushNavWp(pts, hubX, mainZ, yFloor);
             _pushNavWp(pts, passX, mainZ, yFloor);

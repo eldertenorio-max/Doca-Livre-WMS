@@ -390,7 +390,12 @@ def _campos_etiqueta_palete_endereco(sug=None, codigo_wms=None, endereco_texto=N
     }
 
 
-_WMS_CAMARA_TOTAIS_PADRAO = {11: 148, 12: 133, 13: 142, 21: 28}
+# Câmaras de estoque (paletes). Renumeradas em 2026-11: 11→6, 12→7, 13→14, 21→15 e nova 16 (ruas I/J).
+_WMS_CAMARAS_ESTOQUE = (6, 7, 14, 15, 16)
+# Bloco principal (ex-11/12/13): contagem diária, temperatura e resumo de ocupação padrão.
+_WMS_CAMARAS_PRINCIPAIS = (6, 7, 14)
+_WMS_CAMARAS_ESTOQUE_SQL = ', '.join(str(c) for c in _WMS_CAMARAS_ESTOQUE)
+_WMS_CAMARA_TOTAIS_PADRAO = {6: 148, 7: 133, 14: 142, 15: 28, 16: 150}
 _WMS_CAMARA_STAGE = 99
 _WMS_CAMARA_ESPECIAL = 98
 _WMS_STAGE_SLOTS_POR_DOCA = 40
@@ -413,10 +418,11 @@ def _layout_camaras_config():
     if not os.path.isfile(path):
         return {
             'camaras': [
-                {'codigo': 11, 'ruas': ['A', 'B'], 'niveis': 5, 'total_posicoes': 148},
-                {'codigo': 12, 'ruas': ['C', 'D'], 'niveis': 5, 'total_posicoes': 133},
-                {'codigo': 13, 'ruas': ['E', 'F'], 'niveis': 5, 'total_posicoes': 142},
-                {'codigo': 21, 'ruas': ['G', 'H'], 'niveis': 2, 'total_posicoes': 28},
+                {'codigo': 6, 'ruas': ['A', 'B'], 'niveis': 5, 'total_posicoes': 148},
+                {'codigo': 7, 'ruas': ['C', 'D'], 'niveis': 5, 'total_posicoes': 133},
+                {'codigo': 14, 'ruas': ['E', 'F'], 'niveis': 5, 'total_posicoes': 142},
+                {'codigo': 15, 'ruas': ['G', 'H'], 'niveis': 2, 'total_posicoes': 28},
+                {'codigo': 16, 'ruas': ['I', 'J'], 'niveis': 5, 'total_posicoes': 150},
             ]
         }
     with open(path, encoding='utf-8') as f:
@@ -2612,7 +2618,7 @@ def _buscar_vaga_vazia_putaway(conn, cat, cam_list, zona, order_prefix, order_pa
 
 
 def _camaras_putaway_expandidas(conn, cat, cam_list):
-    """Garante câmaras do layout no zoneamento + 21 quando aplicável."""
+    """Garante câmaras do layout no zoneamento + 15 (ex-21) quando aplicável."""
     out = []
     seen = set()
     for c in cam_list or []:
@@ -2620,7 +2626,7 @@ def _camaras_putaway_expandidas(conn, cat, cam_list):
         if ci not in seen:
             seen.add(ci)
             out.append(ci)
-    for cam in (11, 12, 13, 21):
+    for cam in _WMS_CAMARAS_ESTOQUE:
         if cam in seen:
             continue
         row = conn.execute(
@@ -2632,7 +2638,7 @@ def _camaras_putaway_expandidas(conn, cat, cam_list):
         if row:
             seen.add(cam)
             out.append(cam)
-    return out or [11, 12, 13]
+    return out or list(_WMS_CAMARAS_PRINCIPAIS)
 
 
 def _putaway_resposta(loc, motivo, status, pos_wms, pos_med, alerta, prioridade):
@@ -3058,10 +3064,10 @@ def _listar_zoneamento(conn):
 
 
 def _ensure_layout_enderecos(conn):
-    """Gera endereços das câmaras 11–21 se ainda não existirem (ignora 98/99)."""
+    """Gera endereços das câmaras de estoque (6–16) se ainda não existirem (ignora 98/99)."""
     t_loc = _tbl(conn, 'wms_localizacao')
     falta_estoque = False
-    for cam in (11, 12, 13, 21):
+    for cam in _WMS_CAMARAS_ESTOQUE:
         cnt = _int_col(
             conn.execute(f'SELECT COUNT(*) AS c FROM {t_loc} WHERE camara = ?', (cam,)).fetchone(),
             'c',
@@ -3646,10 +3652,11 @@ def _seed_wms_defaults(conn):
             pass
     now = _now_iso()
     camaras = [
-        (11, 'Câmara 11', 144),
-        (12, 'Câmara 12', 133),
-        (13, 'Câmara 13', 142),
-        (21, 'Câmara 21', 28),
+        (6, 'Câmara 6', 144),
+        (7, 'Câmara 7', 133),
+        (14, 'Câmara 14', 142),
+        (15, 'Câmara 15', 28),
+        (16, 'Câmara 16', 150),
     ]
     for cod, desc, tot in camaras:
         try:
@@ -3669,10 +3676,10 @@ def _seed_wms_defaults(conn):
             except Exception:
                 pass
     zone = [
-        ('A', 11, 1), ('A', 12, 2),
-        ('B', 11, 1), ('B', 12, 2),
-        ('C', 12, 1), ('C', 13, 2),
-        ('D', 13, 1), ('D', 21, 2),
+        ('A', 6, 1), ('A', 7, 2),
+        ('B', 6, 1), ('B', 7, 2),
+        ('C', 7, 1), ('C', 14, 2),
+        ('D', 14, 1), ('D', 15, 2),
     ]
     for cat, cam, pri in zone:
         try:
@@ -3848,7 +3855,7 @@ def _sugerir_putaway(conn, sku, lote=None, data_producao=None, zona='pulmao'):
     ).fetchall()
     cam_list = [r['camara'] if isinstance(r, dict) else r[0] for r in camaras]
     if not cam_list:
-        cam_list = [11, 12, 13]
+        cam_list = list(_WMS_CAMARAS_PRINCIPAIS)
 
     order_parts = []
     order_params = []
@@ -4309,7 +4316,7 @@ def _ensure_areas_especiais_localizacoes(conn):
 
 
 def _obter_vaga_destino_fixo(conn, area_key, data_producao=None):
-    """Posição fixa no layout (câmaras 11–21) marcada na planilha de endereçamento."""
+    """Posição fixa no layout (câmaras 6–16) marcada na planilha de endereçamento."""
     key = (area_key or '').strip().lower()
     if not key:
         return None, 'Destino não informado.'
@@ -4488,7 +4495,7 @@ def _coletar_ocupacao_areas_especiais(conn):
 
 
 def _coletar_ocupacao_estoque_normal(conn, incluir_posicoes=True):
-    """Ocupação do estoque normal (câmaras 11–21), excluindo destino_fixo e câm. 98/99."""
+    """Ocupação do estoque normal (câmaras 6–16), excluindo destino_fixo e câm. 98/99."""
     t_loc = _tbl(conn, 'wms_localizacao')
     t_pal = _tbl(conn, 'wms_palete')
     t_item = _tbl(conn, 'wms_palete_item')
@@ -4499,7 +4506,7 @@ def _coletar_ocupacao_estoque_normal(conn, incluir_posicoes=True):
               ORDER BY COALESCE(i.quantidade_caixas, 0) DESC, i.id
               LIMIT 1)'''
     )
-    camaras_normais = (11, 12, 13, 21)
+    camaras_normais = _WMS_CAMARAS_ESTOQUE
     cfg = _layout_camaras_config()
     blocos = {
         int(b['codigo']): b
@@ -4661,7 +4668,7 @@ def _coletar_ocupacao_estoque_normal(conn, incluir_posicoes=True):
         total_livre += livres
 
     return {
-        'descricao': 'Estoque normal — câmaras 11, 12, 13 e 21 (posições de armazenagem por categoria)',
+        'descricao': 'Estoque normal — câmaras 6, 7, 14, 15 e 16 (posições de armazenagem por categoria)',
         'camaras': camaras_out,
         'total_slots': total_slots,
         'total_ocupadas': total_ocup,
@@ -4710,7 +4717,7 @@ def _contar_posicoes_avaria_wms(conn):
     return _int_col(row, 'c')
 
 
-def _coletar_resumo_ocupacao_wms(conn, camaras=(11, 12, 13)):
+def _coletar_resumo_ocupacao_wms(conn, camaras=_WMS_CAMARAS_PRINCIPAIS):
     """Resumo estilo painel de ocupação (câmaras frias) a partir do estoque WMS real."""
     estoque = _coletar_ocupacao_estoque_normal(conn)
     cam_set = {int(c) for c in camaras}
@@ -5034,7 +5041,7 @@ def _coletar_mapa_destinos_fixos(conn):
                 FROM {t_loc} l
                 LEFT JOIN {t_pal} p ON p.localizacao_id = l.id
                     AND p.status IN ('armazenado', 'bloqueado', 'em_stage', 'separado')
-                WHERE l.camara IN (11, 12, 13, 21)
+                WHERE l.camara IN ({_WMS_CAMARAS_ESTOQUE_SQL})
                   AND (
                     COALESCE(LOWER(TRIM(l.tipo)), '') = 'destino_fixo'
                     OR LOWER(COALESCE(l.area, '')) IN (
@@ -5052,7 +5059,7 @@ def _coletar_mapa_destinos_fixos(conn):
     ordem_area = list(labels.keys())
     for bloco in cfg.get('camaras') or []:
         cod_cam = int(bloco.get('codigo') or 0)
-        if cod_cam not in (11, 12, 13, 21):
+        if cod_cam not in _WMS_CAMARAS_ESTOQUE:
             continue
         for _c, rua, pos, niv, dest_acao, dest_lbl, _apenas_rotulo in _coords_from_bloco_layout(bloco):
             if not dest_acao:
@@ -5595,7 +5602,7 @@ def _transferir_palete_armazem(conn, codigo_palete, codigo_destino, observacao=N
 
     cod_resolvido = _resolver_codigo_endereco_bip(codigo_destino, conn=conn) or (codigo_destino or '').strip().upper()
     if not cod_resolvido:
-        return None, 'Endereço de destino inválido. Bipe a etiqueta da longarina (ex.: 12.14.1*47).'
+        return None, 'Endereço de destino inválido. Bipe a etiqueta da longarina (ex.: 7.14.1*23).'
     loc = conn.execute(
         f'''SELECT * FROM {t_loc}
             WHERE codigo_endereco = ? OR UPPER(codigo_endereco) = ?''',
@@ -5865,7 +5872,7 @@ def _confirmar_armazenagem_palete(conn, palete_id, codigo_endereco):
         (cod_resolvido, cod_resolvido.upper()),
     ).fetchone()
     if not loc:
-        return None, 'Endereço não encontrado. Bipe a etiqueta da longarina (ex.: 21.13.1).'
+        return None, 'Endereço não encontrado. Bipe a etiqueta da longarina (ex.: 15.7.1).'
     ld = _row_dict(loc) or {}
     if ld.get('status') != 'vazia':
         return None, 'Endereço não está vazio.'
@@ -6675,7 +6682,7 @@ def _painel_shell_layout():
     camaras = []
     for bloco in (_layout_camaras_config().get('camaras') or []):
         cod = int(bloco.get('codigo') or 0)
-        if cod not in (11, 12, 13, 21):
+        if cod not in _WMS_CAMARAS_ESTOQUE:
             continue
         tot = int(refs.get(cod) or bloco.get('total_posicoes') or 0)
         camaras.append({
@@ -6700,10 +6707,10 @@ def _painel_shell_layout():
     nomes = {c['camara']: c['descricao'] for c in camaras}
     zone = []
     for cat, cam, pri in (
-        ('A', 11, 1), ('A', 12, 2),
-        ('B', 11, 1), ('B', 12, 2),
-        ('C', 12, 1), ('C', 13, 2),
-        ('D', 13, 1), ('D', 21, 2),
+        ('A', 6, 1), ('A', 7, 2),
+        ('B', 6, 1), ('B', 7, 2),
+        ('C', 7, 1), ('C', 14, 2),
+        ('D', 14, 1), ('D', 15, 2),
     ):
         zone.append({
             'categoria': cat,
@@ -6942,7 +6949,7 @@ def _localizacoes_fallback_layout(camara=None, limite=200):
     out = []
     for bloco in (_layout_camaras_config().get('camaras') or []):
         cod = int(bloco.get('codigo') or 0)
-        if cod not in (11, 12, 13, 21):
+        if cod not in _WMS_CAMARAS_ESTOQUE:
             continue
         if camara and cod != int(camara):
             continue
@@ -7074,7 +7081,7 @@ def _build_mapa_layout_payload(por_codigo=None, camara_filtro=None):
     camaras_out = []
     for bloco in (cfg.get('camaras') or []):
         cod_cam = int(bloco.get('codigo') or 0)
-        if cod_cam not in (11, 12, 13, 21):
+        if cod_cam not in _WMS_CAMARAS_ESTOQUE:
             continue
         if camara_filtro and cod_cam != camara_filtro:
             continue
@@ -7144,7 +7151,7 @@ def api_wms_mapa_3d():
         t = _tbl(conn, 'wms_localizacao')
         sql = (
             f'SELECT camara, rua, posicao, nivel, codigo_endereco, status, area, '
-            f'categoria_zona, zona_armazenagem, tipo FROM {t} WHERE camara IN (11, 12, 13, 21)'
+            f'categoria_zona, zona_armazenagem, tipo FROM {t} WHERE camara IN ({_WMS_CAMARAS_ESTOQUE_SQL})'
         )
         params = []
         if camara_filtro:
@@ -7337,8 +7344,8 @@ def api_wms_analise_ocupacao():
     conn = _db()
     ensure_wms_schema(conn)
     try:
-        camaras = request.args.get('camaras', '11,12,13')
-        cam_list = tuple(int(x.strip()) for x in str(camaras).split(',') if x.strip().isdigit()) or (11, 12, 13)
+        camaras = request.args.get('camaras', ','.join(str(c) for c in _WMS_CAMARAS_PRINCIPAIS))
+        cam_list = tuple(int(x.strip()) for x in str(camaras).split(',') if x.strip().isdigit()) or _WMS_CAMARAS_PRINCIPAIS
         data = _coletar_resumo_ocupacao_wms(conn, camaras=cam_list)
         conn.close()
         return jsonify(data)
@@ -9155,7 +9162,7 @@ def _opcoes_impressao_longarina(conn):
             rows_db = conn.execute(
                 f'''SELECT camara, UPPER(TRIM(rua)) AS rua, posicao, COUNT(DISTINCT nivel) AS niveis
                     FROM {t_loc}
-                    WHERE camara IN (11, 12, 13, 21)
+                    WHERE camara IN ({_WMS_CAMARAS_ESTOQUE_SQL})
                     GROUP BY camara, UPPER(TRIM(rua)), posicao''',
             ).fetchall()
             for r in rows_db or []:
@@ -9172,7 +9179,7 @@ def _opcoes_impressao_longarina(conn):
     camaras_out = []
     for bloco in (_layout_camaras_config().get('camaras') or []):
         cod = int(bloco['codigo'])
-        if cod not in (11, 12, 13, 21):
+        if cod not in _WMS_CAMARAS_ESTOQUE:
             continue
         niveis = max(1, int(bloco.get('niveis') or 5))
         ruas_map = {}
@@ -9829,7 +9836,7 @@ def _rows_etiqueta_layout(codigo=None, camara=None, rua=None, posicao=None, toda
         out = []
         for bloco in (_layout_camaras_config().get('camaras') or []):
             cod = int(bloco.get('codigo') or 0)
-            if cod not in (11, 12, 13, 21):
+            if cod not in _WMS_CAMARAS_ESTOQUE:
                 continue
             out.extend(_rows_etiqueta_layout(camara=cod))
             # Limite de segurança para não estourar memória no Render.
@@ -10070,13 +10077,13 @@ def api_wms_etiqueta_modelo():
             descricao='Pão de forma integral 500g',
             data_producao='01/06/2025',
             data_validade='01/12/2025',
-            destino='12.14.1*47 — Câmara 12 · Rua C · Col 14 · Nív 1 (PICKING)',
-            endereco_barcode=_barcode_longarina(12, 14, 1, rua='C'),
-            endereco_texto='Câmara 12 · Rua C · Col 14 · Nív 1 (PICKING)',
-            codigo_wms='12-C-14-1',
+            destino='7.14.1*23 — Câmara 7 · Rua C · Col 14 · Nív 1 (PICKING)',
+            endereco_barcode=_barcode_longarina(7, 14, 1, rua='C'),
+            endereco_texto='Câmara 7 · Rua C · Col 14 · Nív 1 (PICKING)',
+            codigo_wms='07-C-14-1',
             up='5020',
             auto_print=False,
-            camara='12',
+            camara='7',
             rua='C',
             coluna='14',
             nivel='1',
@@ -10084,16 +10091,16 @@ def api_wms_etiqueta_modelo():
         )
         return make_response(html, 200, {'Content-Type': 'text/html; charset=utf-8'})
     faixas = [{
-        'titulo': 'Câm 12 · Rua C · Col 14 · Apto 1 — exemplo (5 níveis)',
+        'titulo': 'Câm 7 · Rua C · Col 14 · Apto 1 — exemplo (5 níveis)',
         'etiquetas': [
-            {'rua_num': '12', 'rua_letra': 'C', 'predio': '14', 'nivel': str(n), 'apto': '1',
-             'camara': '12', 'camara_nome': 'Câmara 12',
-             'codigo_wms': f'12-C-14-{n}', 'codigo': f'12-C-14-{n}',
-             'barcode': _barcode_longarina(12, 14, n, rua='C'),
-             'dotted': _barcode_longarina(12, 14, n, rua='C'),
+            {'rua_num': '7', 'rua_letra': 'C', 'predio': '14', 'nivel': str(n), 'apto': '1',
+             'camara': '7', 'camara_nome': 'Câmara 7',
+             'codigo_wms': f'07-C-14-{n}', 'codigo': f'07-C-14-{n}',
+             'barcode': _barcode_longarina(7, 14, n, rua='C'),
+             'dotted': _barcode_longarina(7, 14, n, rua='C'),
              'picking': n == 1, 'destino_fixo': False, 'destino_label': None,
              'zona': 'PICKING' if n == 1 else 'PULMÃO',
-             'texto_humano': f'Câmara 12 · Rua C · Col 14 · Nív {n} ({("PICKING" if n == 1 else "PULMÃO")})'}
+             'texto_humano': f'Câmara 7 · Rua C · Col 14 · Nív {n} ({("PICKING" if n == 1 else "PULMÃO")})'}
             for n in range(1, 6)
         ],
     }]
@@ -10244,7 +10251,7 @@ def api_wms_etiqueta_endereco_zpl():
     """Download ZPL nativo (Zebra ZD220) — uma etiqueta."""
     codigo = (request.args.get('codigo') or request.args.get('endereco') or '').strip()
     if not codigo:
-        return jsonify({'erro': 'Informe codigo/endereco (ex.: 12.14.1*47 ou 12-C-14-1).'}), 400
+        return jsonify({'erro': 'Informe codigo/endereco (ex.: 7.14.1*23 ou 07-C-14-1).'}), 400
     conn = _db()
     ensure_wms_schema(conn)
     try:
@@ -10358,7 +10365,7 @@ def api_wms_etiqueta_endereco():
     """Uma etiqueta — path rápido sem banco (layout/código). Evita 502 no Render."""
     codigo = (request.args.get('codigo') or request.args.get('endereco') or '').strip()
     if not codigo:
-        return jsonify({'erro': 'Informe codigo/endereco (ex.: 12.14.1*47 ou 12-C-14-1).'}), 400
+        return jsonify({'erro': 'Informe codigo/endereco (ex.: 7.14.1*23 ou 07-C-14-1).'}), 400
     auto_print = request.args.get('auto_print', '0') == '1'
     fmt = _formato_longarina_request()
     # HTML padrão: só layout — não abre conexão com o banco.

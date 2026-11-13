@@ -2,10 +2,12 @@
 """
 Cadastro único de câmaras do armazém (data/camaras.json) e ocupação real de cada uma.
 
-Todas as câmaras ficam no mesmo CD. Hoje existem dois controles de estoque:
-  - controle 'nf'     → câmaras 6 a 10: NF-e endereçadas no mapa das Câmaras Frias
-                        (tabela ultrafrio_enderecamentos, uma linha por posição ocupada);
-  - controle 'palete' → câmaras 11 a 21: paletes do Endereçamento WMS (wms_localizacao).
+Todas as câmaras ficam no mesmo CD. Existem dois controles de estoque:
+  - controle 'palete' → câmaras 6, 7, 14, 15 e 16: paletes do Endereçamento WMS (wms_localizacao);
+  - controle 'nf'     → NF-e endereçadas no mapa das Câmaras Frias (ultrafrio_enderecamentos,
+                        uma linha por posição ocupada). Desde a renumeração de 2026-11 nenhuma
+                        câmara do cadastro usa esse controle; NF-e que ainda estejam no mapa
+                        aparecem em 'ocupadas_outra_origem'.
 Este módulo junta os dois numa visão só, para todos os módulos usarem as mesmas câmaras.
 """
 from __future__ import annotations

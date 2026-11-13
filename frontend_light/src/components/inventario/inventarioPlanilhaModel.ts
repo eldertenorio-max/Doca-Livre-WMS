@@ -28,14 +28,14 @@ export const INVENTARIO_ARMAZEM_GRUPO_IDS: readonly number[] = Array.from(
 
 /** Títulos das abas alinhados à planilha `CONTAGEM DE INVENTARIO.xlsx` (uma aba por grupo armazém). */
 export const INVENTARIO_ARMAZEM_ABA_TITULOS: Partial<Record<number, string>> = {
-  1: 'CAMARA 11 - RUA A',
-  2: 'CAMARA 11 - RUA B',
-  3: 'CAMARA 12 - RUA C',
-  4: 'CAMARA 12 - RUA D',
-  5: 'CAMARA 13 - RUA E',
-  6: 'CAMARA 13 - RUA F',
-  7: 'CAMARA 21 - RUA G',
-  8: 'CAMARA 21 - RUA H',
+  1: 'CAMARA 6 - RUA A',
+  2: 'CAMARA 6 - RUA B',
+  3: 'CAMARA 7 - RUA C',
+  4: 'CAMARA 7 - RUA D',
+  5: 'CAMARA 14 - RUA E',
+  6: 'CAMARA 14 - RUA F',
+  7: 'CAMARA 15 - RUA G',
+  8: 'CAMARA 15 - RUA H',
 }
 
 /** Coluna RUA na planilha (letra da rua por grupo). */
@@ -55,7 +55,19 @@ export function getInventarioRuaArmazem(contagem: number | null | undefined): st
   return INVENTARIO_ARMAZEM_RUA[contagem] ?? '—'
 }
 
-export const INVENTARIO_CAMARAS = [11, 12, 13, 21] as const
+/**
+ * Câmaras de estoque e suas ruas (renumeração 2026-11: 11→6, 12→7, 13→14, 21→15 e nova 16).
+ * A planilha de inventário (abas 1–8) cobre só as ruas A–H; a câmara 16 (ruas I/J) ainda não tem aba.
+ */
+export const INVENTARIO_CAMARAS = [6, 7, 14, 15, 16] as const
+
+const RUAS_POR_CAMARA: Readonly<Record<number, readonly string[]>> = {
+  6: ['A', 'B'],
+  7: ['C', 'D'],
+  14: ['E', 'F'],
+  15: ['G', 'H'],
+  16: ['I', 'J'],
+}
 
 export function getCamaraFromGrupo(grupo: number | null | undefined): number | null {
   if (grupo == null || !Number.isFinite(grupo)) return null
@@ -67,8 +79,10 @@ export function getCamaraFromGrupo(grupo: number | null | undefined): number | n
   return Number.isFinite(n) ? n : null
 }
 
-/** Ruas disponíveis na câmara (ex.: 11 → A, B). */
+/** Ruas disponíveis na câmara (ex.: 6 → A, B). */
 export function getRuasPorCamara(camara: number): string[] {
+  const fixas = RUAS_POR_CAMARA[camara]
+  if (fixas) return [...fixas]
   const ruas: string[] = []
   for (let g = 1; g <= INVENTARIO_ARMAZEM_NUM_GRUPOS; g++) {
     if (getCamaraFromGrupo(g) === camara) {
@@ -411,7 +425,7 @@ export function inventarioAbaTitulo(contagem: number | null | undefined): string
   return INVENTARIO_ARMAZEM_ABA_TITULOS[contagem] ?? formatArmazemGroupLabel(contagem)
 }
 
-/** Primeira parte do título da aba, ex.: "CAMARA 11" (antes de " - RUA …"). */
+/** Primeira parte do título da aba, ex.: "CAMARA 6" (antes de " - RUA …"). */
 export function inventarioCamaraLabelFromGrupo(grupo: number | null | undefined): string {
   if (grupo == null || !Number.isFinite(grupo)) return '—'
   const t = INVENTARIO_ARMAZEM_ABA_TITULOS[grupo]

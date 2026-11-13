@@ -87,10 +87,13 @@ class TestTravelJson(unittest.TestCase):
         with open(path, encoding='utf-8') as f:
             cfg = json.load(f)
         seq = (cfg.get('sequencia_rota') or {}).get('camaras') or {}
-        self.assertEqual(seq['12']['sentido_posicao']['C'], 'asc')
-        self.assertEqual(seq['12']['sentido_posicao']['D'], 'desc')
-        self.assertEqual(seq['11']['sentido_posicao']['A'], 'asc')
-        self.assertEqual(seq['11']['sentido_posicao']['B'], 'desc')
+        # Renumeração 2026-11: 11→6, 12→7 e nova 16 (ruas I/J).
+        self.assertEqual(seq['7']['sentido_posicao']['C'], 'asc')
+        self.assertEqual(seq['7']['sentido_posicao']['D'], 'desc')
+        self.assertEqual(seq['6']['sentido_posicao']['A'], 'asc')
+        self.assertEqual(seq['6']['sentido_posicao']['B'], 'desc')
+        self.assertEqual(seq['16']['sentido_posicao']['I'], 'asc')
+        self.assertEqual(seq['16']['sentido_posicao']['J'], 'desc')
 
 
 if __name__ == '__main__':

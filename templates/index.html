@@ -2954,7 +2954,7 @@
                         <section class="wms-rec-fase" style="margin-bottom: 16px; padding: 14px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa;">
                             <h3 class="wms-rec-fase-titulo" style="margin-bottom: 12px;"><span class="wms-rec-fase-num">2</span><span>Reimprimir por câmara ou coluna (reposição)</span></h3>
                                 <div class="wms-rec-guia-codigos" style="margin-bottom: 12px;">
-                                <div class="wms-rec-guia-item"><strong>Câm</strong> Número da câmara (11, 12, 13, 21)</div>
+                                <div class="wms-rec-guia-item"><strong>Câm</strong> Número da câmara (6, 7, 14, 15, 16)</div>
                                 <div class="wms-rec-guia-item"><strong>Rua</strong> Corredor interno (A, B, C…)</div>
                                 <div class="wms-rec-guia-item"><strong>Col</strong> Coluna / posição no rack</div>
                                 <div class="wms-rec-guia-item"><strong>Nív</strong> Andar — 1 = PICKING ↓</div>
@@ -4208,14 +4208,14 @@
     </style>
 
     <script src="{{ url_for('static', filename='doca-livre-sidebar.js') }}?v=20260705"></script>
-    <script src="{{ url_for('static', filename='script.js') }}?v=20260920c"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=20261110a"></script>
     <script>window.WMS_HUB_API_URL = {{ (hub_api_url|default(''))|tojson }};</script>
     <script src="{{ url_for('static', filename='wms-hub.js') }}?v=20260819a"></script>
     <script src="{{ url_for('static', filename='wms-rfq.js') }}?v=20260730a"></script>
     <script src="{{ url_for('static', filename='wms-analise.js') }}?v=20260604"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" crossorigin="anonymous"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" crossorigin="anonymous"></script>
-    <script defer src="{{ url_for('static', filename='wms-mapa-3d.js') }}?v=20260920c"></script>
+    <script defer src="{{ url_for('static', filename='wms-mapa-3d.js') }}?v=20261110a"></script>
     <script src="{{ url_for('static', filename='doca-livre-pro.js') }}?v=20260705c"></script>
     <script defer>
         (function () {

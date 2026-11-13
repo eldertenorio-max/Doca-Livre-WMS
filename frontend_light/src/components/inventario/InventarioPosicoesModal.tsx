@@ -25,7 +25,7 @@ type Props = {
 }
 
 const emptyLote = () => ({
-  camara: '11',
+  camara: '6',
   rua: 'A',
   nivelDe: '1',
   nivelAte: '5',
@@ -229,7 +229,7 @@ export default function InventarioPosicoesModal({ inventario, onClose, onSaved }
   }
 
   const exemploCodigo =
-    previewLote.length > 0 ? previewLote[0].codigo : buildCodigoEndereco(11, 'A', 1, 1)
+    previewLote.length > 0 ? previewLote[0].codigo : buildCodigoEndereco(6, 'A', 1, 1)
 
   return (
     <div
