@@ -18,9 +18,10 @@
     Só o Super Usuário usa esta tela, e ele manda em todas as hierarquias. Administradores e o Super Usuário têm acesso total e não aparecem na lista.
 </div>
 
+{# Lista de usuários em cima e permissões embaixo, as duas na largura toda. #}
 <div class="row g-3">
-    <div class="col-12 col-lg-4">
-        <div class="card"><div class="card-body">
+    <div class="col-12">
+        <div class="card"><div class="card-body perm-usuarios">
             <h5 class="mb-3">Usuários por hierarquia</h5>
             {% for bloco in blocos %}
             <div class="perm-org" style="margin-left: {{ bloco.nivel * 14 }}px;">
@@ -49,7 +50,7 @@
             <p class="text-muted small mt-3 mb-0">Para mudar a organização de alguém, use <a href="{{ url_for('hierarquia.painel') }}">Hierarquia</a>.</p>
         </div></div>
     </div>
-    <div class="col-12 col-lg-8">
+    <div class="col-12">
         <div class="card"><div class="card-body">
             {% if not user %}
             <div class="bloco-dados-altura"><p class="text-muted mb-0">Escolha um usuário na lista para definir as permissões dele.</p></div>
