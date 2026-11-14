@@ -507,6 +507,58 @@
         var materialFita = new THREE.MeshLambertMaterial({ color: 0x9c7a45 });
         var geoPalete = new THREE.BoxGeometry(L * 0.84, 0.1, P * 0.84);
         var materialPalete = new THREE.MeshLambertMaterial({ color: 0x8b5e34 });
+        // Etiqueta da caixa: selo branco com o logo da empresa dona da mercadoria (sem logo, as iniciais),
+        // na frente e atrás da caixa. Um material por empresa, reaproveitado em todas as caixas dela.
+        var geoEtiqueta = new THREE.PlaneGeometry(L * 0.56, A * 0.42);
+        var etiquetas = {};
+        function seloDaEmpresa(imagem, iniciais) {
+            var tela = document.createElement('canvas');
+            tela.width = 256; tela.height = 192;
+            var ctx = tela.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 256, 192);
+            ctx.strokeStyle = '#8b6b3d'; ctx.lineWidth = 6;
+            ctx.strokeRect(3, 3, 250, 186);
+            if (imagem) {
+                var escala = Math.min(224 / imagem.width, 160 / imagem.height);
+                var w = imagem.width * escala, h = imagem.height * escala;
+                ctx.drawImage(imagem, (256 - w) / 2, (192 - h) / 2, w, h);
+            } else {
+                ctx.fillStyle = '#1e3a5f';
+                ctx.font = '800 96px Inter, Arial, sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(iniciais || '?', 128, 100);
+            }
+            var textura = new THREE.CanvasTexture(tela);
+            if ('colorSpace' in textura && THREE.SRGBColorSpace) textura.colorSpace = THREE.SRGBColorSpace;
+            return textura;
+        }
+        function materialDaEtiqueta(p) {
+            var chave = p.logo || ('iniciais:' + (p.iniciais || '?'));
+            if (etiquetas[chave]) return etiquetas[chave];
+            var material = new THREE.MeshBasicMaterial({ map: seloDaEmpresa(null, p.iniciais) });
+            etiquetas[chave] = material;
+            if (p.logo) {
+                var imagem = new Image();
+                imagem.onload = function () {
+                    material.map.dispose();
+                    material.map = seloDaEmpresa(imagem, p.iniciais);
+                    material.needsUpdate = true;
+                    pedirQuadro();
+                };
+                imagem.src = p.logo;          // mesmo endereço do sistema: pode ser desenhada na tela do 3D
+            }
+            return material;
+        }
+        function etiquetar(caixa, p) {
+            var material = materialDaEtiqueta(p);
+            [1, -1].forEach(function (lado) {
+                var etiqueta = new THREE.Mesh(geoEtiqueta, material);
+                etiqueta.position.set(0, -A * 0.02, lado * (P * 0.37 + 0.012));
+                if (lado < 0) etiqueta.rotation.y = Math.PI;
+                caixa.add(etiqueta);
+            });
+        }
         // Porta: placa azul com a imagem da porta, do tamanho do vão. Sem posição: um X no lugar.
         var imagemPorta = null, materiaisPorta = [];
         new THREE.TextureLoader().load(cfg.porta, function (textura) {
@@ -605,6 +657,7 @@
                     var palete = new THREE.Mesh(geoPalete, materialPalete);
                     palete.position.y = -(A * 0.3 + 0.05);
                     caixa.add(palete);
+                    if (e.paletes && e.paletes[0]) etiquetar(caixa, e.paletes[0]);
                     if (e.bloqueado) desenharX(x, base + A * 0.39, z);
                 } else {
                     caixa = new THREE.Mesh(geoCaixa, new THREE.MeshLambertMaterial({
