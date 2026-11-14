@@ -158,7 +158,9 @@ def _pagina_camaras(reabrir=None):
                            climas=resumo_por_climatizacao(linhas),
                            ruas_em_uso=sorted({rua for l in linhas for rua in l['ruas']}), reabrir=reabrir,
                            # clientes para reservar espaco no desenho; cadastrar na hora so com permissao em Cadastros
-                           empresas=[{'id': e.id, 'nome': e.fantasia or e.nome} for e in _empresas_para_reserva()],
+                           empresas=[{'id': e.id, 'nome': e.fantasia or e.nome,
+                                      'logo': url_for('cadastros.imagem', nome=logo_da_empresa(e)) if logo_da_empresa(e) else None}
+                                     for e in _empresas_para_reserva()],
                            pode_cadastrar_empresa=pode_editar('cadastros'),
                            layouts=_layouts_do_grupo().order_by(LayoutSalvo.nome).all())
 

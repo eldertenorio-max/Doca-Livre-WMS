@@ -578,6 +578,8 @@ a:hover { text-decoration: underline; }
 .nova-cliente { border: 1px solid var(--borda); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--fundo-card); }
 .nova-empresa { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .nova-empresa input { flex: 1 1 160px; }
+.nova-previa .cell-cliente-logo { width: calc(100% - 6px); height: calc(100% - 6px); object-fit: contain; background: #ffffff; border-radius: 3px; padding: 1px; pointer-events: none; }
+.legenda-cliente-logo { height: 18px; width: 28px; object-fit: contain; background: #ffffff; border-radius: 3px; border: 1px solid var(--borda); margin-right: 5px; vertical-align: -4px; }
 .legenda-clientes { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--texto-secundario); }
 .legenda-cliente i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 /* No mapa: posição livre reservada para um cliente leva um canto laranja */

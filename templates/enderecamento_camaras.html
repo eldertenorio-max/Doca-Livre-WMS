@@ -342,7 +342,7 @@
     var clienteSel = document.getElementById('clienteSel'), clienteBarra = document.getElementById('clienteBarra');
     var CORES_CLIENTE = ['#0f766e', '#b45309', '#7c3aed', '#be123c', '#15803d', '#0369a1', '#a21caf', '#4d7c0f', '#c2410c', '#475569'];
     function escaparHtml(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-    function empresaDe(id) { for (var i = 0; i < empresas.length; i++) if (empresas[i].id === Number(id)) return { nome: empresas[i].nome, cor: CORES_CLIENTE[i % CORES_CLIENTE.length] }; return null; }
+    function empresaDe(id) { for (var i = 0; i < empresas.length; i++) if (empresas[i].id === Number(id)) return { nome: empresas[i].nome, logo: empresas[i].logo || null, cor: CORES_CLIENTE[i % CORES_CLIENTE.length] }; return null; }
     function iniciaisDe(nome) { var p = nome.split(/\s+/).filter(Boolean); return ((p[0] || '?').charAt(0) + (p.length > 1 ? p[1].charAt(0) : '')).toUpperCase(); }
     function listarEmpresas(escolhida) {
         clienteSel.innerHTML = '<option value="">Uso livre (tirar a reserva)</option>' +
@@ -527,7 +527,12 @@
                             if (cliente) {
                                 // Reservada: cor do cliente; com palete fica só a borda, para o azul de "ocupado" continuar visível.
                                 estilo = comPalete ? ' style="outline:3px solid ' + cliente.cor + ';outline-offset:-3px"' : ' style="background-color:' + cliente.cor + '"';
-                                if (!comPalete) { classe = ' cell--cliente'; if (tamanho >= 22) miolo = escaparHtml(iniciaisDe(cliente.nome)); }
+                                if (!comPalete) {
+                                    classe = ' cell--cliente';
+                                    // Logo da empresa num selo branco (a cor dela fica de moldura); sem logo, as iniciais.
+                                    if (cliente.logo) miolo = '<img class="cell-cliente-logo" src="' + escaparHtml(cliente.logo) + '" alt="" draggable="false">';
+                                    else if (tamanho >= 22) miolo = escaparHtml(iniciaisDe(cliente.nome));
+                                }
                             }
                             var dica = codigo + '-' + (nome || '?') + '-' + dois(col) + '-' + nivel + ' · rua ' + nome + ', coluna ' + col + ', nível ' + nivel + (marca === 'P' ? ' — porta' : marca === 'S' ? ' — sem posição' : comPalete ? ' — com palete (não pode virar porta nem sair)' : '') + (cliente ? ' — reservada para ' + escaparHtml(cliente.nome) : '');
                             html += '<button type="button" class="cell' + classe + '"' + estilo + ' data-rua="' + indice + '" data-celula="' + col + '|' + nivel + '" title="' + dica + '" aria-label="' + dica + '">' + miolo + '</button>';
@@ -540,7 +545,7 @@
             });
             var legenda = Object.keys(porCliente).map(function (id) {
                 var c = empresaDe(id);
-                return '<span class="legenda-cliente"><i style="background:' + c.cor + '"></i>' + escaparHtml(c.nome) + ' · ' + porCliente[id] + ' posição(ões)</span>';
+                return '<span class="legenda-cliente"><i style="background:' + c.cor + '"></i>' + (c.logo ? '<img class="legenda-cliente-logo" src="' + escaparHtml(c.logo) + '" alt="">' : '') + escaparHtml(c.nome) + ' · ' + porCliente[id] + ' posição(ões)</span>';
             }).join('');
             previa.innerHTML = html + '</div>' + (nPicking ? '<p class="text-muted small mb-0 mt-2"><span class="legenda-picking"></span> picking · em branco, pulmão</p>' : '') +
                                (legenda ? '<p class="small mb-0 mt-2 legenda-clientes">' + legenda + '</p>' : '');
