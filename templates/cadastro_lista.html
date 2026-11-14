@@ -62,7 +62,7 @@
                             {% if v is none %}—
                             {% elif c.tipo == 'empresa' %}{% set emp = r[c.rel] %}
                             <span class="empresa-lista" title="{{ emp.nome }}">
-                                {% if emp.logo %}<img src="{{ url_for('cadastros.imagem', nome=emp.logo) }}" alt="" loading="lazy">
+                                {% set arq_logo = logo_da_empresa(emp) %}{% if arq_logo %}<img src="{{ url_for('cadastros.imagem', nome=arq_logo) }}" alt="" loading="lazy">
                                 {% else %}<span class="empresa-lista__iniciais" aria-hidden="true">{{ v[:2]|upper }}</span>{% endif %}
                                 <span class="empresa-lista__nome">{{ v }}</span>
                             </span>

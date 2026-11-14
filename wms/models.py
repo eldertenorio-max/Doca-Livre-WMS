@@ -117,6 +117,24 @@ class Empresa(db.Model):
     criado_em = db.Column(db.DateTime, nullable=False, default=agora)
 
 
+def logo_da_empresa(empresa):
+    """Arquivo do logo da empresa. Sem logo proprio, usa o de outra filial da mesma empresa (mesma raiz de CNPJ):
+    a nota pode vir de uma filial diferente da que foi cadastrada com o logo."""
+    if empresa is None:
+        return None
+    if empresa.logo:
+        return empresa.logo
+    if not empresa.cnpj or len(empresa.cnpj) < 8:
+        return None
+    from flask import g, has_request_context
+    guardado = g.setdefault('_logo_por_raiz', {}) if has_request_context() else {}
+    raiz = empresa.cnpj[:8]
+    if raiz not in guardado:
+        outra = Empresa.query.filter(Empresa.cnpj.like(raiz + '%'), Empresa.logo.isnot(None)).order_by(Empresa.id).first()
+        guardado[raiz] = outra.logo if outra else None
+    return guardado[raiz]
+
+
 class Produto(db.Model):
     __tablename__ = 'produto'
 

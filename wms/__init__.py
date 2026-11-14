@@ -8,7 +8,7 @@ from flask import Flask, render_template
 from .core import garantir_permissoes_padrao, registrar_nucleo
 from .models import LogAcao, Usuario, db
 
-ASSETS_VERSION = '53'
+ASSETS_VERSION = '54'
 VERSAO = 'v1.0'
 
 
@@ -255,6 +255,8 @@ def create_app():
         garantir_permissoes_padrao()
         _criar_admin_inicial(app)
         _garantir_super(app)
+        from .empresas_iniciais import garantir_empresas_iniciais
+        garantir_empresas_iniciais()
         from .entrada import preencher_empresa_dos_produtos
         preencher_empresa_dos_produtos()
 

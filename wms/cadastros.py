@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .core import perm, registrar_log, tipo_da_imagem
 from .core import apagar_arquivo, garantir_no_disco, guardar_arquivo
-from .models import Empresa, Pessoa, Produto, Veiculo, agora, db
+from .models import Empresa, Pessoa, Produto, Veiculo, agora, db, logo_da_empresa
 
 bp = Blueprint('cadastros', __name__, url_prefix='/cadastros')
 
@@ -262,7 +262,7 @@ def lista(slug):
     registros = consulta.offset((pagina - 1) * POR_PAGINA).limit(POR_PAGINA).all()
     colunas = sorted((c for c in definicao['campos'] if c.get('lista')), key=lambda c: not c.get('primeira'))
     return render_template('cadastro_lista.html', slug=slug, d=definicao, registros=registros,
-                           colunas=colunas, valor=_valor_exibicao, busca=busca, situacao=situacao,
+                           colunas=colunas, valor=_valor_exibicao, logo_da_empresa=logo_da_empresa, busca=busca, situacao=situacao,
                            pagina=pagina, total=total, paginas=max((total + POR_PAGINA - 1) // POR_PAGINA, 1),
                            total_geral=definicao['modelo'].query.count())
 

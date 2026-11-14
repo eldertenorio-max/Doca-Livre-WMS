@@ -14,7 +14,7 @@ from .codigo_endereco import codigo_bipagem, codigo_endereco, digito_verificador
 from .core import perm, pode_editar, registrar_log, usuario_atual
 from .etiqueta_zebra import ctx_etiqueta_zebra
 from .hierarquia import chaves_de_layout, empresas_do_usuario
-from .models import Camara, Empresa, Endereco, LayoutSalvo, Palete, Vao, agora, db
+from .models import Camara, Empresa, Endereco, LayoutSalvo, Palete, Vao, agora, db, logo_da_empresa
 from .paletes import NO_ARMAZEM
 
 bp = Blueprint('enderecamento', __name__, url_prefix='/enderecamento')
@@ -904,7 +904,7 @@ def _enderecos_mapa(camara):
                 'chave': nota.chave if nota else None,
                 'empresa': nome_empresa, 'razao': empresa.nome if empresa else None,
                 'cnpj': empresa.cnpj if empresa else None,
-                'logo': url_for('cadastros.imagem', nome=empresa.logo) if empresa and empresa.logo else None,
+                'logo': url_for('cadastros.imagem', nome=logo_da_empresa(empresa)) if logo_da_empresa(empresa) else None,
                 'iniciais': iniciais(nome_empresa) if empresa else None,
                 'criado_por': palete.criado_por, 'criado_em': data(palete.criado_em, '%d/%m/%Y %H:%M'),
                 'armazenado_em': data(palete.armazenado_em, '%d/%m/%Y %H:%M'),
