@@ -107,8 +107,9 @@ def validar_destino(endereco, palete):
 def _nivel_fifo_vertical(data_nova, ocupados, livres):
     """FIFO vertical numa coluna: lote mais antigo embaixo, mais novo em cima (como no WMS Pro).
 
-    ocupados = {nivel: data}; livres = niveis vagos. Devolve o nivel vago que respeita essa ordem; se nenhum respeitar,
-    o mais alto quando o palete e o mais novo da coluna, senao o mais baixo.
+    ocupados = {nivel: data}; livres = niveis vagos. Devolve o nivel vago que respeita essa ordem, encostado no que
+    ja esta na coluna (o mais novo entra logo acima do ultimo, deixando os niveis de cima para os proximos, que serao
+    mais novos ainda). Se nenhum respeitar, o mais alto quando o palete e o mais novo da coluna, senao o mais baixo.
     """
     livres = sorted(livres)
     if not ocupados:
@@ -116,7 +117,7 @@ def _nivel_fifo_vertical(data_nova, ocupados, livres):
     bons = [n for n in livres
             if not any((nivel < n and data_nova < data) or (nivel > n and data_nova > data) for nivel, data in ocupados.items())]
     if bons:
-        return bons[-1]
+        return min(bons, key=lambda n: (min(abs(n - nivel) for nivel in ocupados), n))
     return livres[-1] if data_nova >= max(ocupados.values()) else livres[0]
 
 
@@ -129,7 +130,10 @@ def sugerir_endereco(palete, motivos=None):
       2. espaco de cliente: primeiro o espaco do dono da mercadoria, depois o de uso livre; nunca o de outro cliente;
       3. categoria: so camara da categoria do produto (ou camara sem categoria);
       4. pulmao primeiro; picking quando nao ha pulmao livre;
-      5. mesmo produto junto: na rua do mesmo lote (coluna mais perto) ou, senao, na rua onde o produto mais esta;
+      5. mesmo produto sempre junto: na rua do mesmo lote ou, senao, na rua onde o produto ja esta, na coluna mais
+         perto dele (a propria coluna, depois as vizinhas); rua cheia, vai para a mesma camara. Contam os paletes
+         guardados e os da mesma descarga que ainda aguardam guarda (pela posicao indicada). Produto que ainda nao
+         esta no armazem comeca numa coluna vazia, sem misturar na coluna de outro produto enquanto houver espaco;
       6. FIFO vertical na coluna: lote mais antigo embaixo, mais novo em cima.
     """
     motivos = motivos if motivos is not None else []
@@ -164,27 +168,41 @@ def sugerir_endereco(palete, motivos=None):
     # Onde este produto ja esta guardado (para juntar) e a data de cada posicao ocupada (para o FIFO vertical).
     produtos = {i.produto_id for i in palete.itens}
     lotes = {i.lote for i in palete.itens if i.lote}
-    rua_do_lote, por_rua, datas = None, {}, {}
+    # Vale o palete guardado e tambem o que ainda aguarda guarda com posicao indicada (os outros da mesma descarga).
+    colunas_do_lote, colunas_do_produto, camaras_do_produto, datas, de_outro_produto = {}, {}, set(), {}, set()
+    camaras = {v.camara_id for v in vagas}
     guardados = (db.session.query(Palete, Endereco).join(Endereco, Palete.endereco_id == Endereco.id)
-                 .filter(Palete.status == 'Armazenado', Palete.id != palete.id, Endereco.camara_id.in_({v.camara_id for v in vagas})))
-    for outro, onde in guardados:
+                 .filter(Palete.status == 'Armazenado', Palete.id != palete.id, Endereco.camara_id.in_(camaras)).all())
+    indicados = (db.session.query(Palete, Endereco).join(Endereco, Palete.sugerido_id == Endereco.id)
+                 .filter(Palete.status == 'Aguardando guarda', Palete.id != palete.id, Endereco.camara_id.in_(camaras)).all())
+    for outro, onde in guardados + indicados:
         datas.setdefault((onde.camara_id, onde.rua, onde.coluna), {})[onde.nivel] = data_fifo(outro)
         if produtos & {i.produto_id for i in outro.itens}:
-            por_rua[(onde.camara_id, onde.rua)] = por_rua.get((onde.camara_id, onde.rua), 0) + 1
-            if rua_do_lote is None and lotes & {i.lote for i in outro.itens if i.lote}:
-                rua_do_lote = (onde.camara_id, onde.rua, onde.coluna)
-    rua_do_produto = max(por_rua, key=por_rua.get) if por_rua else None
+            colunas_do_produto.setdefault((onde.camara_id, onde.rua), set()).add(onde.coluna)
+            camaras_do_produto.add(onde.camara_id)
+            if lotes & {i.lote for i in outro.itens if i.lote}:
+                colunas_do_lote.setdefault((onde.camara_id, onde.rua), set()).add(onde.coluna)
+        else:
+            de_outro_produto.add((onde.camara_id, onde.rua, onde.coluna))
     nova = data_fifo(palete)
+
+    def distancia(colunas, coluna):
+        return min(abs(coluna - c) for c in colunas)
 
     def prioridade(vaga):
         """Menor = melhor. A ordem das regras e a ordem dos campos."""
         rua = (vaga.camara_id, vaga.rua)
+        do_lote, do_produto = colunas_do_lote.get(rua), colunas_do_produto.get(rua)
         return (0 if vaga.cliente_id else 1,
                 0 if categoria and vaga.camara.categoria == categoria else 1,
                 0 if vaga.tipo == 'Pulmão' else 1,
-                0 if rua_do_lote and rua == rua_do_lote[:2] else 1,
-                abs(vaga.coluna - rua_do_lote[2]) if rua_do_lote and rua == rua_do_lote[:2] else 0,
-                0 if rua == rua_do_produto else 1,
+                0 if do_lote else 1,
+                distancia(do_lote, vaga.coluna) if do_lote else 0,
+                0 if do_produto else 1,
+                distancia(do_produto, vaga.coluna) if do_produto else 0,
+                0 if vaga.camara_id in camaras_do_produto else 1,
+                # nao mistura na coluna de outro produto enquanto houver coluna vazia (cada produto cresce na sua)
+                1 if (vaga.camara_id, vaga.rua, vaga.coluna) in de_outro_produto else 0,
                 vaga.camara.codigo, vaga.rua, vaga.coluna)
 
     # A melhor coluna pelas regras; dentro dela, o nivel do FIFO vertical (entre os vagos do mesmo tipo e do mesmo dono).
@@ -198,10 +216,13 @@ def sugerir_endereco(palete, motivos=None):
     if categoria and escolhida.camara.categoria == categoria:
         motivos.append(f'câmara de {categoria}')
     motivos.append(escolhida.tipo.lower() if escolhida.tipo == 'Pulmão' else 'picking (sem pulmão livre)')
-    if rua_do_lote and (escolhida.camara_id, escolhida.rua) == rua_do_lote[:2]:
+    rua_escolhida = (escolhida.camara_id, escolhida.rua)
+    if rua_escolhida in colunas_do_lote:
         motivos.append('junto do mesmo lote')
-    elif (escolhida.camara_id, escolhida.rua) == rua_do_produto:
+    elif rua_escolhida in colunas_do_produto:
         motivos.append('na rua onde o produto já está')
+    elif escolhida.camara_id in camaras_do_produto:
+        motivos.append('na câmara onde o produto já está')
     if datas.get(coluna):
         motivos.append('FEFO: o que vence primeiro embaixo' if politica_separacao() == 'FEFO'
                        else 'FIFO: mais antigo embaixo, mais novo em cima')
