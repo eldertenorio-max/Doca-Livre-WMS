@@ -189,11 +189,8 @@ def _criar_nota(dados, origem, tipo='Entrada', motivo_retorno=None):
 
 # ---------------------------------------------------------------- recebimento (lista e importacoes)
 
-@bp.route('/notas')
-@perm('recebimento')
-def notas():
-    situacao = request.args.get('situacao') or 'abertas'
-    busca = (request.args.get('q') or '').strip()
+def _notas_do_filtro(situacao, busca):
+    """Notas de entrada que a lista mostra com esse filtro (a mesma regra vale para "excluir todas")."""
     consulta = NotaFiscal.query.filter_by(tipo='Entrada')
     if situacao == 'abertas':
         consulta = consulta.filter(NotaFiscal.status.in_(ABERTAS))
@@ -204,6 +201,47 @@ def notas():
         consulta = consulta.outerjoin(Empresa).filter(db.or_(NotaFiscal.numero.like(f'%{busca}%'),
                                                             db.func.lower(Empresa.nome).like(like),
                                                             NotaFiscal.chave.like(f'%{busca}%')))
+    return consulta
+
+
+@bp.route('/notas/excluir-varias', methods=['POST'])
+@perm('recebimento')
+def excluir_varias():
+    """Exclui varias notas de entrada de uma vez: as marcadas na lista ou todas as do filtro atual.
+    Nota com palete nao e excluida (a mercadoria existe): essa precisa ser cancelada, como na exclusao de uma so."""
+    situacao = request.form.get('situacao') or 'abertas'
+    busca = (request.form.get('q') or '').strip()
+    if request.form.get('tudo') == '1':
+        escolhidas = _notas_do_filtro(situacao, busca).all()
+    else:
+        ids = {int(i) for i in request.form.getlist('ids') if i.isdigit()}
+        escolhidas = NotaFiscal.query.filter(NotaFiscal.tipo == 'Entrada', NotaFiscal.id.in_(ids)).all() if ids else []
+    destino = url_for('entrada.notas', situacao=situacao, q=busca or None)
+    if not escolhidas:
+        flash('Nenhuma nota selecionada.', 'error')
+        return redirect(destino)
+    com_palete = [n for n in escolhidas if n.paletes]
+    excluir_estas = [n for n in escolhidas if not n.paletes]
+    for nota in excluir_estas:
+        db.session.delete(nota)
+    if excluir_estas:
+        numeros = ', '.join(n.numero for n in excluir_estas[:40]) + ('…' if len(excluir_estas) > 40 else '')
+        registrar_log('Excluiu NFs de entrada em lote', f'{len(excluir_estas)} nota(s): {numeros}', modulo='recebimento')
+        db.session.commit()
+        flash(f'{len(excluir_estas)} nota(s) excluída(s).', 'success')
+    if com_palete:
+        numeros = ', '.join(n.numero for n in com_palete[:15]) + ('…' if len(com_palete) > 15 else '')
+        flash(f'{len(com_palete)} nota(s) não foram excluídas porque têm paletes: {numeros}. '
+              'Abra a nota e cancele a entrada.', 'error')
+    return redirect(destino)
+
+
+@bp.route('/notas')
+@perm('recebimento')
+def notas():
+    situacao = request.args.get('situacao') or 'abertas'
+    busca = (request.args.get('q') or '').strip()
+    consulta = _notas_do_filtro(situacao, busca)
     total = consulta.count()
     pagina = max(request.args.get('pagina', 1, type=int), 1)
     lista = (consulta.order_by(NotaFiscal.criado_em.desc())

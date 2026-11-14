@@ -440,7 +440,7 @@
             camara.ruas.forEach(function (r, i) {
                 ruas.push({ rua: r.rua, colunas: r.colunas, niveis: r.niveis, celulas: r.celulas,
                             portas: r.portas, vaos: r.vaos, temMarcas: r.temMarcas,
-                            camara: !dados.unica && i === 0 ? nomeComNumero(camara) : null, novaCamara: i === 0 && ruas.length > 0 });
+                            camara: i === 0 ? nomeComNumero(camara) : null, novaCamara: i === 0 && ruas.length > 0 });
             });
         });
         var tela = document.getElementById('mapa3dTela');
@@ -593,8 +593,10 @@
             var z = r.z;
             var x0 = (r.colunas[0] - minCol) * L, x1 = (r.colunas[r.colunas.length - 1] - minCol + 1) * L;
             if (r.camara) {
-                var nomeCamara = rotulo(r.camara.slice(0, 18), 1.2, 1024);
-                nomeCamara.position.set(x0 - 8, 2.6, z);
+                // Visão geral: o nome fica ao lado de cada câmara. Uma câmara só: em cima dela, no meio, bem visível.
+                var nomeCamara = rotulo(r.camara.slice(0, 22), dados.unica ? 1.5 : 1.2, 1024);
+                if (dados.unica) nomeCamara.position.set((x0 + x1) / 2, r.niveis[r.niveis.length - 1] * A + 2.6, z);
+                else nomeCamara.position.set(x0 - 8, 2.6, z);
                 scene.add(nomeCamara);
             }
             var topo = r.niveis[r.niveis.length - 1] * A;
@@ -695,7 +697,8 @@
                 camera.position.set(centro.x + distancia * 0.95, centro.y + distancia * 0.75, centro.z + distancia * 0.25);
             } else {
                 var alcance = Math.max(largura, fundoTotal * 1.4, maxNivel * A * 2.4);
-                camera.position.set(centro.x - alcance * 0.18, centro.y + alcance * 0.38, centro.z + alcance * 0.62);
+                // um pouco mais longe, para caber a câmara inteira e o nome dela em cima
+                camera.position.set(centro.x - alcance * 0.22, centro.y + alcance * 0.5, centro.z + alcance * 0.86);
             }
             controls.target.copy(centro);
             pedirQuadro();

@@ -44,7 +44,9 @@
             <div class="card-header"><i class="fas fa-truck me-2"></i>Dados da descarga</div>
             <div class="card-body">
                 <dl class="detalhe-endereco mb-3">
+                    <div><dt>Nota fiscal</dt><dd>{{ nota.numero }}{% if nota.serie %} <span class="text-muted">/ série {{ nota.serie }}</span>{% endif %}</dd></div>
                     <div><dt>{{ 'Dono da mercadoria' if retorno else 'Remetente' }}</dt><dd>{{ nota.empresa.nome if nota.empresa else '—' }}</dd></div>
+                    {% if nota.empresa and nota.empresa.cnpj %}<div><dt>CNPJ</dt><dd>{{ nota.empresa.cnpj|cnpj }}</dd></div>{% endif %}
                     {% if retorno %}
                     <div><dt>Motivo do retorno</dt><dd>{{ nota.motivo_retorno or '—' }}</dd></div>
                     <div><dt>Carga de origem</dt><dd>{% if nota.carga %}<a href="{{ url_for('saida.carga', cid=nota.carga.id) }}">{{ nota.carga.codigo }}</a>{% else %}—{% endif %}</dd></div>
@@ -53,6 +55,12 @@
                     <div><dt>Origem</dt><dd>{{ nota.origem }}</dd></div>
                     <div><dt>Entrada</dt><dd>{{ nota.criado_em|datahora }} · {{ nota.criado_por }}</dd></div>
                     {% if nota.finalizado_em %}<div><dt>Encerrada em</dt><dd>{{ nota.finalizado_em|datahora }}</dd></div>{% endif %}
+                    <div><dt>Itens da nota</dt><dd>{{ nota.itens|length }} produto(s)</dd></div>
+                    <div><dt>Paletes montados</dt><dd>{{ nota.paletes|length }}</dd></div>
+                    {% if nota.valor_total is not none %}<div><dt>Valor da nota</dt><dd>{{ nota.valor_total|moeda }}</dd></div>{% endif %}
+                    {% if nota.peso_bruto %}<div><dt>Peso bruto</dt><dd>{{ nota.peso_bruto|numero }} kg</dd></div>{% endif %}
+                    {% if nota.peso_liquido %}<div><dt>Peso líquido</dt><dd>{{ nota.peso_liquido|numero }} kg</dd></div>{% endif %}
+                    {% if nota.chave %}<div style="grid-column: 1 / -1;"><dt>Chave de acesso</dt><dd class="codigo-mono" style="overflow-wrap: anywhere; font-size: .82rem;">{{ nota.chave }}</dd></div>{% endif %}
                 </dl>
                 {% if editar and aberta %}
                 <form method="POST" action="{{ url_for('entrada.nota_dados', nid=nota.id) }}" autocomplete="off">

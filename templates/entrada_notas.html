@@ -46,12 +46,25 @@
 <div class="card">
     <div class="card-body">
         {% if notas %}
+        {% if editar %}
+        {# Excluir em lote: as marcadas ou todas as do filtro. Nota com palete não é excluída (precisa ser cancelada). #}
+        <form method="POST" action="{{ url_for('entrada.excluir_varias') }}" id="formExcluirNotas" class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="situacao" value="{{ situacao }}">
+            <input type="hidden" name="q" value="{{ busca }}">
+            <input type="hidden" name="tudo" value="0" id="excluirTudo">
+            <button type="submit" class="btn btn-sm btn-outline-danger" id="btnExcluirMarcadas" disabled><i class="fas fa-trash"></i>Excluir selecionadas (<span id="qtdMarcadas">0</span>)</button>
+            <button type="button" class="btn btn-sm btn-danger" id="btnExcluirTodas" data-total="{{ total }}"><i class="fas fa-trash"></i>Excluir todas ({{ total }})</button>
+            <span class="text-muted small">Nota que já tem palete não é excluída: abra a nota e cancele a entrada.</span>
+        </form>
+        {% endif %}
         <div class="tabela-scroll">
             <table class="table table-striped mb-0">
-                <thead><tr><th>NF</th><th>Remetente</th><th>Emissão</th><th>Itens</th><th>Paletes</th><th>Origem</th><th>Situação</th><th>Entrada</th><th></th></tr></thead>
+                <thead><tr>{% if editar %}<th style="width: 1%;"><input type="checkbox" class="form-check-input" id="marcarTodas" title="Marcar todas desta página" aria-label="Marcar todas as notas desta página"></th>{% endif %}<th>NF</th><th>Remetente</th><th>Emissão</th><th>Itens</th><th>Paletes</th><th>Origem</th><th>Situação</th><th>Entrada</th><th></th></tr></thead>
                 <tbody>
                     {% for n in notas %}
                     <tr>
+                        {% if editar %}<td><input type="checkbox" class="form-check-input marca-nota" name="ids" value="{{ n.id }}" form="formExcluirNotas" aria-label="Selecionar a NF {{ n.numero }}"></td>{% endif %}
                         <td><strong>{{ n.numero }}</strong>{% if n.serie %}<small> / {{ n.serie }}</small>{% endif %}</td>
                         <td>{{ n.empresa.nome if n.empresa else '—' }}</td>
                         <td>{{ n.data_emissao.strftime('%d/%m/%Y') if n.data_emissao else '—' }}</td>
@@ -63,6 +76,15 @@
                         <td class="text-end text-nowrap">
                             <a href="{{ url_for('entrada.extrato', nid=n.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="Extrato de recebimento" aria-label="Extrato de recebimento da NF {{ n.numero }}"><i class="fas fa-receipt"></i></a>
                             <a href="{{ url_for('entrada.nota', nid=n.id) }}" class="btn btn-sm btn-secondary"><i class="fas fa-arrow-right"></i>Abrir</a>
+                            {% if editar %}
+                            <form method="POST" action="{{ url_for('entrada.excluir_varias') }}" class="d-inline" onsubmit="return confirm('Excluir a NF {{ n.numero }}? Não dá para desfazer.');">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                <input type="hidden" name="situacao" value="{{ situacao }}">
+                                <input type="hidden" name="q" value="{{ busca }}">
+                                <input type="hidden" name="ids" value="{{ n.id }}">
+                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir" aria-label="Excluir a NF {{ n.numero }}"><i class="fas fa-trash"></i></button>
+                            </form>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -183,5 +205,38 @@
         </form>
     </div>
 </div>
+{% endif %}
+{% if editar and notas %}
+<script>
+(function () {
+    var form = document.getElementById('formExcluirNotas');
+    if (!form) return;
+    var marcas = Array.prototype.slice.call(document.querySelectorAll('.marca-nota'));
+    var todas = document.getElementById('marcarTodas'), botao = document.getElementById('btnExcluirMarcadas');
+    var qtd = document.getElementById('qtdMarcadas'), tudo = document.getElementById('excluirTudo');
+    function atualizar() {
+        var n = marcas.filter(function (m) { return m.checked; }).length;
+        qtd.textContent = n;
+        botao.disabled = n === 0;
+        todas.checked = n > 0 && n === marcas.length;
+        todas.indeterminate = n > 0 && n < marcas.length;
+    }
+    marcas.forEach(function (m) { m.addEventListener('change', atualizar); });
+    todas.addEventListener('change', function () { marcas.forEach(function (m) { m.checked = todas.checked; }); atualizar(); });
+    form.addEventListener('submit', function (ev) {
+        if (tudo.value === '1') return;
+        var n = marcas.filter(function (m) { return m.checked; }).length;
+        if (!n || !confirm('Excluir ' + n + ' nota(s) selecionada(s)? Não dá para desfazer.')) ev.preventDefault();
+    });
+    document.getElementById('btnExcluirTodas').addEventListener('click', function () {
+        var total = this.getAttribute('data-total');
+        if (!confirm('Excluir TODAS as ' + total + ' nota(s) desta lista (todas as páginas do filtro atual)? Não dá para desfazer.')) return;
+        if (Number(total) > 20 && prompt('São ' + total + ' notas. Para confirmar, digite EXCLUIR') !== 'EXCLUIR') return;
+        tudo.value = '1';
+        form.submit();
+    });
+    atualizar();
+})();
+</script>
 {% endif %}
 {% endblock %}
