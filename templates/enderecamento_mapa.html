@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="panel-page-header">
-    <h2><i class="fas fa-cube me-2"></i>Mapa{% if camara %} · {{ camara.nome }}{% endif %}</h2>
+    <h2><i class="fas fa-cube me-2"></i>Mapa{% if camara %} · {% if camara.codigo|string not in camara.nome %}{{ '%02d'|format(camara.codigo) }} · {% endif %}{{ camara.nome }}{% endif %}</h2>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         {% if tem_enderecos %}
         <div class="btn-group" role="group" aria-label="Visualização">

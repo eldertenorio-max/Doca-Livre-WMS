@@ -199,12 +199,20 @@
                     '</td><td>' + escapar(p.validade || '—') + '</td><td>' + escapar(p.classificacao || '') + '</td><td class="codigo-mono">' + escapar(p.etiqueta) + '</td></tr>');
             });
         });
-        document.getElementById('modalCamaraInfoTitulo').textContent = camara.nome + ' — notas fiscais e produtos armazenados';
+        document.getElementById('modalCamaraInfoTitulo').textContent = nomeComNumero(camara) + ' — notas fiscais e produtos armazenados';
         document.getElementById('modalCamaraInfoCorpo').innerHTML = linhas.length
             ? '<div class="tabela-scroll"><table class="table table-striped mb-0"><thead><tr><th>Posição</th><th>NF</th><th>Produto</th><th>Quantidade</th><th>Lote</th><th>Validade</th><th>Classificação</th><th>Palete</th></tr></thead><tbody>' +
               linhas.join('') + '</tbody></table></div>'
             : '<p class="text-muted mb-0">Nada armazenado em ' + escapar(camara.nome) + ' no momento.</p>';
         if (modalInfo) modalInfo.show();
+    }
+
+    // Nome da câmara com o número dela: "18 · Câmara". Se o nome já traz o número ("Câmara 17"), fica como está.
+    function nomeComNumero(camara) {
+        var nome = camara.nome || '', numero = Number(camara.codigo);
+        if (!numero) return nome;
+        var jaTem = (nome.match(/\d+/g) || []).some(function (n) { return Number(n) === numero; });
+        return jaTem ? nome : ('0' + numero).slice(-2) + ' · ' + nome;
     }
 
     // ------------------------------------------------------------ 2D
@@ -266,7 +274,7 @@
     }
 
     function desenharCamara(camara) {
-        var cabecalho = '<header class="camara-header"><h2>' + escapar(camara.nome) + '</h2><span class="camara-header-tipo">' + escapar(camara.descricao) + '</span>' +
+        var cabecalho = '<header class="camara-header"><h2>' + escapar(nomeComNumero(camara)) + '</h2><span class="camara-header-tipo">' + escapar(camara.descricao) + '</span>' +
             '<button type="button" class="camara-info-btn" data-info="' + camara.id + '" title="Ver notas fiscais e produtos armazenados" aria-label="Informações da ' + escapar(camara.nome) + '">' +
             '<svg class="camara-info-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10v6M12 7h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>' +
             (dados.unica ? '' : '<a class="camara-abrir" href="' + cfg.urlMapa + '?camara=' + camara.id + '">Abrir só esta câmara</a>') + '</header>';
@@ -432,7 +440,7 @@
             camara.ruas.forEach(function (r, i) {
                 ruas.push({ rua: r.rua, colunas: r.colunas, niveis: r.niveis, celulas: r.celulas,
                             portas: r.portas, vaos: r.vaos, temMarcas: r.temMarcas,
-                            camara: !dados.unica && i === 0 ? camara.nome : null, novaCamara: i === 0 && ruas.length > 0 });
+                            camara: !dados.unica && i === 0 ? nomeComNumero(camara) : null, novaCamara: i === 0 && ruas.length > 0 });
             });
         });
         var tela = document.getElementById('mapa3dTela');
