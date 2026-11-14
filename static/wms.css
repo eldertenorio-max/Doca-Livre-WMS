@@ -776,6 +776,11 @@ button.cell { cursor: pointer; }
 .cell--ocupado.cell--bloqueado::before, .cell--ocupado.cell--bloqueado::after { background: rgba(255, 255, 255, .55); }
 .cell--bloqueado::before { transform: translate(-50%, -50%) rotate(45deg); }
 .cell--sem-nivel5::after, .cell--bloqueado::after { transform: translate(-50%, -50%) rotate(-45deg); }
+/* Mercadoria que voltou da rua: margem azul = reentrega, vermelha = devolução */
+.cell--retorno-reentrega { box-shadow: inset 0 0 0 4px #38a3ff; }
+.cell--retorno-devolucao { box-shadow: inset 0 0 0 4px #ef4444; }
+.swatch--reentrega { background: var(--cell-ocup); border: 3px solid #38a3ff; }
+.swatch--devolucao { background: var(--cell-ocup); border: 3px solid #ef4444; }
 .cell--achada { outline: 3px solid #f59e0b; outline-offset: -3px; z-index: 4; animation: pulsarCelula 1s ease-in-out 3; }
 @keyframes pulsarCelula { 50% { box-shadow: inset 0 0 0 100vmax rgba(245, 158, 11, .55); } }
 

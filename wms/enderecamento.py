@@ -899,7 +899,16 @@ def _enderecos_mapa(camara):
         # Dono da mercadoria: quem emitiu a nota; palete sem nota usa o depositante do produto.
         empresa = (nota.empresa if nota else None) or (item.produto.depositante if item else None)
         nome_empresa = (empresa.fantasia or empresa.nome) if empresa else None
+        # Mercadoria que voltou da rua: reentrega (vai sair de novo para o mesmo cliente) ou devolucao (as demais
+        # classificacoes de uma nota de retorno). O mapa pinta a margem da posicao: azul e vermelho.
+        if palete.classificacao == 'Reentrega':
+            retorno = 'reentrega'
+        elif nota is not None and nota.tipo == 'Retorno':
+            retorno = 'devolucao'
+        else:
+            retorno = None
         return {'id': palete.id, 'etiqueta': palete.etiqueta, 'classificacao': palete.classificacao,
+                'retorno': retorno, 'motivo_retorno': nota.motivo_retorno if nota is not None and retorno else None,
                 'status': palete.status, 'up': palete.up,
                 'nf': nota.numero if nota else None, 'serie': nota.serie if nota else None,
                 'nota_id': nota.id if nota else None, 'emissao': data(nota.data_emissao) if nota else None,

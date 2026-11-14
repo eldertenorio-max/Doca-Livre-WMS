@@ -215,6 +215,13 @@
         return jaTem ? nome : ('0' + numero).slice(-2) + ' · ' + nome;
     }
 
+    // 'devolucao', 'reentrega' ou null: o que os paletes da posição dizem sobre retorno.
+    var ROTULO_RETORNO = { reentrega: 'Reentrega', devolucao: 'Devolução' };
+    function retornoDe(e) {
+        var tipos = (e.paletes || []).map(function (p) { return p.retorno; });
+        return tipos.indexOf('devolucao') !== -1 ? 'devolucao' : tipos.indexOf('reentrega') !== -1 ? 'reentrega' : null;
+    }
+
     // ------------------------------------------------------------ 2D
     function cartoes(camara) {
         var r = camara.resumo;
@@ -235,6 +242,9 @@
         if (e) {
             var classe = 'cell ' + (e.status === 'ocupado' ? 'cell--ocupado' : 'cell--disponivel') + (e.bloqueado ? ' cell--bloqueado' : '') + (e.cliente ? ' cell--reservada' : '');
             var p = e.paletes && e.paletes[0];
+            // Voltou da rua: margem azul (reentrega) ou vermelha (devolução). Se houver os dois na posição, vale a devolução.
+            var volta = retornoDe(e);
+            if (volta) classe += ' cell--retorno cell--retorno-' + volta;
             var dica = escapar(descricao(e));
             if (!p) return '<button type="button" class="' + classe + '" data-id="' + e.id + '" title="' + dica + '" aria-label="' + dica + '"></button>';
             // Ocupado: logo da empresa e, embaixo, o número da nota. O resumo aparece ao passar o mouse
@@ -352,7 +362,7 @@
             linhaDica('Posição', e.codigo) +
             linhaDica('Produto', [p.sku, p.descricao].filter(Boolean).join(' · ')) +
             linhaDica('Quantidade', p.quantidade) + linhaDica('Lote', p.lote) + linhaDica('Validade', p.validade) +
-            linhaDica('Classificação', p.classificacao) + linhaDica('Armazenado em', p.armazenado_em) + linhaDica('Espaço de', e.cliente) +
+            linhaDica('Classificação', p.classificacao) + linhaDica('Retorno', p.retorno ? ROTULO_RETORNO[p.retorno] + (p.motivo_retorno ? ' — ' + p.motivo_retorno : '') : '') + linhaDica('Armazenado em', p.armazenado_em) + linhaDica('Espaço de', e.cliente) +
             (outros > 0 ? '<div class="mapa-dica-mais">+ ' + outros + (outros === 1 ? ' outro item' : ' outros itens') + ' neste palete</div>' : '') +
             (mais > 0 ? '<div class="mapa-dica-mais">+ ' + mais + (mais === 1 ? ' outro palete' : ' outros paletes') + ' nesta posição</div>' : '') +
             (e.bloqueado ? '<div class="mapa-dica-mais">Posição bloqueada' + (e.motivo ? ' — ' + escapar(e.motivo) : '') + '</div>' : '') +
@@ -519,16 +529,17 @@
         // na frente e atrás da caixa. Um material por empresa, reaproveitado em todas as caixas dela.
         var geoEtiqueta = new THREE.PlaneGeometry(L * 0.56, A * 0.42);
         var etiquetas = {};
-        function seloDaEmpresa(imagem, iniciais) {
+        var COR_RETORNO = { reentrega: '#2563eb', devolucao: '#dc2626' };
+        function seloDaEmpresa(imagem, iniciais, retorno) {
             var tela = document.createElement('canvas');
             tela.width = 256; tela.height = 192;
             var ctx = tela.getContext('2d');
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, 256, 192);
-            ctx.strokeStyle = '#8b6b3d'; ctx.lineWidth = 6;
-            ctx.strokeRect(3, 3, 250, 186);
+            if (retorno) { ctx.strokeStyle = COR_RETORNO[retorno]; ctx.lineWidth = 22; ctx.strokeRect(11, 11, 234, 170); }
+            else { ctx.strokeStyle = '#8b6b3d'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, 250, 186); }
             if (imagem) {
-                var escala = Math.min(224 / imagem.width, 160 / imagem.height);
+                var escala = Math.min((retorno ? 196 : 224) / imagem.width, (retorno ? 132 : 160) / imagem.height);
                 var w = imagem.width * escala, h = imagem.height * escala;
                 ctx.drawImage(imagem, (256 - w) / 2, (192 - h) / 2, w, h);
             } else {
@@ -542,15 +553,15 @@
             return textura;
         }
         function materialDaEtiqueta(p) {
-            var chave = p.logo || ('iniciais:' + (p.iniciais || '?'));
+            var chave = (p.logo || ('iniciais:' + (p.iniciais || '?'))) + '|' + (p.retorno || '');
             if (etiquetas[chave]) return etiquetas[chave];
-            var material = new THREE.MeshBasicMaterial({ map: seloDaEmpresa(null, p.iniciais) });
+            var material = new THREE.MeshBasicMaterial({ map: seloDaEmpresa(null, p.iniciais, p.retorno) });
             etiquetas[chave] = material;
             if (p.logo) {
                 var imagem = new Image();
                 imagem.onload = function () {
                     material.map.dispose();
-                    material.map = seloDaEmpresa(imagem, p.iniciais);
+                    material.map = seloDaEmpresa(imagem, p.iniciais, p.retorno);
                     material.needsUpdate = true;
                     pedirQuadro();
                 };
@@ -667,7 +678,15 @@
                     var palete = new THREE.Mesh(geoPalete, materialPalete);
                     palete.position.y = -(A * 0.3 + 0.05);
                     caixa.add(palete);
-                    if (e.paletes && e.paletes[0]) etiquetar(caixa, e.paletes[0]);
+                    if (e.paletes && e.paletes[0]) {
+                        var doSelo = e.paletes[0], volta3d = retornoDe(e);
+                        if (volta3d !== (doSelo.retorno || null)) { doSelo = Object.assign({}, doSelo); doSelo.retorno = volta3d; }
+                        etiquetar(caixa, doSelo);
+                        // fita da caixa na cor do retorno, para aparecer de qualquer ângulo
+                        if (volta3d) caixa.children.forEach(function (filho) {
+                            if (filho.geometry === geoFita) filho.material = new THREE.MeshLambertMaterial({ color: COR_RETORNO[volta3d] });
+                        });
+                    }
                     if (e.bloqueado) desenharX(x, base + A * 0.39, z);
                 } else {
                     caixa = new THREE.Mesh(geoCaixa, new THREE.MeshLambertMaterial({
