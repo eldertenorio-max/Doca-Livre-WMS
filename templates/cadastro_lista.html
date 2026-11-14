@@ -48,6 +48,7 @@
             <table class="table table-striped mb-0">
                 <thead>
                     <tr>
+                        {% if d.imagem %}<th>Logo</th>{% endif %}
                         {% for c in colunas %}<th>{{ c.rotulo }}</th>{% endfor %}
                         <th>Situação</th>
                         {% if editar %}<th></th>{% endif %}
@@ -56,6 +57,14 @@
                 <tbody>
                     {% for r in registros %}
                     <tr>
+                        {% if d.imagem %}
+                        {# logo do cadastro (empresa sem logo usa o de outra filial; sem nenhum, as iniciais) #}
+                        {% set arq = logo_da_empresa(r) if slug == 'empresas' else r[d.imagem] %}
+                        <td><span class="empresa-lista">
+                            {% if arq %}<img src="{{ url_for('cadastros.imagem', nome=arq) }}" alt="Logo de {{ r[d.chave] }}" loading="lazy">
+                            {% else %}<span class="empresa-lista__iniciais" aria-hidden="true">{{ (r.fantasia or r[d.chave])[:2]|upper }}</span>{% endif %}
+                        </span></td>
+                        {% endif %}
                         {% for c in colunas %}
                         {% set v = valor(r, c) %}
                         <td>

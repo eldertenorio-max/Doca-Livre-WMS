@@ -719,7 +719,7 @@ button.cell { cursor: pointer; }
 .camara-section--rotulos .cell-nf { display: block; }
 /* empresa na lista de cadastros: logo (ou iniciais) + nome. O selo é branco nos dois temas, como o logo no mapa. */
 .empresa-lista { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; }
-.empresa-lista img, .empresa-lista__iniciais { width: 46px; height: 30px; flex: none; border-radius: 6px; border: 1px solid var(--borda); background: #ffffff; }
+.empresa-lista img, .empresa-lista__iniciais { width: 54px; height: 36px; flex: none; border-radius: 6px; border: 1px solid var(--borda); background: #ffffff; }
 .empresa-lista img { object-fit: contain; padding: 2px; }
 .empresa-lista__iniciais { display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 800; color: #1e3a5f; }
 .empresa-lista__nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; }
