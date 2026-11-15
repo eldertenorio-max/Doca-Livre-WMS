@@ -90,6 +90,16 @@ class ArquivoEnviado(db.Model):
     criado_em = db.Column(db.DateTime, nullable=False, default=agora)
 
 
+class AlertaLido(db.Model):
+    """Alerta do sino que um usuario ja viu. O alerta nao e guardado (e calculado na hora); aqui fica so a chave
+    dele. Quando a situacao muda (venceu, nova leitura de temperatura) a chave muda e o alerta volta como nao lido."""
+    __tablename__ = 'alerta_lido'
+
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id', ondelete='CASCADE'), primary_key=True)
+    chave = db.Column(db.String(40), primary_key=True)
+    lido_em = db.Column(db.DateTime, default=agora)
+
+
 class Configuracao(db.Model):
     """Configuracoes do sistema, uma por linha (chave -> valor em texto). As chaves e os padroes ficam em sistema.py."""
     __tablename__ = 'configuracao'

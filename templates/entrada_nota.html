@@ -38,14 +38,13 @@
 <div class="alert alert-danger"><strong>{{ 'Retorno cancelado.' if retorno else 'Entrada cancelada.' }}</strong> Motivo: {{ nota.motivo_cancelamento }}</div>
 {% endif %}
 
-<div class="row g-3 mb-3">
-    <div class="col-12 col-xl-5">
-        <div class="card h-100 mb-0">
-            <div class="card-header"><i class="fas fa-truck me-2"></i>Dados da descarga</div>
-            <div class="card-body">
-                <dl class="detalhe-endereco mb-3">
+{# Dados da nota: faixa na largura toda, com as informações lado a lado #}
+<div class="card mb-3">
+    <div class="card-header"><i class="fas fa-file-invoice me-2"></i>Dados da nota</div>
+    <div class="card-body">
+        <dl class="detalhe-endereco detalhe-endereco--faixa">
                     <div><dt>Nota fiscal</dt><dd>{{ nota.numero }}{% if nota.serie %} <span class="text-muted">/ série {{ nota.serie }}</span>{% endif %}</dd></div>
-                    <div><dt>{{ 'Dono da mercadoria' if retorno else 'Remetente' }}</dt><dd>{{ nota.empresa.nome if nota.empresa else '—' }}</dd></div>
+                    <div class="detalhe-largo"><dt>{{ 'Dono da mercadoria' if retorno else 'Remetente' }}</dt><dd>{{ nota.empresa.nome if nota.empresa else '—' }}</dd></div>
                     {% if nota.empresa and nota.empresa.cnpj %}<div><dt>CNPJ</dt><dd>{{ nota.empresa.cnpj|cnpj }}</dd></div>{% endif %}
                     {% if retorno %}
                     <div><dt>Motivo do retorno</dt><dd>{{ nota.motivo_retorno or '—' }}</dd></div>
@@ -60,8 +59,16 @@
                     {% if nota.valor_total is not none %}<div><dt>Valor da nota</dt><dd>{{ nota.valor_total|moeda }}</dd></div>{% endif %}
                     {% if nota.peso_bruto %}<div><dt>Peso bruto</dt><dd>{{ nota.peso_bruto|numero }} kg</dd></div>{% endif %}
                     {% if nota.peso_liquido %}<div><dt>Peso líquido</dt><dd>{{ nota.peso_liquido|numero }} kg</dd></div>{% endif %}
-                    {% if nota.chave %}<div style="grid-column: 1 / -1;"><dt>Chave de acesso</dt><dd class="codigo-mono" style="overflow-wrap: anywhere; font-size: .82rem;">{{ nota.chave }}</dd></div>{% endif %}
-                </dl>
+                    {% if nota.chave %}<div class="detalhe-largo"><dt>Chave de acesso</dt><dd class="codigo-mono" style="overflow-wrap: anywhere; font-size: .82rem;">{{ nota.chave }}</dd></div>{% endif %}
+        </dl>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-lg-5">
+        <div class="card h-100 mb-0">
+            <div class="card-header"><i class="fas fa-truck me-2"></i>Dados da descarga</div>
+            <div class="card-body">
                 {% if editar and aberta %}
                 <form method="POST" action="{{ url_for('entrada.nota_dados', nid=nota.id) }}" autocomplete="off">
                     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -86,13 +93,14 @@
                     <div><dt>Placa</dt><dd>{{ nota.placa or '—' }}</dd></div>
                     <div><dt>Motorista</dt><dd>{{ nota.motorista or '—' }}</dd></div>
                     <div><dt>Conferente</dt><dd>{{ nota.conferente or '—' }}</dd></div>
+                    {% if nota.observacao %}<div style="grid-column: 1 / -1;"><dt>Observação</dt><dd>{{ nota.observacao }}</dd></div>{% endif %}
                 </dl>
                 {% endif %}
             </div>
         </div>
     </div>
 
-    <div class="col-12 col-xl-7">
+    <div class="col-12 col-lg-7">
         <div class="card h-100 mb-0">
             <div class="card-header"><i class="fas fa-pallet me-2"></i>Montar palete</div>
             <div class="card-body">

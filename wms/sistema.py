@@ -8,6 +8,7 @@
   faixa. Aparecem no sino do topo e na tela Alertas; se houver SMTP no .env e e-mails configurados, sai um resumo
   por dia.
 """
+import hashlib
 import os
 import re
 import smtplib
@@ -19,8 +20,8 @@ from email.message import EmailMessage
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, send_from_directory, url_for
 
 from . import correio
-from .core import eh_super, perm, registrar_log
-from .models import Camara, Configuracao, Palete, PaleteItem, Produto, TemperaturaCamara, agora, db
+from .core import eh_super, perm, registrar_log, usuario_atual
+from .models import AlertaLido, Camara, Configuracao, Palete, PaleteItem, Produto, TemperaturaCamara, agora, db
 
 bp = Blueprint('sistema', __name__)
 
@@ -123,7 +124,9 @@ def backup_do_dia():
 # ---------------------------------------------------------------- alertas
 
 def calcular_alertas():
-    """Lista de alertas, os graves primeiro. Cada um: tipo, grave, titulo, detalhe, url."""
+    """Lista de alertas, os graves primeiro. Cada um: tipo, grave, titulo, detalhe, url e chave.
+    A chave identifica o alerta para o "lido" de cada usuario; ela muda quando a situacao muda (passou a grave,
+    nova leitura de temperatura), e ai o alerta volta a aparecer como nao lido."""
     hoje = agora().date()
     dias = _inteiro('alerta_validade_dias', 0, 3650)
     alertas = []
@@ -141,7 +144,7 @@ def calcular_alertas():
         alertas.append({'tipo': 'Validade', 'grave': falta <= 0, 'titulo': f'{sku} · {descricao}',
                         'detalhe': f'{"Lote " + lote + " · " if lote else ""}{quando} ({validade.strftime("%d/%m/%Y")}) · '
                                    f'{quantidade:g} em {paletes} palete(s)',
-                        'url': url_for('estoque.atual', q=sku)})
+                        'url': url_for('estoque.atual', q=sku), 'chave': _chave('V', sku, lote, validade, falta <= 0)})
 
     saldos = dict(db.session.query(PaleteItem.produto_id, db.func.sum(PaleteItem.quantidade))
                   .join(Palete, PaleteItem.palete_id == Palete.id)
@@ -151,7 +154,8 @@ def calcular_alertas():
         if saldo < produto.estoque_seguranca:
             alertas.append({'tipo': 'Estoque mínimo', 'grave': saldo <= 0, 'titulo': f'{produto.sku} · {produto.descricao}',
                             'detalhe': f'Saldo {saldo:g} {produto.unidade}, abaixo do mínimo de {produto.estoque_seguranca:g}',
-                            'url': url_for('estoque.analise', aba='seguranca', q=produto.sku)})
+                            'url': url_for('estoque.analise', aba='seguranca', q=produto.sku),
+                            'chave': _chave('M', produto.id, saldo <= 0)})
 
     for camara in Camara.query.filter(Camara.ativo.is_(True)).order_by(Camara.codigo):
         ultima = camara.temperaturas.order_by(TemperaturaCamara.medido_em.desc(), TemperaturaCamara.id.desc()).first()
@@ -159,19 +163,46 @@ def calcular_alertas():
             faixa = ' a '.join(f'{v:g} °C' for v in (ultima.temp_min, ultima.temp_max) if v is not None)
             alertas.append({'tipo': 'Temperatura', 'grave': True, 'titulo': f'Câmara {camara.codigo} · {camara.nome}',
                             'detalhe': f'Última leitura {ultima.temperatura:g} °C em {ultima.medido_em.strftime("%d/%m/%Y %H:%M")}, '
-                                       f'fora da faixa ({faixa})', 'url': url_for('temperaturas.lista')})
+                                       f'fora da faixa ({faixa})', 'url': url_for('temperaturas.lista'),
+                            'chave': _chave('T', camara.id, ultima.id)})
     return sorted(alertas, key=lambda a: not a['grave'])
 
 
-_contagem = {'quando': 0.0, 'total': 0, 'graves': 0}
+def _chave(*partes):
+    return hashlib.sha1('|'.join(str(p) for p in partes).encode()).hexdigest()
+
+
+_contagem = {'quando': 0.0, 'total': 0, 'graves': 0, 'chaves': []}
+
+
+def _atualizar_contagem(forcar=False):
+    if forcar or time.monotonic() - _contagem['quando'] > 30:
+        alertas = calcular_alertas()
+        _contagem.update(quando=time.monotonic(), total=len(alertas), graves=sum(1 for a in alertas if a['grave']),
+                         chaves=[(a['chave'], a['grave']) for a in alertas])
 
 
 def resumo_alertas():
-    """(total, graves) para o sino do topo. Recalcula no maximo a cada 30 segundos."""
-    if time.monotonic() - _contagem['quando'] > 30:
-        alertas = calcular_alertas()
-        _contagem.update(quando=time.monotonic(), total=len(alertas), graves=sum(1 for a in alertas if a['grave']))
+    """(total, graves) de todos os alertas, para o painel. Recalcula no maximo a cada 30 segundos."""
+    _atualizar_contagem()
     return _contagem['total'], _contagem['graves']
+
+
+def lidos_do_usuario():
+    user = usuario_atual()
+    if user is None:
+        return set()
+    return {chave for (chave,) in db.session.query(AlertaLido.chave).filter_by(usuario_id=user.id)}
+
+
+def resumo_do_sino():
+    """(nao lidos, nao lidos graves) do usuario que esta na tela: e o numero do sino do topo."""
+    _atualizar_contagem()
+    if not _contagem['chaves']:
+        return 0, 0
+    lidos = lidos_do_usuario()
+    novos = [grave for chave, grave in _contagem['chaves'] if chave not in lidos]
+    return len(novos), sum(1 for grave in novos if grave)
 
 
 def smtp_configurado():
@@ -226,7 +257,7 @@ def registrar(app):
 
     @app.context_processor
     def _contexto():
-        return {'resumo_alertas': resumo_alertas, 'politica_separacao': politica_separacao}
+        return {'resumo_alertas': resumo_do_sino, 'politica_separacao': politica_separacao}
 
 
 # ---------------------------------------------------------------- telas
@@ -236,9 +267,47 @@ def registrar(app):
 def alertas():
     lista = calcular_alertas()
     tipo = request.args.get('tipo') or ''
+    so_novos = request.args.get('ver') == 'novos'
     tipos = [(t, sum(1 for a in lista if a['tipo'] == t)) for t in sorted({a['tipo'] for a in lista})]
-    return render_template('alertas.html', alertas=[a for a in lista if not tipo or a['tipo'] == tipo], todos=len(lista), tipo=tipo,
+    # "lido" e de cada usuario. O que nao e mais alerta sai da lista de lidos dele (se voltar, volta como novo).
+    lidos, atuais = lidos_do_usuario(), {a['chave'] for a in lista}
+    if lidos - atuais:
+        AlertaLido.query.filter(AlertaLido.usuario_id == usuario_atual().id, AlertaLido.chave.in_(lidos - atuais)).delete(synchronize_session=False)
+        db.session.commit()
+    for a in lista:
+        a['lido'] = a['chave'] in lidos
+    mostrar = [a for a in lista if (not tipo or a['tipo'] == tipo) and not (so_novos and a['lido'])]
+    mostrar.sort(key=lambda a: a['lido'])              # os nao lidos primeiro (a ordem dos graves se mantem)
+    return render_template('alertas.html', alertas=mostrar, todos=len(lista), tipo=tipo, so_novos=so_novos,
+                           novos=sum(1 for a in lista if not a['lido']),
                            tipos=tipos, graves=sum(1 for a in lista if a['grave']), dias=_inteiro('alerta_validade_dias', 0, 3650))
+
+
+@bp.route('/alertas/marcar', methods=['POST'])
+@perm('estoque')
+def alertas_marcar():
+    """Marca alertas como lidos ou nao lidos para o usuario. "Ver" marca como lido e abre a tela do alerta."""
+    user = usuario_atual()
+    acao = request.form.get('acao')
+    lista = calcular_alertas()
+    por_chave = {a['chave']: a for a in lista}
+    volta = redirect(url_for('sistema.alertas', tipo=request.form.get('tipo') or None, ver=request.form.get('ver') or None))
+    if acao == 'ler_todos':
+        chaves = set(por_chave)
+    else:
+        chaves = {request.form.get('chave')} & set(por_chave)
+        if not chaves:
+            flash('Esse alerta não existe mais.', 'error')
+            return volta
+    if acao == 'nao_lido':
+        AlertaLido.query.filter(AlertaLido.usuario_id == user.id, AlertaLido.chave.in_(chaves)).delete(synchronize_session=False)
+    else:
+        for chave in chaves - lidos_do_usuario():
+            db.session.add(AlertaLido(usuario_id=user.id, chave=chave))
+    db.session.commit()
+    if acao == 'ver':
+        return redirect(por_chave[next(iter(chaves))]['url'])
+    return volta
 
 
 @bp.route('/admin/configuracoes', methods=['GET', 'POST'])

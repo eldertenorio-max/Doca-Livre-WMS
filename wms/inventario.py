@@ -235,9 +235,19 @@ def bipar(iid):
         return recusar('A validade não pode ser anterior à fabricação.')
     if fabricacao and fabricacao > agora().date():
         return recusar('A data de fabricação não pode estar no futuro.')
+    # Onde a mercadoria foi contada e obrigatorio: o endereco ou a etiqueta do palete. Contando uma linha escolhida
+    # na lista, vale o local dela quando o campo vem vazio.
+    local = (request.form.get('local') or '').strip().upper()[:26]
+    if not local and linha_id:
+        da_linha = InventarioLinha.query.filter_by(id=linha_id, inventario_id=inventario.id).first()
+        local = (da_linha.palete_etiqueta or da_linha.endereco or '') if da_linha else ''
+    if not local:
+        return recusar('Informe o palete ou o endereço onde a mercadoria foi contada (ex.: 06-A-01-5).')
+    if not (Endereco.query.filter_by(codigo=local).first() or Palete.query.filter_by(etiqueta=local).first()):
+        return recusar(f'"{local}" não é um endereço nem uma etiqueta de palete do sistema. Confira o código (ex.: 06-A-01-5).')
     bip = {'produto': produto, 'quantidade': quantidade, 'fabricacao': fabricacao, 'validade': validade, 'linha_id': linha_id,
            'lote': (request.form.get('lote') or '').strip()[:30] or None, 'up': (request.form.get('up') or '').strip()[:20] or None,
-           'local': (request.form.get('local') or '').strip()[:26] or None}
+           'local': local}
     linha = _linha_pendente_para(inventario, bip)
     if linha_id and not linha:
         return recusar('Essa linha já foi contada. Use "Desfazer" nela se precisar contar de novo.')
@@ -246,6 +256,7 @@ def bipar(iid):
     else:
         linha = InventarioLinha(inventario=inventario, status='Extra', produto=produto, sku=produto.sku, descricao=produto.descricao,
                                 unidade=produto.unidade, endereco=None, palete_etiqueta=None)
+        db.session.add(linha)
         # extra bipado num endereco conhecido: guarda onde foi achado
         if bip['local']:
             endereco = Endereco.query.filter_by(codigo=bip['local'].upper()).first()
@@ -348,12 +359,47 @@ def finalizar(iid):
     if inventario.status not in ABERTOS:
         flash('Este inventário já foi finalizado.', 'error')
         return _voltar(inventario)
-    inventario.status, inventario.finalizado_em, inventario.aplicado = 'Finalizado', agora(), False
+    # reaberto depois de aplicado: continua marcado como aplicado (o estoque ja foi corrigido naquela vez)
+    inventario.status, inventario.finalizado_em = 'Finalizado', agora()
     inventario.finalizado_por = usuario_atual().username
     registrar_log('Finalizou inventário sem aplicar', f'nº {inventario.id} · {inventario.descricao}', modulo='estoque')
     db.session.commit()
-    flash('Inventário finalizado. O estoque não foi alterado.', 'success')
+    flash('Inventário finalizado. O estoque não foi alterado' + (' desta vez.' if inventario.aplicado else '.'), 'success')
     return _voltar(inventario)
+
+
+@bp.route('/<int:iid>/reabrir', methods=['POST'])
+@perm('estoque')
+def reabrir(iid):
+    """Reabre um inventario finalizado para corrigir contagens. As contagens ficam como estavam; o estoque so muda
+    se o inventario for aplicado de novo (aplicar outra vez corrige so o que estiver diferente do que foi contado)."""
+    inventario = _inventario_ou_404(iid)
+    if inventario.status != 'Finalizado':
+        flash('Este inventário já está aberto.', 'error')
+        return _voltar(inventario)
+    inventario.status, inventario.finalizado_em, inventario.finalizado_por = 'Em andamento', None, None
+    registrar_log('Reabriu inventário', f'nº {inventario.id} · {inventario.descricao}'
+                  + (' · já tinha sido aplicado na base' if inventario.aplicado else ''), modulo='estoque')
+    db.session.commit()
+    flash('Inventário reaberto. Use "Desfazer" na linha que quer contar de novo e finalize outra vez no fim.', 'success')
+    return _voltar(inventario)
+
+
+@bp.route('/<int:iid>/renomear', methods=['POST'])
+@perm('estoque')
+def renomear(iid):
+    inventario = _inventario_ou_404(iid)
+    descricao = ' '.join((request.form.get('descricao') or '').split())[:120]
+    destino = redirect(url_for('inventario.lista')) if request.form.get('voltar') == 'lista' else _voltar(inventario)
+    if not descricao:
+        flash('A descrição do inventário não pode ficar vazia.', 'error')
+        return destino
+    if descricao != inventario.descricao:
+        registrar_log('Renomeou inventário', f'nº {inventario.id} · {inventario.descricao} → {descricao}', modulo='estoque')
+        inventario.descricao = descricao
+        db.session.commit()
+        flash('Descrição do inventário alterada.', 'success')
+    return destino
 
 
 @bp.route('/<int:iid>/excluir', methods=['POST'])

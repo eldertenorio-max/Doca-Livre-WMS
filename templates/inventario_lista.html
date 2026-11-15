@@ -34,7 +34,10 @@
                         <td class="text-end">{{ r.Extra or '—' }}</td>
                         <td class="text-nowrap">{{ i.criado_em|datahora }}<small class="text-muted d-block">{{ i.criado_por }}</small></td>
                         <td class="text-nowrap">{{ i.finalizado_em|datahora }}</td>
-                        <td class="text-end"><a class="btn btn-sm btn-secondary" href="{{ url_for('inventario.detalhe', iid=i.id) }}"><i class="fas fa-arrow-right"></i>{{ 'Abrir' if i.status != 'Finalizado' else 'Ver' }}</a></td>
+                        <td class="text-end text-nowrap">
+                            {% if editar %}<button type="button" class="btn btn-sm btn-outline-secondary" data-renomear="{{ url_for('inventario.renomear', iid=i.id) }}" data-descricao="{{ i.descricao }}" title="Renomear" aria-label="Renomear o inventário {{ i.id }}"><i class="fas fa-pen"></i></button>{% endif %}
+                            <a class="btn btn-sm btn-secondary" href="{{ url_for('inventario.detalhe', iid=i.id) }}"><i class="fas fa-arrow-right"></i>{{ 'Abrir' if i.status != 'Finalizado' else 'Ver' }}</a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -81,5 +84,38 @@
         </form>
     </div>
 </div>
+<div class="modal fade" id="modalRenomear" tabindex="-1" aria-labelledby="modalRenomearTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="" autocomplete="off" id="formRenomear">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="voltar" value="lista">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRenomearTitulo"><i class="fas fa-pen me-2"></i>Renomear inventário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="renDescricao">Descrição <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="renDescricao" name="descricao" maxlength="120" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var modal = document.getElementById('modalRenomear');
+    document.querySelectorAll('[data-renomear]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            document.getElementById('formRenomear').action = b.getAttribute('data-renomear');
+            document.getElementById('renDescricao').value = b.getAttribute('data-descricao');
+            bootstrap.Modal.getOrCreateInstance(modal).show();
+        });
+    });
+    modal.addEventListener('shown.bs.modal', function () { document.getElementById('renDescricao').select(); });
+});
+</script>
 {% endif %}
 {% endblock %}

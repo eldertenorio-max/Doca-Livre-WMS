@@ -19,6 +19,12 @@
         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalFinalizar"><i class="fas fa-flag-checkered"></i>Finalizar sem atualizar</button>
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAplicar"><i class="fas fa-database"></i>Aplicar na base e finalizar</button>
         {% endif %}
+        {% if editar %}
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalRenomear"><i class="fas fa-pen"></i>Renomear</button>
+        {% if not aberto %}
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalReabrir"><i class="fas fa-rotate-left"></i>Reabrir para corrigir</button>
+        {% endif %}
+        {% endif %}
         {% if editar and not inventario.aplicado %}
         <form method="POST" action="{{ url_for('inventario.excluir', iid=inventario.id) }}" onsubmit="return confirm('Excluir o inventário nº {{ inventario.id }} e todas as contagens dele? O estoque não é alterado.');">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -52,12 +58,12 @@
             <input type="hidden" name="linha_id" id="cLinha" value="{{ form.get('linha_id', '') if form else '' }}">
             <div class="row g-2 align-items-end">
                 <div class="col-12 col-md-4 col-xl-2">
-                    <label class="form-label" for="cLocal">Palete ou endereço</label>
-                    <input type="text" class="form-control codigo-mono" id="cLocal" name="local" maxlength="26" style="text-transform: uppercase;" value="{{ form.get('local', '') if form else '' }}" placeholder="opcional">
+                    <label class="form-label" for="cLocal">Palete ou endereço <span class="obrigatorio">*</span></label>
+                    <input type="text" class="form-control codigo-mono" id="cLocal" name="local" maxlength="26" style="text-transform: uppercase;" value="{{ form.get('local', '') if form else '' }}" required placeholder="Ex.: 06-A-01-5" {% if not form %}autofocus{% endif %}>
                 </div>
                 <div class="col-12 col-md-4 col-xl-2">
                     <label class="form-label" for="cCodigo">Produto <span class="obrigatorio">*</span></label>
-                    <input type="text" class="form-control" id="cCodigo" name="codigo" required style="text-transform: uppercase;" value="{{ form.get('codigo', '') if form else '' }}" placeholder="EAN, DUN ou SKU" {% if not form %}autofocus{% endif %}>
+                    <input type="text" class="form-control" id="cCodigo" name="codigo" required style="text-transform: uppercase;" value="{{ form.get('codigo', '') if form else '' }}" placeholder="EAN, DUN ou SKU">
                 </div>
                 <div class="col-6 col-md-2 col-xl-1">
                     <label class="form-label" for="cQtd">Qtd. <span class="obrigatorio">*</span></label>
@@ -219,6 +225,52 @@
         </form>
     </div>
 </div>
+{% endif %}
+{% if editar %}
+<div class="modal fade" id="modalRenomear" tabindex="-1" aria-labelledby="modalRenomearTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('inventario.renomear', iid=inventario.id) }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRenomearTitulo"><i class="fas fa-pen me-2"></i>Renomear inventário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="renDescricao">Descrição <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="renDescricao" name="descricao" maxlength="120" required value="{{ inventario.descricao }}">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% if not aberto %}
+<div class="modal fade" id="modalReabrir" tabindex="-1" aria-labelledby="modalReabrirTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('inventario.reabrir', iid=inventario.id) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalReabrirTitulo"><i class="fas fa-rotate-left me-2"></i>Reabrir o inventário</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>O inventário volta a ficar <strong>em andamento</strong>, com as contagens como estão. Para corrigir uma linha, use <strong>Desfazer</strong> nela e conte de novo; depois finalize outra vez.</p>
+                {% if inventario.aplicado %}
+                <p class="mb-0"><strong>Este inventário já corrigiu o estoque.</strong> Reabrir não desfaz essa correção. O que você mudar agora só vai para o estoque se escolher <strong>Aplicar na base e finalizar</strong> de novo.</p>
+                {% else %}
+                <p class="mb-0">O estoque não é alterado ao reabrir.</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-rotate-left"></i>Reabrir</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endif %}
 {% endblock %}
 
