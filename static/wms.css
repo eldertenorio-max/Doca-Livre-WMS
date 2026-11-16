@@ -1075,7 +1075,7 @@ tr:target > td { box-shadow: inset 0 0 0 9999px var(--primaria-suave); }
 @media (max-width: 991.98px) { .painel-grade { grid-template-columns: minmax(0, 1fr); } }
 
 /* ---------------------------------------------------------------- Coletor (celular / coletor de dados) */
-body.coletor { background: var(--fundo); color: var(--texto); margin: 0; min-height: 100vh; display: flex; flex-direction: column; font-size: 1.05rem; }
+body.coletor { background: var(--fundo); color: var(--texto); margin: 0; min-height: calc(100vh / var(--coletor-zoom, 1)); display: flex; flex-direction: column; font-size: 1.05rem; }
 .coletor-topo { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #1a237e; color: #fff; }
 .coletor-topo h1 { flex: 1; margin: 0; font-size: 1.2rem; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .coletor-voltar, .coletor-sair { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 12px; color: #fff; background: rgba(255, 255, 255, .14); text-decoration: none; font-size: 1.2rem; }
@@ -1095,7 +1095,7 @@ body.coletor { background: var(--fundo); color: var(--texto); margin: 0; min-hei
 .coletor-cartao.coletor-feito, .coletor-lista .coletor-feito { opacity: .6; }
 .coletor-rotulo { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--texto-secundario); }
 .coletor-codigo { margin: 2px 0; font-size: 1.5rem; font-weight: 700; color: var(--texto-titulo); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.coletor-gigante { margin: 4px 0; font-size: clamp(2.4rem, 13vw, 4rem); font-weight: 900; line-height: 1.05; color: var(--texto-titulo); letter-spacing: .02em; overflow-wrap: anywhere; }
+.coletor-gigante { margin: 4px 0; font-size: clamp(2.4rem, calc(13vw / var(--coletor-zoom, 1)), 4rem); font-weight: 900; line-height: 1.05; color: var(--texto-titulo); letter-spacing: .02em; overflow-wrap: anywhere; }
 .coletor-detalhe { margin: 2px 0; color: var(--texto-secundario); }
 .coletor-subtitulo { margin: 8px 0 0; font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--texto-secundario); }
 .coletor-form { display: flex; flex-direction: column; gap: 8px; margin: 0; }
@@ -1109,6 +1109,8 @@ body.coletor { background: var(--fundo); color: var(--texto); margin: 0; min-hei
 .coletor-acao--leve:hover, .coletor-acao--leve:focus-visible { background: var(--fundo-suave); color: var(--texto-titulo); }
 .coletor-dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
 .coletor-dupla > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* data lado a lado: letra menor para a data inteira caber no campo */
+.coletor-dupla .coletor-campo[type="date"] { font-size: 1.05rem; padding-left: 10px; padding-right: 8px; }
 .coletor-lista { display: flex; flex-direction: column; gap: 8px; }
 .coletor-lista > a, .coletor-lista > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 14px; border-radius: 12px; background: var(--fundo-card); border: 1px solid var(--borda); color: var(--texto-titulo); text-decoration: none; }
 .coletor-lista span { display: flex; flex-direction: column; min-width: 0; }
