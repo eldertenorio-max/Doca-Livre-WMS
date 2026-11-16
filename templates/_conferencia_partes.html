@@ -1,0 +1,98 @@
+{# Partes da tabela de conferência (expedição e recebimento): situação da linha, motivo da divergência e código de barras. #}
+
+{% macro selo_conf(estado) %}
+{% if estado == 'excedente' %}<span class="conf-selo conf-selo--excedente"><i class="fas fa-circle-exclamation"></i>Excedente</span>
+{% elif estado == 'parcial' %}<span class="conf-selo conf-selo--parcial"><i class="fas fa-triangle-exclamation"></i>Parcial</span>
+{% elif estado == 'completo' %}<span class="conf-selo conf-selo--completo"><i class="fas fa-circle-check"></i>Completo</span>
+{% else %}<span class="conf-selo conf-selo--pendente"><i class="fas fa-clock"></i>Pendente</span>{% endif %}
+{% endmacro %}
+
+{# Motivo da divergência de uma linha: lista + observação, gravados assim que mudam. #}
+{% macro motivo_conf(acao, item, motivos, editar) %}
+{% set partes = (item.motivo_divergencia or '').split(' — ', 1) %}
+{% set atual = partes[0] %}
+{% set obs = partes[1] if partes|length > 1 else '' %}
+{% if editar %}
+<form method="POST" action="{{ acao }}" class="conf-motivo" data-motivo autocomplete="off">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <select class="form-select form-select-sm" name="motivo" aria-label="Motivo da divergência de {{ item.produto.sku }}">
+        <option value="">Motivo da divergência</option>
+        {% for m in motivos %}<option value="{{ m }}" {% if m == atual %}selected{% endif %}>{{ m }}</option>{% endfor %}
+        {% if atual and atual not in motivos %}<option value="{{ atual }}" selected>{{ atual }}</option>{% endif %}
+    </select>
+    <input type="text" class="form-control form-control-sm" name="obs" maxlength="120" placeholder="Observação" value="{{ obs }}" aria-label="Observação de {{ item.produto.sku }}">
+    <span class="conf-salvo" aria-live="polite"></span>
+</form>
+{% else %}{{ item.motivo_divergencia or '—' }}{% endif %}
+{% endmacro %}
+
+{# Código de barras do produto, com o lápis para corrigir no cadastro sem sair da tela. #}
+{% macro barras_conf(produto) %}
+<span class="codigo-mono">{{ produto.ean or produto.dun or '—' }}</span>{% if pode_editar('cadastros') %}<button type="button" class="conf-lapis" data-ean="{{ {'url': url_for('cadastros.codigo_barras', pid=produto.id), 'sku': produto.sku, 'descricao': produto.descricao, 'ean': produto.ean or '', 'dun': produto.dun or ''}|tojson|forceescape }}" title="Corrigir o código de barras" aria-label="Corrigir o código de barras de {{ produto.sku }}"><i class="fas fa-pen"></i></button>{% endif %}
+{% endmacro %}
+
+{# Janela do lápis + o que grava o motivo sem recarregar a tela. Incluir uma vez na página. #}
+{% macro apoio_conf() %}
+{% if pode_editar('cadastros') %}
+<div class="modal fade" id="modalEan" tabindex="-1" aria-labelledby="modalEanTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="" id="formEan" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="voltar" value="{{ request.path }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEanTitulo"><i class="fas fa-barcode me-2"></i>Código de barras do produto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3"><strong id="eanProduto"></strong></p>
+                <label class="form-label" for="eanEan">EAN (código de barras da unidade)</label>
+                <input type="text" inputmode="numeric" class="form-control codigo-mono mb-3" id="eanEan" name="ean" maxlength="14">
+                <label class="form-label" for="eanDun">DUN (código de barras da caixa)</label>
+                <input type="text" inputmode="numeric" class="form-control codigo-mono" id="eanDun" name="dun" maxlength="14">
+                <div class="form-text">Vale para o cadastro do produto, em todas as notas e cargas. Pode bipar a embalagem direto no campo.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // lápis do código de barras
+    var modal = document.getElementById('modalEan');
+    if (modal) {
+        document.querySelectorAll('[data-ean]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var d = JSON.parse(b.getAttribute('data-ean'));
+                document.getElementById('formEan').action = d.url;
+                document.getElementById('eanProduto').textContent = d.sku + ' · ' + d.descricao;
+                document.getElementById('eanEan').value = d.ean;
+                document.getElementById('eanDun').value = d.dun;
+                bootstrap.Modal.getOrCreateInstance(modal).show();
+            });
+        });
+        modal.addEventListener('shown.bs.modal', function () { document.getElementById('eanEan').select(); });
+        // o leitor manda Enter no fim: passa para o próximo campo em vez de salvar pela metade
+        document.getElementById('eanEan').addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); document.getElementById('eanDun').focus(); }
+        });
+    }
+    // motivo da divergência: grava ao mudar, sem recarregar
+    document.querySelectorAll('form[data-motivo]').forEach(function (form) {
+        var salvo = form.querySelector('.conf-salvo'), relogio = null;
+        function gravar() {
+            salvo.textContent = '…';
+            fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+                .then(function (r) { salvo.textContent = r.ok ? 'salvo' : 'não salvou'; salvo.classList.toggle('conf-salvo--erro', !r.ok); })
+                .catch(function () { salvo.textContent = 'não salvou'; salvo.classList.add('conf-salvo--erro'); });
+        }
+        form.querySelector('select').addEventListener('change', gravar);
+        form.querySelector('input[name="obs"]').addEventListener('input', function () { clearTimeout(relogio); relogio = setTimeout(gravar, 700); });
+        form.addEventListener('submit', function (ev) { ev.preventDefault(); clearTimeout(relogio); gravar(); });
+    });
+});
+</script>
+{% endmacro %}

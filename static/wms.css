@@ -827,6 +827,43 @@ button.cell { cursor: pointer; }
 .detalhe-endereco--faixa .detalhe-largo { grid-column: span 2; }
 @media (max-width: 420px) { .detalhe-endereco--faixa .detalhe-largo { grid-column: 1 / -1; } }
 
+/* ============================================================ Tabela de conferência (expedição e recebimento) */
+.tabela-conf { --conf-cor: transparent; border-collapse: separate; border-spacing: 0; }
+.tabela-conf > tbody > tr > td { vertical-align: middle; background: var(--conf-fundo, transparent); border-bottom: 3px solid var(--fundo-card); box-shadow: none; }
+.tabela-conf > tbody > tr > td:first-child { border-left: 5px solid var(--conf-cor); }
+/* tabela larga: células mais justas para as ações caberem sem rolar de lado */
+.tabela-conf { font-size: .84rem; }
+.tabela-conf > thead > tr > th, .tabela-conf > tbody > tr > td { padding: 6px 8px; }
+.tabela-conf > thead > tr > th:first-child, .tabela-conf > tbody > tr > td:first-child { padding-left: 10px; }
+.tabela-conf .btn-sm { padding: 4px 8px; font-size: .76rem; }
+.tabela-conf .btn-sm i { margin-right: 4px; }
+.tabela-conf .form-select-sm, .tabela-conf .form-control-sm { min-height: 30px; padding-top: 3px; padding-bottom: 3px; font-size: .8rem; }
+.tabela-conf .form-select-sm { font-size: .76rem; padding-left: 8px; padding-right: 26px; text-overflow: ellipsis; }
+.conf--excedente { --conf-fundo: rgba(239, 68, 68, .20); --conf-cor: #dc2626; }
+.conf--parcial { --conf-fundo: rgba(249, 115, 22, .20); --conf-cor: #ea580c; }
+.conf--completo { --conf-fundo: rgba(34, 197, 94, .16); --conf-cor: #16a34a; }
+.conf--pendente { --conf-cor: var(--borda-forte); }
+.conf-selo { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+.conf-selo--excedente { background: #fee2e2; color: #991b1b; }
+.conf-selo--parcial { background: #ffedd5; color: #9a3412; }
+.conf-selo--completo { background: #dcfce7; color: #166534; }
+.conf-selo--pendente { background: var(--fundo-suave); color: var(--texto-secundario); }
+.conf-th-num { font-size: 1.05rem; text-align: center; white-space: nowrap; }
+.conf-num { font-size: 1.35rem; font-weight: 800; text-align: center; white-space: nowrap; color: var(--texto-titulo); font-variant-numeric: tabular-nums; }
+.conf-num--bipado { color: #16a34a; }
+.conf--excedente .conf-num--bipado { color: #dc2626; }
+.conf--pendente .conf-num--bipado { color: var(--texto-secundario); }
+.conf-sku { color: var(--primaria); }
+.conf-produto { min-width: 170px; font-weight: 600; }
+.conf-aviso { font-weight: 700; color: #dc2626; white-space: nowrap; }
+.conf-falta { font-weight: 800; color: #dc2626; text-align: center; }
+.conf-falta--zero { color: #16a34a; }
+.conf-motivo { display: flex; flex-direction: column; gap: 4px; min-width: 165px; max-width: 210px; margin: 0; position: relative; }
+.conf-salvo { position: absolute; right: 6px; bottom: 5px; font-size: .68rem; color: #16a34a; pointer-events: none; }
+.conf-salvo--erro { color: #dc2626; }
+.conf-lapis { border: 0; background: none; padding: 2px 6px; margin-left: 4px; color: #ea580c; font-size: .8rem; border-radius: 6px; }
+.conf-lapis:hover, .conf-lapis:focus-visible { background: rgba(234, 88, 12, .15); }
+
 /* ============================================================ Entrada e movimentação */
 .opcoes-acao { display: flex; flex-wrap: wrap; gap: 8px; }
 .btn-check:checked + .btn-outline-primary { background: var(--primaria); border-color: var(--primaria); color: var(--texto-sobre-primaria); }

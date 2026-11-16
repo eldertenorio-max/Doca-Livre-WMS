@@ -383,6 +383,39 @@ def imagem(nome):
     return send_from_directory(_pasta_imagens(), nome, max_age=86400)
 
 
+@bp.route('/produtos/<int:pid>/codigo-barras', methods=['POST'])
+@perm('cadastros')
+def codigo_barras(pid):
+    """Corrige o EAN e o DUN do produto a partir da conferencia (o lapis ao lado do codigo de barras)."""
+    produto = db.session.get(Produto, pid) or abort(404)
+    definicao = CADASTROS['produtos']
+    voltar = request.form.get('voltar') or ''
+    destino = redirect(voltar if voltar.startswith('/') and not voltar.startswith('//') and '\\' not in voltar
+                       else url_for('cadastros.lista', slug='produtos'))
+    valores, erros = {}, []
+    for nome in ('ean', 'dun'):
+        valor = (request.form.get(nome) or '').strip()
+        if valor and (not valor.isdigit() or len(valor) > 14):
+            erros.append(f'{nome.upper()}: use só números, até 14 dígitos.')
+        valores[nome] = valor or None
+    if not erros and valores['ean'] and valores['ean'] == valores['dun']:
+        erros.append('O EAN e o DUN não podem ser o mesmo código.')
+    if not erros:
+        erros = _validar_unicos(definicao, {n: v for n, v in valores.items() if v}, ignorar_id=produto.id)
+    if erros:
+        for erro in erros:
+            flash(erro, 'error')
+        return destino
+    if (produto.ean, produto.dun) != (valores['ean'], valores['dun']):
+        registrar_log('Corrigiu código de barras do produto',
+                      f'{produto.sku} · EAN {produto.ean or "—"} → {valores["ean"] or "—"} · DUN {produto.dun or "—"} → {valores["dun"] or "—"}',
+                      modulo='cadastros')
+        produto.ean, produto.dun = valores['ean'], valores['dun']
+        db.session.commit()
+        flash(f'Código de barras de {produto.sku} atualizado.', 'success')
+    return destino
+
+
 @bp.route('/<slug>/<int:rid>/excluir', methods=['POST'])
 @perm('cadastros')
 def excluir(slug, rid):

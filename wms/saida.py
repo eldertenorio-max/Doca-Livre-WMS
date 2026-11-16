@@ -649,6 +649,8 @@ def bipar(cid):
             abort(404)
         if acao == 'completar':
             item.conferido = item.quantidade
+        elif acao == 'mais1':
+            item.conferido = round(item.conferido + 1, 3)
         elif acao == 'tirar1':
             item.conferido = max(round(item.conferido - 1, 3), 0)
         elif acao == 'zerar':
@@ -660,6 +662,24 @@ def bipar(cid):
     carga.status = 'Em conferência'
     db.session.commit()
     return voltar
+
+
+@bp.route('/conferencia/<int:cid>/item/<int:iid>/motivo', methods=['POST'])
+@perm('expedicao')
+def motivo_item(cid, iid):
+    """Guarda o motivo da divergencia de uma linha durante a conferencia (o comprovante ja abre com ele)."""
+    carga = _carga_ou_404(cid)
+    item = db.session.get(CargaItem, iid)
+    if not item or item.carga_id != carga.id:
+        abort(404)
+    if carga.status not in ABERTAS:
+        abort(400)
+    item.motivo_divergencia = ' — '.join(t for t in ((request.form.get('motivo') or '').strip(),
+                                                     (request.form.get('obs') or '').strip()) if t)[:200] or None
+    db.session.commit()
+    if request.headers.get('X-Requested-With'):
+        return '', 204
+    return redirect(url_for('saida.conferencia_carga', cid=cid))
 
 
 @bp.route('/conferencia/<int:cid>/zerar', methods=['POST'])

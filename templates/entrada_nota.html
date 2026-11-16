@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from '_selos.html' import selo, form_guardar with context %}
+{% from '_conferencia_partes.html' import selo_conf, motivo_conf, barras_conf, apoio_conf with context %}
 {% block title %}NF {{ nota.numero }} · {{ 'Retorno' if retorno else 'Recebimento' }} · WMS Doca Livre{% endblock %}
 
 {% set editar = pode_editar('recebimento') and (not retorno or pode_editar('devolucoes')) %}
@@ -206,37 +207,40 @@
     <div class="card-body">
         {% if linhas %}
         <div class="tabela-scroll">
-            <table class="table table-striped mb-0">
-                <thead><tr><th>SKU</th><th>Descrição</th><th>EAN</th><th>Un.</th>{% if not cega %}<th>Qtd NF</th>{% endif %}<th>Conferido</th>{% if not cega %}<th>Falta</th><th>Situação</th>{% endif %}<th>Lote / validade</th>{% if editar and aberta %}<th></th>{% endif %}</tr></thead>
+            <table class="table mb-0 tabela-conf">
+                <thead><tr>{% if not cega %}<th>Status</th><th>Motivo</th>{% endif %}<th>Cód. barras</th><th>Cód. produto</th><th>Produto</th>{% if not cega %}<th class="conf-th-num">Qtd. NF</th>{% endif %}<th class="conf-th-num">Conferido</th><th>Un.</th><th>Peso</th><th>Lote / validade</th>{% if not cega %}<th>Aviso</th><th>Falta</th>{% endif %}{% if editar and aberta %}<th>Ação</th>{% endif %}</tr></thead>
                 <tbody>
                     {% for l in linhas %}
                     {% set i = l.item %}
-                    <tr>
-                        <td><strong>{{ i.produto.sku }}</strong></td>
-                        <td>{{ i.produto.descricao }}</td>
-                        <td class="codigo-mono">{{ i.produto.ean or '—' }}</td>
-                        <td>{{ i.unidade }}</td>
-                        {% if not cega %}<td>{{ i.quantidade|numero }}</td>{% endif %}
-                        <td>{{ l.conferido|numero }}</td>
+                    {% set estado = {'ok': 'completo', 'pendente': 'pendente', 'falta': 'parcial', 'sobra': 'excedente'}[l.situacao] %}
+                    <tr class="conf-linha{{ ' conf--' ~ estado if not cega }}">
                         {% if not cega %}
-                        <td>{{ l.falta|numero if l.falta > 0 else '—' }}</td>
-                        <td>
-                            {% if l.situacao == 'ok' %}<span class="badge bg-success">Conferido</span>
-                            {% elif l.situacao == 'pendente' %}<span class="badge bg-secondary">Pendente</span>
-                            {% elif l.situacao == 'falta' %}<span class="badge bg-warning">Falta {{ l.falta|numero }}</span>
-                            {% else %}<span class="badge bg-danger">Sobra {{ (-l.falta)|numero }}</span>{% endif %}
-                            {% if i.motivo_divergencia %}<br><small>{{ i.motivo_divergencia }}</small>{% endif %}
-                        </td>
+                        <td>{{ selo_conf(estado) }}</td>
+                        <td>{% if estado != 'completo' %}{{ motivo_conf(url_for('entrada.item_motivo', nid=nota.id, iid=i.id), i, motivos_divergencia, editar and aberta) }}{% else %}—{% endif %}</td>
                         {% endif %}
+                        <td class="text-nowrap">{{ barras_conf(i.produto) }}</td>
+                        <td class="text-nowrap"><strong class="conf-sku">{{ i.produto.sku }}</strong></td>
+                        <td class="conf-produto">{{ i.produto.descricao }}</td>
+                        {% if not cega %}<td class="conf-num">{{ i.quantidade|numero }}</td>{% endif %}
+                        <td class="conf-num conf-num--bipado">{{ l.conferido|numero }}</td>
+                        <td>{{ i.unidade }}</td>
+                        <td class="text-nowrap">{{ i.produto.peso_kg|numero if i.produto.peso_kg else '—' }}</td>
                         <td>{{ i.lote or '—' }}{% if i.validade %}<br><small>val. {{ i.validade.strftime('%d/%m/%Y') }}</small>{% endif %}</td>
+                        {% if not cega %}
+                        <td class="conf-aviso">{% if l.falta < 0 %}Conferiu {{ (-l.falta)|numero }} a mais{% endif %}</td>
+                        <td class="conf-falta {{ 'conf-falta--zero' if l.falta <= 0 }}">{{ l.falta|numero if l.falta > 0 else 0 }}</td>
+                        {% endif %}
                         {% if editar and aberta %}
-                        <td class="text-end">
-                            {% if not l.conferido %}
-                            <form method="POST" action="{{ url_for('entrada.item_excluir', nid=nota.id, iid=i.id) }}" onsubmit="return confirm('Excluir este item da nota?');">
-                                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir item" aria-label="Excluir item"><i class="fas fa-trash"></i></button>
-                            </form>
-                            {% endif %}
+                        <td class="text-nowrap">
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-primary" data-montar="{{ i.id }}" title="Levar este item para Montar palete"><i class="fas fa-barcode"></i>Bipar</button>
+                                {% if not l.conferido %}
+                                <form method="POST" action="{{ url_for('entrada.item_excluir', nid=nota.id, iid=i.id) }}" onsubmit="return confirm('Excluir este item da nota?');">
+                                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Excluir item" aria-label="Excluir item"><i class="fas fa-trash"></i></button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </td>
                         {% endif %}
                     </tr>
@@ -370,6 +374,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ apoio_conf() }}
 <script type="application/json" id="itensBipagem">{{ bipagem|tojson }}</script>
 <script>
 (function () {
@@ -389,6 +394,15 @@
             aviso.textContent = achado.sku + ' selecionado.';
             qtd.focus(); qtd.select();
         }
+        // "Bipar" na linha do item: leva o item para Montar palete, já com a quantidade que falta.
+        document.querySelectorAll('[data-montar]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var achado = itens.filter(function (i) { return String(i.id) === b.getAttribute('data-montar'); })[0];
+                if (!achado) return;
+                document.getElementById('formPalete').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                preencher(achado, false);
+            });
+        });
         function resolver() {
             // Leitor que cola o código duas vezes seguidas: fica só com a primeira metade.
             var codigo = bip.value.trim().toUpperCase();

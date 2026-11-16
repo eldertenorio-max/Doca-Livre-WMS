@@ -429,6 +429,28 @@ def nota_manual():
 
 # ---------------------------------------------------------------- nota: conferencia e guarda
 
+MOTIVOS_DIVERGENCIA = ['Faltou mercadoria na entrega', 'Veio mercadoria a mais que a nota', 'Avaria no transporte',
+                       'Produto diferente da nota', 'Validade vencida ou curta', 'Recusado na conferência', 'Outro']
+
+
+@bp.route('/notas/<int:nid>/itens/<int:iid>/motivo', methods=['POST'])
+@perm('recebimento')
+def item_motivo(nid, iid):
+    """Guarda o motivo da divergencia de um item durante a conferencia (a finalizacao ja abre com ele)."""
+    nota = _nota_ou_404(nid)
+    item = db.session.get(NotaItem, iid)
+    if not item or item.nota_id != nota.id:
+        abort(404)
+    if nota.status not in ABERTAS:
+        abort(400)
+    item.motivo_divergencia = ' — '.join(t for t in ((request.form.get('motivo') or '').strip(),
+                                                     (request.form.get('obs') or '').strip()) if t)[:200] or None
+    db.session.commit()
+    if request.headers.get('X-Requested-With'):
+        return '', 204
+    return _voltar_nota(nota)
+
+
 @bp.route('/notas/<int:nid>')
 @perm('recebimento')
 def nota(nid):
@@ -452,7 +474,7 @@ def nota(nid):
                            tem_xml=bool(nota.xml), danfe_oficial=bool(chave_meu_danfe()),
                            pendentes=[p for p in nota.paletes if p.status == 'Aguardando guarda'],
                            divergentes=[l for l in linhas if l['situacao'] != 'ok'],
-                           resumo_itens=resumo_itens,
+                           motivos_divergencia=MOTIVOS_DIVERGENCIA, resumo_itens=resumo_itens,
                            bip=lambda e: codigo_bipagem(e.camara.codigo, e.rua, e.coluna, e.nivel))
 
 

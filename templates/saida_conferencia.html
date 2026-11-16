@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from '_selos.html' import selo %}
+{% from '_conferencia_partes.html' import selo_conf, motivo_conf, barras_conf, apoio_conf with context %}
 {% block title %}Conferência de carga · WMS Doca Livre{% endblock %}
 
 {% set editar = pode_editar('expedicao') and aberta %}
@@ -72,33 +73,35 @@
     <div class="card-body">
         {% if linhas %}
         <div class="tabela-scroll">
-            <table class="table mb-0">
-                <thead><tr><th>SKU</th><th>Descrição</th><th>Cód. barras</th><th>NF</th><th>Qtd NF</th><th>Separado</th><th>Bipado</th><th>Situação</th>{% if editar %}<th></th>{% endif %}</tr></thead>
+            <table class="table mb-0 tabela-conf">
+                <thead><tr><th>Status</th><th>Motivo</th><th>Cód. barras</th><th>Cód. produto</th><th>Produto</th><th>NF</th><th class="conf-th-num">Qtd. prod.</th><th class="conf-th-num">Bipado</th><th>Un.</th><th>Peso</th><th>Separado</th><th>Aviso</th><th>Falta</th>{% if editar %}<th>Ação</th>{% endif %}</tr></thead>
                 <tbody>
                     {% for l in linhas %}
                     {% set i = l.item %}
-                    <tr>
-                        <td><strong>{{ i.produto.sku }}</strong></td>
-                        <td>{{ i.produto.descricao }}</td>
-                        <td class="codigo-mono">{{ i.produto.ean or i.produto.dun or '—' }}</td>
+                    {% set estado = 'completo' if l.diferenca == 0 else 'pendente' if not i.conferido else 'parcial' if l.diferenca < 0 else 'excedente' %}
+                    <tr class="conf-linha conf--{{ estado }}">
+                        <td>{{ selo_conf(estado) }}</td>
+                        <td>{% if l.diferenca != 0 %}{{ motivo_conf(url_for('saida.motivo_item', cid=carga.id, iid=i.id), i, motivos_divergencia, editar) }}{% else %}—{% endif %}</td>
+                        <td class="text-nowrap">{{ barras_conf(i.produto) }}</td>
+                        <td class="text-nowrap"><strong class="conf-sku">{{ i.produto.sku }}</strong></td>
+                        <td class="conf-produto">{{ i.produto.descricao }}</td>
                         <td class="text-nowrap">{{ i.nf_numero or '—' }}{% if pdfs.get(i.nf_numero) %} <a href="{{ url_for('saida.nf_pdf', nfid=pdfs[i.nf_numero]) }}" target="_blank" rel="noopener" class="ms-1" title="Abrir a NF {{ i.nf_numero }} em PDF (DANFE)" aria-label="Abrir a NF {{ i.nf_numero }} em PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}</td>
-                        <td>{{ i.quantidade|numero }}</td>
+                        <td class="conf-num">{{ i.quantidade|numero }}</td>
+                        <td class="conf-num conf-num--bipado">{{ i.conferido|numero }}</td>
+                        <td>{{ i.unidade or i.produto.unidade }}</td>
+                        <td class="text-nowrap">{{ i.produto.peso_kg|numero if i.produto.peso_kg else '—' }}</td>
                         <td>{{ l.separado|numero if l.separado else '—' }}</td>
-                        <td><strong>{{ i.conferido|numero }}</strong></td>
-                        <td>
-                            {% if l.diferenca == 0 %}<span class="badge bg-success">Carregado</span>
-                            {% elif not i.conferido %}<span class="badge bg-secondary">Pendente</span>
-                            {% elif l.diferenca < 0 %}<span class="badge bg-warning">{{ l.situacao }}</span>
-                            {% else %}<span class="badge bg-danger">{{ l.situacao }}</span>{% endif %}
-                        </td>
+                        <td class="conf-aviso">{% if l.diferenca > 0 %}Bipou {{ l.diferenca|numero }} a mais{% endif %}</td>
+                        <td class="conf-falta {{ 'conf-falta--zero' if l.diferenca >= 0 }}">{{ (-l.diferenca)|numero if l.diferenca < 0 else 0 }}</td>
                         {% if editar %}
-                        <td class="text-end">
-                            <form method="POST" action="{{ url_for('saida.bipar', cid=carga.id) }}" class="d-flex justify-content-end gap-1">
+                        <td class="text-nowrap">
+                            <form method="POST" action="{{ url_for('saida.bipar', cid=carga.id) }}" class="d-flex gap-1">
                                 <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                                 <input type="hidden" name="item_id" value="{{ i.id }}">
-                                <button type="submit" name="acao" value="completar" class="btn btn-sm btn-secondary" title="Completar o que falta" {% if not carga.doca or l.diferenca >= 0 %}disabled{% endif %}><i class="fas fa-check"></i>Bipar</button>
-                                <button type="submit" name="acao" value="tirar1" class="btn btn-sm btn-secondary" title="Tirar 1" {% if not i.conferido %}disabled{% endif %}>−1</button>
-                                <button type="submit" name="acao" value="zerar" class="btn btn-sm btn-danger" title="Tirar tudo" aria-label="Tirar tudo" {% if not i.conferido %}disabled{% endif %}><i class="fas fa-xmark"></i></button>
+                                <button type="submit" name="acao" value="mais1" class="btn btn-sm btn-primary" title="Bipar 1" {% if not carga.doca %}disabled{% endif %}><i class="fas fa-barcode"></i>Bipar</button>
+                                <button type="submit" name="acao" value="completar" class="btn btn-sm btn-outline-primary" title="Completar o que falta de uma vez" aria-label="Completar o que falta" {% if not carga.doca or l.diferenca >= 0 %}disabled{% endif %}><i class="fas fa-check-double"></i>Tudo</button>
+                                <button type="submit" name="acao" value="tirar1" class="btn btn-sm btn-secondary" title="Tirar 1" {% if not i.conferido %}disabled{% endif %}>Tirar 1</button>
+                                <button type="submit" name="acao" value="zerar" class="btn btn-sm btn-secondary" title="Tirar tudo o que foi bipado" {% if not i.conferido %}disabled{% endif %}><i class="fas fa-trash"></i>Tirar tudo</button>
                             </form>
                         </td>
                         {% endif %}
@@ -137,15 +140,17 @@
                 {% if divergentes %}
                 <p>Comprovante <strong>divergente</strong>: {{ divergentes|length }} item(ns) com quantidade diferente da nota. Informe o motivo de cada um:</p>
                 {% for l in divergentes %}
+                {% set partes = (l.item.motivo_divergencia or '').split(' — ', 1) %}
                 <div class="row g-2 mb-3">
                     <div class="col-12"><span class="form-label d-block mb-0">{{ l.item.produto.sku }} · {{ l.item.produto.descricao }} — nota {{ l.item.quantidade|numero }}, bipado {{ l.item.conferido|numero }} ({{ l.situacao if l.item.conferido else 'não carregado' }})</span></div>
                     <div class="col-12 col-md-6">
                         <select class="form-select" name="motivo_{{ l.item.id }}" required aria-label="Motivo da divergência de {{ l.item.produto.sku }}">
                             <option value="">— motivo —</option>
-                            {% for m in motivos_divergencia %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                            {% for m in motivos_divergencia %}<option value="{{ m }}" {% if m == partes[0] %}selected{% endif %}>{{ m }}</option>{% endfor %}
+                            {% if partes[0] and partes[0] not in motivos_divergencia %}<option value="{{ partes[0] }}" selected>{{ partes[0] }}</option>{% endif %}
                         </select>
                     </div>
-                    <div class="col-12 col-md-6"><input type="text" class="form-control" name="obs_{{ l.item.id }}" maxlength="120" placeholder="Observação (opcional)" aria-label="Observação de {{ l.item.produto.sku }}"></div>
+                    <div class="col-12 col-md-6"><input type="text" class="form-control" name="obs_{{ l.item.id }}" maxlength="120" value="{{ partes[1] if partes|length > 1 else '' }}" placeholder="Observação (opcional)" aria-label="Observação de {{ l.item.produto.sku }}"></div>
                 </div>
                 {% endfor %}
                 {% else %}
@@ -160,4 +165,5 @@
     </div>
 </div>
 {% endif %}
+{{ apoio_conf() }}
 {% endblock %}
