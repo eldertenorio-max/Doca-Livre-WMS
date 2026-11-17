@@ -391,7 +391,9 @@
     //   numero/ruas: os dela mesma (não contam como "já em uso"); apagadas: posições de ruas removidas na janela.
     var edicao = null;
     function numerosOcupados() { return edicao ? numerosEmUso.filter(function (n) { return n !== edicao.numero; }) : numerosEmUso; }
-    function ruasDeOutras() { return edicao ? ruasEmUso.filter(function (r) { return edicao.ruas.indexOf(r) === -1; }) : ruasEmUso; }
+    // Cada câmara é independente: a letra da rua pode se repetir de uma câmara para outra (06-A, 07-A...), porque o
+    // número da câmara já diferencia os endereços. Por isso as ruas das outras câmaras não contam aqui.
+    function ruasDeOutras() { return []; }
     // Posições que viram endereço numa rua: a grade menos o que está marcado como porta ou sem posição.
     function posicoes(colunas, niveis, vaos) {
         var p = {};
@@ -417,7 +419,7 @@
                      niveis: inteiro(l.querySelector('[name="rua_niveis"]')), picking: inteiro(l.querySelector('[name="rua_picking"]')) };
         });
     }
-    // Próxima letra que nenhuma câmara usa e que ainda não está na lista (A..Z, depois AA..AZ).
+    // Próxima letra que ainda não está na lista desta câmara (A..Z, depois AA..AZ).
     function proximaRua() {
         var usadas = ruasDeOutras().concat(lerRuas().map(function (r) { return r.nome; }));
         var letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), candidatas = letras.slice();
