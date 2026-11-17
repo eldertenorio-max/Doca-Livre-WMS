@@ -349,7 +349,7 @@
 <div class="toolbar">
   <button type="button" id="btn-wms-etq-imprimir">Imprimir</button>
   {% if voltar_guarda %}
-  <a href="{{ voltar_guarda }}" style="padding: 8px; font-size: 13px; border-radius: 6px; background: #2e7d32; color: #fff; text-align: center; text-decoration: none; font-weight: 700;">Etiqueta colada — ir guardar</a>
+  <a href="{{ voltar_guarda }}" id="btn-wms-etq-guardar" style="padding: 8px; font-size: 13px; border-radius: 6px; background: #2e7d32; color: #fff; text-align: center; text-decoration: none; font-weight: 700;">Etiqueta colada — ir guardar</a>
   {% endif %}
   <p class="print-setup-hint">{{ etq_driver_hint | safe }}</p>
 </div>
@@ -462,6 +462,19 @@
   document.getElementById('btn-wms-etq-imprimir').addEventListener('click', function() {
     wmsEtiquetaImprimir(renderTodos);
   });
+  {% if voltar_guarda %}
+  // Aberta em outra aba pelo "Montar palete": a aba do sistema é atualizada para mostrar o palete novo,
+  // e o botão verde só fecha esta aba.
+  try {
+    if (window.opener && !window.opener.closed && window.name === 'wmsEtiquetaPalete') {
+      window.opener.location.href = {{ voltar_guarda|tojson }};
+      window.opener.location.reload();
+      var irGuardar = document.getElementById('btn-wms-etq-guardar');
+      irGuardar.textContent = 'Etiqueta colada — fechar esta aba';
+      irGuardar.addEventListener('click', function (ev) { ev.preventDefault(); window.close(); });
+    }
+  } catch (e) {}
+  {% endif %}
   {% if auto_print %}
   wmsEtiquetaImprimir(renderTodos);
   {% endif %}

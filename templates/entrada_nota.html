@@ -374,6 +374,20 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+// Montar palete: a etiqueta abre em outra aba e esta aba (a nota) continua aberta, já atualizada com o palete novo.
+(function () {
+    var ABA = 'wmsEtiquetaPalete';
+    if (window.name === ABA) window.name = '';        // a aba da etiqueta voltou para a nota (palete recusado): vira aba comum
+    var form = document.getElementById('formPalete');
+    if (!form) return;
+    form.addEventListener('submit', function () {
+        var aba = null;
+        try { aba = window.open('', ABA); } catch (e) {}
+        form.target = aba ? ABA : '';                  // navegador bloqueou a aba nova: segue na mesma aba, como antes
+    });
+})();
+</script>
 {{ apoio_conf() }}
 <script type="application/json" id="itensBipagem">{{ bipagem|tojson }}</script>
 <script>
