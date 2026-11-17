@@ -122,7 +122,7 @@ def registrar():
         try:
             valor = _numero(request.form.get(f'temp_{camara.id}'))
         except ValueError:
-            erros.append(f'{camara.nome}: temperatura inválida (use graus entre -80 e 60, ex.: -18,5).')
+            erros.append(f'{camara.rotulo}: temperatura inválida (use graus entre -80 e 60, ex.: -18,5).')
             continue
         if valor is not None:
             leituras.append((camara, valor))
@@ -141,7 +141,7 @@ def registrar():
                                          observacao=observacao, temp_min=camara.temp_min, temp_max=camara.temp_max, fora=situacao,
                                          registrado_por=usuario_atual().username))
         if situacao:
-            fora.append(f'{camara.nome} ({valor:g} °C)'.replace('.', ','))
+            fora.append(f'{camara.rotulo} ({valor:g} °C)'.replace('.', ','))
     registrar_log('Registrou temperaturas', f'{len(leituras)} câmara(s) por {conferente}' + (f' — fora da faixa: {", ".join(fora)}' if fora else ''),
                   modulo='enderecamento')
     db.session.commit()
@@ -157,7 +157,7 @@ def excluir(lid):
     leitura = db.session.get(TemperaturaCamara, lid)
     if not leitura:
         abort(404)
-    registrar_log('Excluiu leitura de temperatura', f'{leitura.camara.nome}: {leitura.temperatura:g} °C em '
+    registrar_log('Excluiu leitura de temperatura', f'{leitura.camara.rotulo}: {leitura.temperatura:g} °C em '
                   f'{leitura.medido_em.strftime("%d/%m/%Y %H:%M")}', modulo='enderecamento')
     db.session.delete(leitura)
     db.session.commit()

@@ -47,7 +47,7 @@
                     {% if not c.ativo %}<span class="badge bg-secondary">Inativa</span>{% endif %}
                     <span class="ocupacao-pct" title="{{ l.ocupados }} de {{ l.total }} endereços ocupados">{{ l.ocupacao }}%</span>
                 </div>
-                <div class="progress barra-ocupacao mb-3" role="progressbar" aria-label="Ocupação da {{ c.nome }}" aria-valuenow="{{ l.ocupacao }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress barra-ocupacao mb-3" role="progressbar" aria-label="Ocupação da {{ c.rotulo }}" aria-valuenow="{{ l.ocupacao }}" aria-valuemin="0" aria-valuemax="100">
                     <div class="progress-bar" style="width: {{ l.ocupacao }}%"></div>
                 </div>
                 <div class="camara-numeros">
@@ -61,9 +61,9 @@
                     <a href="{{ url_for('enderecamento.mapa', camara=c.id) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-cube"></i>Mapa</a>
                     {% if l.total %}<a href="{{ url_for('enderecamento.etiquetas_imprimir', camara=c.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary"><i class="fas fa-tag"></i>Etiquetas</a>{% endif %}
                     {% if editar %}
-                    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" title="Editar câmara (dados, ruas e desenho)" aria-label="Editar a {{ c.nome }}"
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" title="Editar câmara (dados, ruas e desenho)" aria-label="Editar a {{ c.rotulo }}"
                             data-editar-camara="{{ url_for('enderecamento.camara_desenho', cid=c.id) }}"><i class="fas fa-pen"></i></button>
-                    <button type="button" class="btn btn-sm btn-danger" title="Excluir câmara" aria-label="Excluir a {{ c.nome }}"
+                    <button type="button" class="btn btn-sm btn-danger" title="Excluir câmara" aria-label="Excluir a {{ c.rotulo }}"
                             data-excluir="{{ url_for('enderecamento.camara_excluir', cid=c.id) }}" data-codigo="{{ c.codigo }}" data-nome="{{ c.nome }}"
                             data-enderecos="{{ l.total }}" data-ocupados="{{ l.ocupados }}"><i class="fas fa-trash"></i></button>
                     {% endif %}
@@ -600,7 +600,7 @@
 
     form.nome.addEventListener('input', function () { nomeAutomatico = form.nome.value.trim() === ''; });
     form.codigo.addEventListener('input', function () {
-        if (nomeAutomatico) form.nome.value = inteiro(form.codigo) ? 'Câmara ' + inteiro(form.codigo) : '';
+        if (nomeAutomatico) form.nome.value = inteiro(form.codigo) ? 'Câmara' : '';      // o número fica no campo ao lado
     });
     form.tipo.addEventListener('change', function () {
         if (form.tipo.value !== 'Armazenagem') {
@@ -682,7 +682,7 @@
     document.getElementById('modalCamara').addEventListener('show.bs.modal', function () {
         if (form.codigo.value === '') {
             form.codigo.value = proximoNumero();
-            form.nome.value = 'Câmara ' + form.codigo.value;
+            form.nome.value = 'Câmara';
             nomeAutomatico = true;
         }
         if (!linhas().length && !edicao) { adicionarRua(); adicionarRua(); }

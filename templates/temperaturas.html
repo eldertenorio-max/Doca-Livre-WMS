@@ -93,9 +93,9 @@
                         <td>{{ l.observacao or '—' }}</td>
                         {% if editar %}
                         <td class="text-end">
-                            <form method="POST" action="{{ url_for('temperaturas.excluir', lid=l.id) }}" onsubmit="return confirm('Excluir esta leitura de {{ l.camara.nome }}?');">
+                            <form method="POST" action="{{ url_for('temperaturas.excluir', lid=l.id) }}" onsubmit="return confirm('Excluir esta leitura de {{ l.camara.rotulo }}?');">
                                 <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir leitura" aria-label="Excluir a leitura de {{ l.camara.nome }} de {{ l.medido_em|datahora }}"><i class="fas fa-trash"></i></button>
+                                <button type="submit" class="btn btn-sm btn-danger" title="Excluir leitura" aria-label="Excluir a leitura de {{ l.camara.rotulo }} de {{ l.medido_em|datahora }}"><i class="fas fa-trash"></i></button>
                             </form>
                         </td>
                         {% endif %}

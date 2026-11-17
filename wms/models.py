@@ -213,6 +213,12 @@ class Camara(db.Model):
     criado_em = db.Column(db.DateTime, nullable=False, default=agora)
     enderecos = db.relationship('Endereco', backref='camara', cascade='all, delete-orphan', lazy='dynamic')
 
+    @property
+    def rotulo(self):
+        """Nome para mostrar sozinho, sem o numero ao lado: leva o numero quando o nome nao o traz
+        ("Câmara" -> "Câmara 6"; "Câmara 6" e "Stage 98" ficam como estao)."""
+        return self.nome if str(self.codigo) in (self.nome or '') else f'{self.nome} {self.codigo}'
+
 
 class Endereco(db.Model):
     """Uma posicao de palete: camara + rua + coluna + nivel. Codigo no formato 12-C-14-1."""

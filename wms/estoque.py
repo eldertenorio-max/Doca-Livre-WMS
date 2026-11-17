@@ -167,7 +167,7 @@ def atual():
             return _excel('estoque_atual', [('Estoque atual',
                           ['Endereço', 'Câmara', 'SKU', 'Descrição', 'Quantidade', 'Unidade', 'Lote', 'Fabricação', 'Validade',
                            'Dias para vencer', 'Classificação', 'Situação', 'NF', 'Dono da mercadoria', 'Palete', 'UP', 'Guardado em'],
-                          [[l['endereco'].codigo if l['endereco'] else None, l['camara'].nome if l['camara'] else None,
+                          [[l['endereco'].codigo if l['endereco'] else None, l['camara'].rotulo if l['camara'] else None,
                             l['produto'].sku, l['produto'].descricao, l['conteudo'].quantidade, l['produto'].unidade,
                             l['conteudo'].lote, _br(l['conteudo'].fabricacao), _br(l['conteudo'].validade), l['dias'],
                             l['palete'].classificacao, l['palete'].status, l['nota'].numero if l['nota'] else None,

@@ -92,7 +92,7 @@ def validar_destino(endereco, palete):
     # aceita qualquer produto; produto sem categoria no cadastro nao e barrado (o sistema nao tem como saber).
     categoria = categoria_do_palete(palete)
     if endereco.camara.categoria and categoria and endereco.camara.categoria != categoria and not endereco.destino_fixo:
-        return (f'A {endereco.camara.nome} é de {endereco.camara.categoria} e o produto deste palete é {categoria}. '
+        return (f'A {endereco.camara.rotulo} é de {endereco.camara.categoria} e o produto deste palete é {categoria}. '
                 'Escolha um endereço numa câmara da mesma categoria.')
     ocupante = palete_no_endereco(endereco.id)
     if ocupante and ocupante.id != palete.id:

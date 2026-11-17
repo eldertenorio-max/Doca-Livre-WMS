@@ -98,7 +98,7 @@ def novo():
         consulta = consulta.filter(Endereco.camara_id == camara.id)
     itens = consulta.order_by(Camara.codigo, Endereco.rua, Endereco.coluna, Endereco.nivel, Produto.sku, PaleteItem.lote).all()
     if not itens:
-        flash('Não há estoque para inventariar' + (f' na {camara.nome}.' if camara else '.'), 'error')
+        flash('Não há estoque para inventariar' + (f' na {camara.rotulo}.' if camara else '.'), 'error')
         return redirect(url_for('inventario.lista'))
     inventario = Inventario(descricao=descricao, camara=camara, cego=request.form.get('cego') == '1',
                             criado_por=usuario_atual().username)
@@ -106,10 +106,10 @@ def novo():
     for conteudo, palete, produto, endereco, cam in itens:
         inventario.linhas.append(InventarioLinha(
             palete_item_id=conteudo.id, palete_etiqueta=palete.etiqueta, endereco=endereco.codigo if endereco else None,
-            camara_nome=cam.nome if cam else None, produto=produto, sku=produto.sku, descricao=produto.descricao,
+            camara_nome=cam.rotulo if cam else None, produto=produto, sku=produto.sku, descricao=produto.descricao,
             unidade=produto.unidade, lote=conteudo.lote, fabricacao=conteudo.fabricacao, validade=conteudo.validade,
             quantidade_esperada=conteudo.quantidade, up=palete.up, classificacao=palete.classificacao))
-    registrar_log('Iniciou inventário', f'{descricao} · {len(itens)} linha(s)' + (f' · {camara.nome}' if camara else ''), modulo='estoque')
+    registrar_log('Iniciou inventário', f'{descricao} · {len(itens)} linha(s)' + (f' · {camara.rotulo}' if camara else ''), modulo='estoque')
     db.session.commit()
     flash(f'Inventário iniciado com {len(itens)} linha(s) do estoque. Agora é só contar.', 'success')
     return _voltar(inventario)

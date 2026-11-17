@@ -6,7 +6,7 @@
 <div class="coletor-lista">
     {% for a in abertos %}
     <a href="{{ url_for('coletor.inventario_contar', iid=a.inventario.id) }}">
-        <span><strong>{{ a.inventario.descricao }}</strong><small>nº {{ a.inventario.id }}{% if a.inventario.camara %} · {{ a.inventario.camara.nome }}{% endif %}{% if a.inventario.cego %} · contagem cega{% endif %} · {{ a.total - a.pendentes }} de {{ a.total }} contada(s)</small></span>
+        <span><strong>{{ a.inventario.descricao }}</strong><small>nº {{ a.inventario.id }}{% if a.inventario.camara %} · {{ a.inventario.camara.rotulo }}{% endif %}{% if a.inventario.cego %} · contagem cega{% endif %} · {{ a.total - a.pendentes }} de {{ a.total }} contada(s)</small></span>
         <em>{{ a.pendentes }}</em>
     </a>
     {% endfor %}

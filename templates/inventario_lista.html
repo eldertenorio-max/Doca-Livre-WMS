@@ -24,7 +24,7 @@
                     <tr>
                         <td><strong>{{ i.id }}</strong></td>
                         <td>{{ i.descricao }}{% if i.cego %} <span class="badge bg-secondary" title="Quem conta não vê o que o sistema espera">cego</span>{% endif %}</td>
-                        <td>{{ i.camara.nome if i.camara else 'Todas' }}</td>
+                        <td>{{ i.camara.rotulo if i.camara else 'Todas' }}</td>
                         <td>{{ selo(i.status) }}{% if i.status == 'Finalizado' %} <small class="text-muted">{{ 'aplicado na base' if i.aplicado else 'sem alterar o estoque' }}</small>{% endif %}</td>
                         <td>
                             <div class="progress barra-ocupacao" role="progressbar" aria-label="Progresso do inventário {{ i.id }}" aria-valuenow="{{ r.pct }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ r.pct }}%"></div></div>

@@ -34,7 +34,7 @@
     </div>
 </div>
 
-<p class="text-muted mb-3">{{ inventario.descricao }} · {{ inventario.camara.nome if inventario.camara else 'Todas as câmaras' }} · iniciado em {{ inventario.criado_em|datahora }} por {{ inventario.criado_por }}{% if inventario.cego %} · <strong>contagem cega</strong>{% endif %}
+<p class="text-muted mb-3">{{ inventario.descricao }} · {{ inventario.camara.rotulo if inventario.camara else 'Todas as câmaras' }} · iniciado em {{ inventario.criado_em|datahora }} por {{ inventario.criado_por }}{% if inventario.cego %} · <strong>contagem cega</strong>{% endif %}
     {% if inventario.status == 'Finalizado' %} · finalizado em {{ inventario.finalizado_em|datahora }} por {{ inventario.finalizado_por }} — <strong>{{ 'contagens aplicadas na base' if inventario.aplicado else 'estoque não alterado' }}</strong>{% endif %}</p>
 
 <div class="cartoes-filtro mb-3" role="navigation" aria-label="Filtrar pela situação da linha">

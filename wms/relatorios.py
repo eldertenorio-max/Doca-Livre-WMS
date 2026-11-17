@@ -166,7 +166,7 @@ def rel_localizacoes():
         estado = 'Ocupado' if paletes else 'Bloqueado' if e.bloqueado else 'Livre'
         if situacao and situacao != estado:
             continue
-        base = [e.codigo, e.camara.nome, e.rua, e.coluna, e.nivel, e.tipo, e.destino,
+        base = [e.codigo, e.camara.rotulo, e.rua, e.coluna, e.nivel, e.tipo, e.destino,
                 (e.cliente.fantasia or e.cliente.nome) if e.cliente_id else None, estado]
         if not paletes:
             linhas.append(base + [None] * 8)

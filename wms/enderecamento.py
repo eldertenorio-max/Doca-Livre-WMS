@@ -515,7 +515,7 @@ def camara_editar(cid):
         erro = 'Alguma posição que sairia do desenho está em uso no estoque. Nada foi alterado.'
         return _pagina_camaras(reabrir=_reabrir_edicao(cid, antes, [erro]))
     partes = [f'{criados} endereço(s) criado(s)' if criados else '', f'{len(remover)} apagado(s)' if remover else '']
-    flash(f'Câmara {camara.nome} salva' + (': ' + ' e '.join(p for p in partes if p) if any(partes) else '')
+    flash(f'Câmara {camara.rotulo} salva' + (': ' + ' e '.join(p for p in partes if p) if any(partes) else '')
           + '. Este é o mapa dela; use 2D / 3D para alternar.', 'success')
     if camara.enderecos.count():
         return redirect(url_for('enderecamento.mapa', camara=camara.id))
@@ -547,7 +547,7 @@ def camara_nova():
                   modulo='enderecamento')
     db.session.commit()
     if criados:
-        flash(f'Câmara {camara.nome} criada com {criados} endereço(s). Este é o mapa dela; use 2D / 3D para alternar.', 'success')
+        flash(f'Câmara {camara.rotulo} criada com {criados} endereço(s). Este é o mapa dela; use 2D / 3D para alternar.', 'success')
         return redirect(url_for('enderecamento.mapa', camara=camara.id))
     flash('Câmara criada. Agora gere os endereços dela.', 'success')
     return redirect(url_for('enderecamento.camara', cid=camara.id))
@@ -1121,7 +1121,7 @@ def _pagina_etiquetas(enderecos, titulo, **extra):
     blocos = {}
     for e in sorted(enderecos, key=lambda x: (camaras[x.camara_id].codigo, x.rua, x.coluna, x.nivel)):
         camara = camaras[e.camara_id]
-        bloco = blocos.setdefault(camara.id, {'camara': camara.codigo, 'camara_nome': camara.nome,
+        bloco = blocos.setdefault(camara.id, {'camara': camara.codigo, 'camara_nome': camara.rotulo,
                                               'faixas': {}, 'total_niveis': 0})
         faixa = bloco['faixas'].setdefault((e.rua, e.coluna), {'titulo': f'{e.rua}-{e.coluna:02d}', 'etiquetas': []})
         faixa['etiquetas'].append(_dados_etiqueta(e, camara))
@@ -1150,7 +1150,7 @@ def etiquetas_imprimir():
     elif camara_id:
         camara = _camara_ou_404(camara_id)
         consulta = camara.enderecos
-        titulo = camara.nome
+        titulo = camara.rotulo
         rua = (request.args.get('rua') or '').strip().upper()
         coluna = request.args.get('coluna', type=int)
         if rua:
