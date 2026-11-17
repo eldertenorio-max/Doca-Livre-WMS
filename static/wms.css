@@ -582,16 +582,18 @@ a:hover { text-decoration: underline; }
 .legenda-cliente-logo { height: 18px; width: 28px; object-fit: contain; background: #ffffff; border-radius: 3px; border: 1px solid var(--borda); margin-right: 5px; vertical-align: -4px; }
 .legenda-clientes { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--texto-secundario); }
 .legenda-cliente i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
-/* No mapa: posição livre reservada para um cliente leva um canto laranja */
-/* (a longarina e o montante da estante são as duas primeiras camadas do fundo da célula: o canto entra como terceira) */
-.cell--reservada.cell--disponivel {
-    background-image: linear-gradient(var(--rack-beam), var(--rack-beam)), linear-gradient(var(--rack-upright), var(--rack-upright)),
-                      linear-gradient(135deg, transparent 0 68%, #f59e0b 68%);
-    background-size: 100% var(--rack-beam-w), var(--rack-upright-w) 100%, 100% 100%;
-    background-position: 0 0, 0 0, 0 0;
-    background-repeat: no-repeat;
+/* No mapa: posição vazia reservada para um cliente mostra o logo dele apagado, numa moldura tracejada laranja.
+   (A ocupada é cheia: fundo azul, logo forte e a nota embaixo.) */
+.cell-reserva {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+    padding: var(--rack-beam-w, 2px) 0 0 var(--rack-upright-w, 2px);
 }
-.swatch--reserva { background: linear-gradient(135deg, #ffffff 0 60%, #f59e0b 60%); border: 1px solid var(--borda); }
+.cell-reserva .cell-logo {
+    width: calc(var(--cel) - 7px); height: calc(var(--cel) - 8px); opacity: .55; filter: saturate(.75);
+    background: #fffaf0; border: 1px dashed #f59e0b; border-radius: 3px;
+}
+.cell--reservada.cell--disponivel { background-color: #fff7e6; }
+.swatch--reserva { background: #fff7e6; border: 1px dashed #f59e0b; }
 .nova-previa button.cell:hover { box-shadow: inset 0 0 0 2px #f59e0b; }
 .nova-ferramentas { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .nova-ferramentas .btn { gap: 6px; }

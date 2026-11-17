@@ -246,7 +246,11 @@
             var volta = retornoDe(e);
             if (volta) classe += ' cell--retorno cell--retorno-' + volta;
             var dica = escapar(descricao(e));
-            if (!p) return '<button type="button" class="' + classe + '" data-id="' + e.id + '" title="' + dica + '" aria-label="' + dica + '"></button>';
+            if (!p) {
+                // Vazia e reservada: logo do cliente apagado, numa moldura tracejada (a ocupada é cheia, com a nota embaixo).
+                var reserva = e.cliente ? '<span class="cell-reserva">' + marca({ logo: e.cliente_logo, iniciais: e.cliente_iniciais }, 'cell-logo') + '</span>' : '';
+                return '<button type="button" class="' + classe + '" data-id="' + e.id + '" title="' + dica + '" aria-label="' + dica + '">' + reserva + '</button>';
+            }
             // Ocupado: logo da empresa e, embaixo, o número da nota. O resumo aparece ao passar o mouse
             // (por isso sem "title", que abriria uma segunda dica por cima).
             var nf = p.nf || '';
@@ -530,16 +534,18 @@
         var geoEtiqueta = new THREE.PlaneGeometry(L * 0.56, A * 0.42);
         var etiquetas = {};
         var COR_RETORNO = { reentrega: '#2563eb', devolucao: '#dc2626' };
-        function seloDaEmpresa(imagem, iniciais, retorno) {
+        var COR_RESERVA = '#f59e0b';
+        function seloDaEmpresa(imagem, iniciais, retorno, reserva) {
             var tela = document.createElement('canvas');
             tela.width = 256; tela.height = 192;
             var ctx = tela.getContext('2d');
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, 256, 192);
-            if (retorno) { ctx.strokeStyle = COR_RETORNO[retorno]; ctx.lineWidth = 22; ctx.strokeRect(11, 11, 234, 170); }
+            if (reserva) { ctx.strokeStyle = COR_RESERVA; ctx.lineWidth = 12; ctx.setLineDash([26, 16]); ctx.strokeRect(6, 6, 244, 180); ctx.setLineDash([]); }
+            else if (retorno) { ctx.strokeStyle = COR_RETORNO[retorno]; ctx.lineWidth = 22; ctx.strokeRect(11, 11, 234, 170); }
             else { ctx.strokeStyle = '#8b6b3d'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, 250, 186); }
             if (imagem) {
-                var escala = Math.min((retorno ? 196 : 224) / imagem.width, (retorno ? 132 : 160) / imagem.height);
+                var escala = Math.min((retorno || reserva ? 196 : 224) / imagem.width, (retorno || reserva ? 132 : 160) / imagem.height);
                 var w = imagem.width * escala, h = imagem.height * escala;
                 ctx.drawImage(imagem, (256 - w) / 2, (192 - h) / 2, w, h);
             } else {
@@ -568,6 +574,35 @@
                 imagem.src = p.logo;          // mesmo endereço do sistema: pode ser desenhada na tela do 3D
             }
             return material;
+        }
+        // Posição vazia reservada para um cliente: o logo dele meio transparente, com moldura tracejada.
+        var geoReserva = new THREE.PlaneGeometry(L * 0.7, A * 0.56);
+        function materialDaReserva(e) {
+            var chave = 'reserva|' + (e.cliente_logo || ('iniciais:' + (e.cliente_iniciais || '?')));
+            if (etiquetas[chave]) return etiquetas[chave];
+            var material = new THREE.MeshBasicMaterial({ map: seloDaEmpresa(null, e.cliente_iniciais, null, true),
+                                                         transparent: true, opacity: 0.62, depthWrite: false });
+            etiquetas[chave] = material;
+            if (e.cliente_logo) {
+                var imagem = new Image();
+                imagem.onload = function () {
+                    material.map.dispose();
+                    material.map = seloDaEmpresa(imagem, e.cliente_iniciais, null, true);
+                    material.needsUpdate = true;
+                    pedirQuadro();
+                };
+                imagem.src = e.cliente_logo;
+            }
+            return material;
+        }
+        function etiquetarReserva(caixa, e) {
+            var material = materialDaReserva(e);
+            [1, -1].forEach(function (lado) {
+                var etiqueta = new THREE.Mesh(geoReserva, material);
+                etiqueta.position.set(0, 0, lado * (P * 0.43 + 0.012));
+                if (lado < 0) etiqueta.rotation.y = Math.PI;
+                caixa.add(etiqueta);
+            });
         }
         function etiquetar(caixa, p) {
             var material = materialDaEtiqueta(p);
@@ -689,11 +724,14 @@
                     }
                     if (e.bloqueado) desenharX(x, base + A * 0.39, z);
                 } else {
+                    var reservada = e.status === 'livre' && e.cliente;
+                    var corCaixa = reservada ? COR_RESERVA : cor[e.status];
                     caixa = new THREE.Mesh(geoCaixa, new THREE.MeshLambertMaterial({
-                        color: cor[e.status], transparent: e.status === 'livre', opacity: e.status === 'livre' ? 0.28 : 1
+                        color: corCaixa, transparent: e.status === 'livre', opacity: reservada ? 0.2 : e.status === 'livre' ? 0.28 : 1
                     }));
                     caixa.position.set(x, base + A * 0.39, z);
-                    caixa.add(new THREE.LineSegments(geoBorda, new THREE.LineBasicMaterial({ color: cor[e.status] })));
+                    caixa.add(new THREE.LineSegments(geoBorda, new THREE.LineBasicMaterial({ color: corCaixa })));
+                    if (reservada) etiquetarReserva(caixa, e);
                 }
                 caixa.userData.endereco = e;
                 scene.add(caixa);

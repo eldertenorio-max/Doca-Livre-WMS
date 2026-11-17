@@ -1038,7 +1038,19 @@ def _enderecos_mapa(camara):
                            'fabricacao': data(i.fabricacao), 'validade': data(i.validade)}
                           for i in palete.itens]}
 
+    marcas = {}
+
+    def marca_do_cliente(cliente):
+        """Logo e iniciais do cliente dono do espaco reservado (uma consulta por cliente, nao por endereco)."""
+        if cliente.id not in marcas:
+            arquivo = logo_da_empresa(cliente)
+            marcas[cliente.id] = (url_for('cadastros.imagem', nome=arquivo) if arquivo else None,
+                                  iniciais(cliente.fantasia or cliente.nome))
+        return marcas[cliente.id]
+
     return [{'id': e.id, 'codigo': e.codigo, 'rua': e.rua, 'coluna': e.coluna, 'nivel': e.nivel,
+             'cliente_logo': marca_do_cliente(e.cliente)[0] if e.cliente_id else None,
+             'cliente_iniciais': marca_do_cliente(e.cliente)[1] if e.cliente_id else None,
              'bip': codigo_bipagem(camara.codigo, e.rua, e.coluna, e.nivel), 'tipo': e.tipo,
              'destino': e.destino, 'status': _status(e, ocupados), 'bloqueado': e.bloqueado,
              'motivo': e.motivo_bloqueio,
