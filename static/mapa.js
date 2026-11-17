@@ -710,27 +710,37 @@
         }
         function pedirQuadro() { if (!quadroPedido) { quadroPedido = true; requestAnimationFrame(quadro); } }
         function enquadrar() {
+            // Tela em pé (celular): o campo de visão na horizontal encolhe, então a câmera se afasta para caber tudo.
+            var emPe = camera.aspect < 1.8 ? Math.min(1.8 / camera.aspect, 4) : 1;
+            camera.far = 500 * emPe;
+            camera.updateProjectionMatrix();
             if (fundoTotal > largura * 1.3) {
                 // Várias câmaras em fila (visão geral): olha de lado e do alto, para caber a fila inteira.
-                var distancia = Math.max(fundoTotal * 0.62, largura * 1.2);
+                var distancia = Math.max(fundoTotal * 0.62, largura * 1.2) * emPe;
                 camera.position.set(centro.x + distancia * 0.95, centro.y + distancia * 0.75, centro.z + distancia * 0.25);
             } else {
-                var alcance = Math.max(largura, fundoTotal * 1.4, maxNivel * A * 2.4);
+                var alcance = Math.max(largura, fundoTotal * 1.4, maxNivel * A * 2.4) * emPe;
                 // um pouco mais longe, para caber a câmara inteira e o nome dela em cima
                 camera.position.set(centro.x - alcance * 0.22, centro.y + alcance * 0.5, centro.z + alcance * 0.86);
             }
             controls.target.copy(centro);
+            mexeu = false;
             pedirQuadro();
         }
+        var mexeu = false, emPeAntes = null;
         function ajustarTamanho() {
             var w = tela.clientWidth, h = tela.clientHeight;
             if (!w || !h) return;
             renderer.setSize(w, h, false);
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
+            // virou o aparelho (em pé <-> deitado) sem ter mexido na câmera: enquadra de novo
+            if (emPeAntes !== null && emPeAntes !== (w < h) && !mexeu) enquadrar();
+            emPeAntes = w < h;
             pedirQuadro();
         }
         controls.addEventListener('change', pedirQuadro);
+        controls.addEventListener('start', function () { mexeu = true; });
         if (window.ResizeObserver) new ResizeObserver(ajustarTamanho).observe(tela);
         window.addEventListener('resize', ajustarTamanho);
 
@@ -791,17 +801,32 @@
         };
     }
 
+    function temWebgl() {
+        try {
+            var teste = document.createElement('canvas');
+            return !!(teste.getContext('webgl2') || teste.getContext('webgl') || teste.getContext('experimental-webgl'));
+        } catch (e) { return false; }
+    }
+
     function abrir3d() {
         if (cena3d) { cena3d.ajustar(); return Promise.resolve(); }
         if (!carregando3d) {
             aviso.textContent = 'Carregando a visão 3D…';
+            var baixou = false;
             carregando3d = (window.THREE ? Promise.resolve() : carregarScript(cfg.three))
                 .then(function () { return window.THREE.OrbitControls ? null : carregarScript(cfg.orbit); })
-                .then(function () { cena3d = montar3d(); aviso.textContent = ''; })
-                .catch(function () {
+                .then(function () { baixou = true; cena3d = montar3d(); aviso.textContent = ''; })
+                .catch(function (erro) {
                     carregando3d = null;
-                    aviso.textContent = 'Não foi possível carregar a visão 3D (sem acesso à internet?). A visão 2D continua disponível.';
+                    if (window.console) console.error('Mapa 3D:', erro);
+                    var semWebgl = baixou && !temWebgl();
+                    aviso.textContent = !baixou
+                        ? 'Não foi possível baixar a visão 3D (a conexão caiu?). Toque em 3D para tentar de novo. A visão 2D continua disponível.'
+                        : semWebgl
+                            ? 'Este aparelho ou navegador está com os gráficos 3D (WebGL) desligados. No Chrome, ative a "aceleração de hardware" ou atualize o navegador. A visão 2D continua disponível.'
+                            : 'A visão 3D não abriu neste aparelho (' + (erro && erro.message ? erro.message : 'erro desconhecido') + '). A visão 2D continua disponível.';
                     mostrar('2d');
+                    gravar('wms.mapa.visao', '2d');
                 });
         }
         return carregando3d;

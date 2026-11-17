@@ -73,7 +73,7 @@
 
 <div id="mapa2d" class="layout-panel"></div>
 <div id="mapa3d" class="mapa-3d" hidden>
-    <div class="mapa-3d-ajuda">Arraste para girar · roda do mouse para aproximar · botão direito para mover
+    <div class="mapa-3d-ajuda"><span class="so-mouse">Arraste para girar · roda do mouse para aproximar · botão direito para mover</span><span class="so-toque">Um dedo gira · dois dedos aproximam e movem · toque numa posição para ver o detalhe</span>
         <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnVisaoGeral3d"><i class="fas fa-expand"></i>Visão geral</button>
     </div>
     <div id="mapa3dTela" class="mapa-3d-tela"></div>
@@ -185,8 +185,9 @@ window.WMS_MAPA = {
     urlEtiquetaPalete: {{ (url_for('entrada.etiqueta_palete', pid=0) if pode_ver('recebimento') else none)|tojson }},
     urlPaletes: {{ (url_for('movimentacao.paletes') if pode_ver('movimentacao') else none)|tojson }},
     porta: {{ url_for('static', filename='img/porta-camara.png')|tojson }},
-    three: 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-    orbit: 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'
+    {# a biblioteca do 3D vem do próprio sistema (não depende de outro site estar acessível no aparelho) #}
+    three: {{ (url_for('static', filename='vendor/three-r128.min.js') ~ '?v=' ~ assets_version)|tojson }},
+    orbit: {{ (url_for('static', filename='vendor/OrbitControls-r128.js') ~ '?v=' ~ assets_version)|tojson }}
 };
 </script>
 <script src="{{ url_for('static', filename='mapa.js') }}?v={{ assets_version }}"></script>
