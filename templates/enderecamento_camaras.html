@@ -52,8 +52,24 @@
                     <div><strong>{{ l.total }}</strong><span>endereços</span></div>
                     <div><strong>{{ l.livres }}</strong><span>livres</span></div>
                     <div><strong>{{ l.bloqueados }}</strong><span>bloqueados</span></div>
-                    <div><strong>{{ l.ruas|join(' · ') or '—' }}</strong><span>ruas</span></div>
+                    <div><strong>{{ l.ruas|length or '—' }}</strong><span>ruas</span></div>
                 </div>
+                {% if l.por_rua %}
+                <table class="camara-ruas" aria-label="Posições e ocupação por rua da {{ c.rotulo }}">
+                    <thead><tr><th>Rua</th><th>Posições</th><th>Ocupadas</th><th>Livres</th><th>Ocupação</th></tr></thead>
+                    <tbody>
+                    {% for r in l.por_rua %}
+                    <tr>
+                        <th scope="row">{{ r.rua }}</th>
+                        <td>{{ r.total }}</td>
+                        <td>{{ r.ocupados }}</td>
+                        <td>{{ r.livres }}{% if r.bloqueados %} <span class="text-muted" title="{{ r.bloqueados }} bloqueada(s)">(+{{ r.bloqueados }} bloq.)</span>{% endif %}</td>
+                        <td><span class="camara-rua-barra" aria-hidden="true"><i style="width: {{ r.ocupacao }}%"></i></span>{{ r.ocupacao }}%</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <a href="{{ url_for('enderecamento.camara', cid=c.id) }}" class="btn btn-sm btn-primary"><i class="fas fa-table-cells"></i>Endereços</a>
                     <a href="{{ url_for('enderecamento.mapa', camara=c.id) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-cube"></i>Mapa</a>

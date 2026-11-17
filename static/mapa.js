@@ -498,6 +498,12 @@
             var canvas = document.createElement('canvas');
             canvas.width = larguraTela || 256; canvas.height = 128;
             var ctx = canvas.getContext('2d');
+            if (larguraTela === 'auto') {
+                // largura pelo tamanho do texto, para o nome caber inteiro
+                ctx.font = '700 84px Inter, Arial, sans-serif';
+                canvas.width = Math.min(4096, Math.max(256, Math.ceil(ctx.measureText(textoRotulo).width) + 48));
+                ctx = canvas.getContext('2d');
+            }
             ctx.fillStyle = cor.texto;
             ctx.font = '700 84px Inter, Arial, sans-serif';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -640,7 +646,7 @@
             var x0 = (r.colunas[0] - minCol) * L, x1 = (r.colunas[r.colunas.length - 1] - minCol + 1) * L;
             if (r.camara) {
                 // Visão geral: o nome fica ao lado de cada câmara. Uma câmara só: em cima dela, no meio, bem visível.
-                var nomeCamara = rotulo(r.camara.slice(0, 22), dados.unica ? 1.5 : 1.2, 1024);
+                var nomeCamara = rotulo(r.camara.length > 44 ? r.camara.slice(0, 43) + '…' : r.camara, dados.unica ? 1.5 : 1.2, 'auto');
                 if (dados.unica) nomeCamara.position.set((x0 + x1) / 2, r.niveis[r.niveis.length - 1] * A + 2.6, z);
                 else nomeCamara.position.set(x0 - 8, 2.6, z);
                 scene.add(nomeCamara);

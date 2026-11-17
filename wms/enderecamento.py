@@ -72,9 +72,22 @@ def resumo_camaras():
                     .filter(Palete.status.in_(NO_ARMAZEM)).group_by(Endereco.camara_id).all())
     bloqueados = dict(db.session.query(Endereco.camara_id, db.func.count(Endereco.id))
                       .filter(Endereco.bloqueado.is_(True)).group_by(Endereco.camara_id).all())
-    ruas = {}
-    for camara_id, rua in db.session.query(Endereco.camara_id, Endereco.rua).distinct():
+    # por rua: quantas posicoes, quantas ocupadas e quantas bloqueadas
+    ocupadas_rua = {(cid, rua): n for cid, rua, n in
+                    db.session.query(Endereco.camara_id, Endereco.rua, db.func.count(db.distinct(Endereco.id)))
+                    .join(Palete, Palete.endereco_id == Endereco.id)
+                    .filter(Palete.status.in_(NO_ARMAZEM)).group_by(Endereco.camara_id, Endereco.rua)}
+    bloqueadas_rua = {(cid, rua): n for cid, rua, n in
+                      db.session.query(Endereco.camara_id, Endereco.rua, db.func.count(Endereco.id))
+                      .filter(Endereco.bloqueado.is_(True)).group_by(Endereco.camara_id, Endereco.rua)}
+    ruas, por_rua = {}, {}
+    for camara_id, rua, n in (db.session.query(Endereco.camara_id, Endereco.rua, db.func.count(Endereco.id))
+                              .group_by(Endereco.camara_id, Endereco.rua).order_by(Endereco.rua)):
         ruas.setdefault(camara_id, []).append(rua)
+        ocup, bloq_rua = ocupadas_rua.get((camara_id, rua), 0), bloqueadas_rua.get((camara_id, rua), 0)
+        por_rua.setdefault(camara_id, []).append({'rua': rua, 'total': n, 'ocupados': ocup, 'bloqueados': bloq_rua,
+                                                  'livres': max(n - ocup - bloq_rua, 0),
+                                                  'ocupacao': round(100 * ocup / n) if n else 0})
     linhas = []
     for camara in Camara.query.order_by(Camara.codigo).all():
         total = totais.get(camara.id, 0)
@@ -82,6 +95,7 @@ def resumo_camaras():
         ocupados = ocupadas.get(camara.id, 0)
         linhas.append({'camara': camara, 'total': total, 'bloqueados': bloq, 'ocupados': ocupados,
                        'livres': max(total - bloq - ocupados, 0), 'ruas': sorted(ruas.get(camara.id, [])),
+                       'por_rua': sorted(por_rua.get(camara.id, []), key=lambda r: r['rua']),
                        'ocupacao': round(100 * ocupados / total) if total else 0})
     return linhas
 
@@ -518,10 +532,8 @@ def camara_editar(cid):
         return _pagina_camaras(reabrir=_reabrir_edicao(cid, antes, [erro]))
     partes = [f'{criados} endereço(s) criado(s)' if criados else '', f'{len(remover)} apagado(s)' if remover else '']
     flash(f'Câmara {camara.rotulo} salva' + (': ' + ' e '.join(p for p in partes if p) if any(partes) else '')
-          + '. Este é o mapa dela; use 2D / 3D para alternar.', 'success')
-    if camara.enderecos.count():
-        return redirect(url_for('enderecamento.mapa', camara=camara.id))
-    return redirect(url_for('enderecamento.camaras'))
+          + '.', 'success')
+    return redirect(url_for('enderecamento.camaras'))       # terminou de editar: volta para Câmaras e endereços
 
 
 @bp.route('/camaras/nova', methods=['POST'])
