@@ -204,6 +204,7 @@ def permissoes_usuario():
         if not user:
             abort(404)
         atuais = {p.modulo: p for p in PermissaoUsuario.query.filter_by(usuario_id=user.id)}
+        do_perfil = {p.modulo: p.nivel for p in Permissao.query.filter_by(perfil=user.perfil)}
         rotulos = dict(NIVEIS)
         acao = request.form.get('acao')
         mudancas = []
@@ -215,6 +216,14 @@ def permissoes_usuario():
                 valor = ('2' if acao == 'tudo' else '1') if '/' not in chave else ''
             else:
                 valor = request.form.get(f'p:{chave}', '')
+                if '/' in chave and valor in ('0', '1', '2'):
+                    # A tela nao tem mais a opcao "igual ao modulo": ela sempre mostra um nivel. Se e o mesmo do
+                    # modulo, nao guarda regra propria (continua acompanhando o modulo); so guarda quando difere.
+                    modulo = chave.split('/')[0]
+                    do_modulo = request.form.get(f'p:{modulo}', '')
+                    efetivo = int(do_modulo) if do_modulo in ('0', '1', '2') else do_perfil.get(modulo, 0)
+                    if int(valor) == efetivo:
+                        valor = ''
             linha = atuais.get(chave)
             if valor == '':
                 if linha is not None:

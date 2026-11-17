@@ -13,7 +13,7 @@
 
 <div class="alert alert-info">
     Os usuários aparecem <strong>separados pela hierarquia</strong> (a organização de cada um). Escolha uma pessoa e defina o que ela pode fazer em
-    <strong>cada funcionalidade</strong>: o módulo inteiro ou tela por tela. O que você marcar aqui vale por cima do perfil dela.
+    <strong>cada funcionalidade</strong>: o módulo inteiro ou tela por tela. Mudar o módulo muda todas as telas dele; depois você pode ajustar uma tela só. O que você marcar aqui vale por cima do perfil dela.
     <strong>Visualizar</strong> abre a tela; <strong>Editar</strong> também libera as ações (salvar, excluir, finalizar).
     Só o Super Usuário usa esta tela, e ele manda em todas as hierarquias. Administradores e o Super Usuário têm acesso total e não aparecem na lista.
 </div>
@@ -75,7 +75,7 @@
                                 <td><i class="fas fa-{{ m.icone }} me-2"></i><strong>{{ m.nome }}</strong><br><small>{{ m.descricao }}</small></td>
                                 <td class="text-nowrap">{{ rotulo_nivel[do_perfil] }}</td>
                                 <td>
-                                    <select class="form-select" name="p:{{ m.id }}" aria-label="{{ m.nome }} para {{ user.nome }}">
+                                    <select class="form-select" name="p:{{ m.id }}" data-modulo-pai="{{ m.id }}" data-nivel-perfil="{{ do_perfil }}" aria-label="{{ m.nome }} para {{ user.nome }}">
                                         <option value="" {% if m.id not in proprias %}selected{% endif %}>Padrão do perfil ({{ rotulo_nivel[do_perfil] }})</option>
                                         {% for n, n_rotulo in niveis %}
                                         <option value="{{ n }}" {% if proprias.get(m.id) == n %}selected{% endif %}>{{ n_rotulo }}</option>
@@ -88,12 +88,13 @@
                             {% set chave = m.id ~ '/' ~ tela.id %}
                             <tr class="perm-tela">
                                 <td><i class="fas fa-{{ tela.icone }} me-2"></i>{{ tela.nome }}</td>
-                                <td class="text-muted small">igual ao módulo ({{ rotulo_nivel[do_perfil] }})</td>
+                                <td class="text-muted small">{{ rotulo_nivel[do_perfil] }}</td>
                                 <td>
-                                    <select class="form-select form-select-sm" name="p:{{ chave }}" aria-label="{{ tela.nome }} para {{ user.nome }}">
-                                        <option value="" {% if chave not in proprias %}selected{% endif %}>Igual ao módulo ({{ rotulo_nivel[do_modulo] }})</option>
+                                    {# Cada tela mostra sempre o nível que vale. Mudar o módulo muda todas as telas dele. #}
+                                    {% set da_tela = proprias.get(chave, do_modulo) %}
+                                    <select class="form-select form-select-sm" name="p:{{ chave }}" data-tela-de="{{ m.id }}" aria-label="{{ tela.nome }} para {{ user.nome }}">
                                         {% for n, n_rotulo in niveis %}
-                                        <option value="{{ n }}" {% if proprias.get(chave) == n %}selected{% endif %}>{{ n_rotulo }}</option>
+                                        <option value="{{ n }}" {% if da_tela == n %}selected{% endif %}>{{ n_rotulo }}</option>
                                         {% endfor %}
                                     </select>
                                 </td>
@@ -110,5 +111,19 @@
         </div></div>
     </div>
 </div>
+<script>
+// Mudar o módulo leva todas as telas dele para o mesmo nível (depois dá para ajustar tela por tela).
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('select[data-modulo-pai]').forEach(function (modulo) {
+        modulo.addEventListener('change', function () {
+            var nivel = modulo.value === '' ? modulo.getAttribute('data-nivel-perfil') : modulo.value;
+            document.querySelectorAll('select[data-tela-de="' + modulo.getAttribute('data-modulo-pai') + '"]').forEach(function (tela) {
+                tela.value = nivel;
+                tela.dispatchEvent(new Event('change'));
+            });
+        });
+    });
+});
+</script>
 {% include '_salvar_fixo.html' %}
 {% endblock %}
