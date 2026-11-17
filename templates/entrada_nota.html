@@ -121,7 +121,8 @@
                             <label class="form-label" for="pItem">Item da nota <span class="obrigatorio">*</span></label>
                             <select class="form-select" id="pItem" name="item_id" required>
                                 <option value="">— bipe o produto ou escolha —</option>
-                                {% for l in linhas %}<option value="{{ l.item.id }}">{{ l.item.produto.sku }} · {{ l.item.produto.descricao }}</option>{% endfor %}
+                                {# item que já está todo em palete (guardado ou aguardando guarda) aparece riscado; continua podendo ser escolhido #}
+                                {% for l in linhas %}{% set texto = l.item.produto.sku ~ ' · ' ~ l.item.produto.descricao %}<option value="{{ l.item.id }}"{% if l.situacao in ('ok', 'sobra') %} class="item-conferido" title="Já está todo em palete"{% endif %}>{% if l.situacao in ('ok', 'sobra') %}✓ {{ riscado(texto) }}{% else %}{{ texto }}{% endif %}</option>{% endfor %}
                             </select>
                         </div>
                         <div class="col-6 col-md-3">

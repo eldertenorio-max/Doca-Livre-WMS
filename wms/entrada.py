@@ -102,6 +102,11 @@ def conferido_por_item(nota):
     return {item_id: round(total or 0, 3) for item_id, total in linhas}
 
 
+def rotulo_riscado(texto):
+    """Texto riscado para listas de escolha (o navegador nao deixa riscar uma opcao por estilo): um traco por letra."""
+    return ''.join(letra + '̶' for letra in texto)
+
+
 def paletes_da_nota(nota):
     """Paletes montados nesta nota e os de outra nota que receberam item desta (Adicionar a palete existente)."""
     de_fora = (Palete.query.join(PaleteItem).join(NotaItem, NotaItem.id == PaleteItem.nota_item_id)
@@ -489,7 +494,7 @@ def nota(nid):
                            classificacoes=CLASSIFICACOES_RETORNO if nota.tipo == 'Retorno' else CLASSIFICACOES,
                            retorno=nota.tipo == 'Retorno', lista_url=_lista_da(nota), aberta=nota.status in ABERTAS,
                            tem_xml=bool(nota.xml), danfe_oficial=bool(chave_meu_danfe()),
-                           paletes=paletes_da_nota(nota),
+                           paletes=paletes_da_nota(nota), riscado=rotulo_riscado,
                            pendentes=[p for p in paletes_da_nota(nota) if p.status == 'Aguardando guarda'],
                            divergentes=[l for l in linhas if l['situacao'] != 'ok'],
                            motivos_divergencia=MOTIVOS_DIVERGENCIA, resumo_itens=resumo_itens,

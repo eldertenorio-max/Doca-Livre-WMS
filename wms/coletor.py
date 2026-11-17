@@ -10,7 +10,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 
 from .core import nivel, perm, pode_editar, pode_ver
 from .enderecamento import localizar_endereco
-from .entrada import ABERTAS as NOTAS_ABERTAS, conferido_por_item
+from .entrada import ABERTAS as NOTAS_ABERTAS, conferido_por_item, rotulo_riscado
 from .inventario import ABERTOS as INVENTARIOS_ABERTOS
 from .models import Carga, CargaItem, Inventario, InventarioLinha, NotaFiscal, Palete, Separacao, db
 from .paletes import CLASSIFICACOES, CLASSIFICACOES_RETORNO, localizar_palete, resumo_itens
@@ -161,4 +161,4 @@ def conferencia_nota(nid):
     return render_template('coletor_conferencia.html', titulo=f'NF {nota.numero}', nota=nota, itens=itens, paletes=paletes,
                            aberta=nota.status in NOTAS_ABERTAS, editar=pode_editar('recebimento'), resumo_itens=resumo_itens,
                            classificacoes=CLASSIFICACOES_RETORNO if nota.tipo == 'Retorno' else CLASSIFICACOES,
-                           item_escolhido=request.args.get('item', type=int))
+                           item_escolhido=request.args.get('item', type=int), riscado=rotulo_riscado)

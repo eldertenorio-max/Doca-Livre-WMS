@@ -593,6 +593,7 @@ a:hover { text-decoration: underline; }
     background: #fffaf0; border: 1px dashed #f59e0b; border-radius: 3px;
 }
 .cell--reservada.cell--disponivel { background-color: #fff7e6; }
+option.item-conferido { color: #9ca3af; }
 /* Recebimento: Dividir palete (botão laranja e lista de paletes endereçados) */
 .btn-laranja { background: #f97316; border-color: #f97316; color: #ffffff; }
 .btn-laranja:hover, .btn-laranja:focus-visible { background: #ea580c; border-color: #ea580c; color: #ffffff; }

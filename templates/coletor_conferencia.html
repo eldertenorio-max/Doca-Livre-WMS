@@ -29,7 +29,7 @@
         {% for i in itens %}
         <option value="{{ i.item.id }}" data-codigos="{{ [i.item.produto.sku, i.item.codigo or '', i.item.produto.ean or '', i.item.produto.dun or '']|map('upper')|join('|') }}"
                 data-lote="{{ i.item.lote or '' }}" data-fabricacao="{{ i.item.fabricacao.isoformat() if i.item.fabricacao else '' }}" data-validade="{{ i.item.validade.isoformat() if i.item.validade else '' }}"
-                data-falta="{{ i.falta if i.falta > 0 else '' }}" {% if item_escolhido == i.item.id %}selected{% endif %}>{{ i.item.produto.sku }} · {{ i.item.descricao or i.item.produto.descricao }}{% if not nota.conferencia_cega %} (falta {{ i.falta|numero }} {{ i.item.unidade }}){% endif %}</option>
+                data-falta="{{ i.falta if i.falta > 0 else '' }}" {% if item_escolhido == i.item.id %}selected{% endif %}>{% set texto = i.item.produto.sku ~ ' · ' ~ (i.item.descricao or i.item.produto.descricao) %}{% if i.falta <= 0 %}✓ {{ riscado(texto) }}{% else %}{{ texto }}{% if not nota.conferencia_cega %} (falta {{ i.falta|numero }} {{ i.item.unidade }}){% endif %}{% endif %}</option>
         {% endfor %}
     </select>
     <label for="ccQtd">Quantidade neste palete</label>
