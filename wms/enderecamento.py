@@ -931,6 +931,30 @@ def layout_carregar(lid):
     return _concluir_carga(f'Layout "{layout.nome}"', *_aplicar_layout(json.loads(layout.dados)['camaras']))
 
 
+@bp.route('/layouts/<int:lid>/renomear', methods=['POST'])
+@perm('enderecamento')
+def layout_renomear(lid):
+    """Troca so o nome do layout salvo; o conteudo dele (camaras e enderecos) continua o mesmo."""
+    layout = _layout_ou_404(lid)
+    voltar = redirect(url_for('enderecamento.camaras'))
+    nome = ' '.join((request.form.get('nome') or '').split())[:60]
+    if not nome:
+        flash('O nome do layout não pode ficar vazio.', 'error')
+        return voltar
+    if nome == layout.nome:
+        return voltar
+    outro = LayoutSalvo.query.filter(LayoutSalvo.grupo == layout.grupo, LayoutSalvo.id != layout.id,
+                                     db.func.lower(LayoutSalvo.nome) == nome.lower()).first()
+    if outro:
+        flash(f'Já existe um layout salvo com o nome "{outro.nome}". Escolha outro nome.', 'error')
+        return voltar
+    registrar_log('Renomeou layout salvo', f'{layout.nome} → {nome}', modulo='enderecamento')
+    antigo, layout.nome = layout.nome, nome
+    db.session.commit()
+    flash(f'Layout "{antigo}" agora se chama "{nome}".', 'success')
+    return voltar
+
+
 @bp.route('/layouts/<int:lid>/excluir', methods=['POST'])
 @perm('enderecamento')
 def layout_excluir(lid):

@@ -225,6 +225,44 @@
     </div>
 </div>
 
+{# Renomear um layout salvo (o lápis na lista de Carregar layout) #}
+<div class="modal fade" id="modalRenomearLayout" tabindex="-1" aria-labelledby="modalRenomearLayoutTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="" id="formRenomearLayout" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRenomearLayoutTitulo"><i class="fas fa-pen me-2"></i>Renomear layout salvo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="rlNome">Nome do layout <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="rlNome" name="nome" maxlength="60" required>
+                <div class="form-text">Muda só o nome. As câmaras e os endereços guardados nele continuam os mesmos.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var janela = document.getElementById('modalRenomearLayout');
+    document.querySelectorAll('[data-renomear-layout]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            document.getElementById('formRenomearLayout').action = b.getAttribute('data-renomear-layout');
+            document.getElementById('rlNome').value = b.getAttribute('data-nome');
+            // fecha a lista de layouts e abre a janela do nome
+            var lista = bootstrap.Modal.getInstance(document.getElementById('modalCarregarLayout'));
+            if (lista) lista.hide();
+            bootstrap.Modal.getOrCreateInstance(janela).show();
+        });
+    });
+    janela.addEventListener('shown.bs.modal', function () { document.getElementById('rlNome').select(); });
+});
+</script>
+
 {# Novo layout do zero: apaga as câmaras de agora para montar outro (guardando o atual, se quiser) #}
 {% if linhas %}
 <div class="modal fade" id="modalNovoLayout" tabindex="-1" aria-labelledby="modalNovoLayoutTitulo" aria-hidden="true">
@@ -276,6 +314,7 @@
                     <div class="layout-opcao">
                         <input class="form-check-input" type="radio" name="layoutEscolhido" id="layout{{ l.id }}" value="{{ url_for('enderecamento.layout_carregar', lid=l.id) }}">
                         <label for="layout{{ l.id }}"><strong>{{ l.nome }}</strong><small>{{ l.camaras }} câmara(s) · {{ l.enderecos }} endereço(s) · salvo por {{ l.criado_por }} em {{ l.criado_em|datahora }}</small></label>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-renomear-layout="{{ url_for('enderecamento.layout_renomear', lid=l.id) }}" data-nome="{{ l.nome }}" title="Renomear este layout salvo" aria-label="Renomear o layout salvo {{ l.nome }}"><i class="fas fa-pen"></i></button>
                         <form method="POST" action="{{ url_for('enderecamento.layout_excluir', lid=l.id) }}" onsubmit="return confirm('Excluir o layout salvo &quot;{{ l.nome }}&quot;? As câmaras do sistema não são alteradas.');">
                             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm btn-danger" title="Excluir este layout salvo" aria-label="Excluir o layout salvo {{ l.nome }}"><i class="fas fa-trash"></i></button>
