@@ -5,16 +5,14 @@
 
 {% block content %}
 <div class="panel-page-header">
-    <h2><i class="fas fa-table-cells me-2"></i>Câmaras e endereços</h2>
+    <h2><i class="fas fa-table-cells me-2"></i>Câmaras e endereços{% if layout_nome %} <small class="text-muted fw-normal fs-6 ms-2">Layout: <strong>{{ layout_nome }}</strong></small>{% endif %}</h2>
     {% if editar %}
     <div class="d-flex flex-wrap gap-2">
         {% if linhas %}
         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalSalvarLayout"><i class="fas fa-floppy-disk"></i>Salvar layout do CD</button>
         {% endif %}
         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCarregarLayout"><i class="fas fa-download"></i>Carregar layout</button>
-        {% if linhas %}
         <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalNovoLayout"><i class="fas fa-file"></i>Novo layout do zero</button>
-        {% endif %}
         <button type="button" class="btn btn-primary" id="btnNovaCamara"><i class="fas fa-plus"></i>Nova câmara</button>
     </div>
     {% endif %}
@@ -209,7 +207,7 @@
             <div class="modal-body">
                 <p class="text-muted small">Guarda as {{ linhas|length }} câmara(s) e os {{ total_enderecos }} endereço(s) como estão agora: ruas, portas, pontos sem posição, picking e espaços de cliente. Paletes e bloqueios não entram.</p>
                 <label class="form-label" for="slNome">Nome do layout <span class="obrigatorio">*</span></label>
-                <input type="text" class="form-control" id="slNome" name="nome" maxlength="60" required placeholder="Ex.: CD Guarulhos — novembro" list="slNomes">
+                <input type="text" class="form-control" id="slNome" name="nome" maxlength="60" required placeholder="Ex.: CD Guarulhos — novembro" list="slNomes" value="{{ layout_nome }}">
                 <datalist id="slNomes">{% for l in layouts %}<option value="{{ l.nome }}">{% endfor %}</datalist>
                 <div class="form-check mt-2">
                     <input class="form-check-input" type="checkbox" id="slSubstituir" name="substituir" value="1">
@@ -263,8 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
-{# Novo layout do zero: apaga as câmaras de agora para montar outro (guardando o atual, se quiser) #}
-{% if linhas %}
+{# Novo layout do zero: dá o nome ao layout novo e apaga as câmaras de agora (o layout atual fica guardado) #}
 <div class="modal fade" id="modalNovoLayout" tabindex="-1" aria-labelledby="modalNovoLayoutTitulo" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <form class="modal-content" method="POST" action="{{ url_for('enderecamento.layout_novo') }}" autocomplete="off">
@@ -274,26 +271,30 @@ document.addEventListener('DOMContentLoaded', function () {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
+                <label class="form-label" for="nlNome">Nome do layout novo <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control mb-3" id="nlNome" name="nome" maxlength="60" required placeholder="Ex.: CD Guarulhos 2027">
+                {% if linhas %}
                 <div class="alert alert-danger">
                     Isto <strong>apaga as {{ linhas|length }} câmara(s) e os {{ total_enderecos }} endereço(s)</strong> de agora, com as leituras de temperatura delas,
-                    para você montar outro layout a partir de uma tela em branco.
+                    para você montar o layout novo a partir de uma tela em branco.
                 </div>
-                <p class="small text-muted">Só funciona com o armazém vazio: se houver palete ligado a algum endereço, nada é apagado e o sistema mostra onde estão.
+                <p class="small text-muted">O layout de agora não se perde: fica guardado em <strong>Carregar layout</strong> como
+                    <strong>"{{ layout_nome or 'Layout anterior' }}"</strong> e pode ser trazido de volta.
+                    Só funciona com o armazém vazio: se houver palete ligado a algum endereço, nada é apagado e o sistema mostra onde estão.
                     As etiquetas de longarina já impressas deixam de valer.</p>
-                <label class="form-label" for="nlSalvar">Guardar o layout atual antes, com o nome</label>
-                <input type="text" class="form-control" id="nlSalvar" name="salvar_nome" maxlength="60" value="Layout anterior">
-                <div class="form-text mb-3">Ele fica em <strong>Carregar layout</strong>, para o seu grupo ({{ perfil_nome }}), e pode ser trazido de volta. Deixe em branco para não guardar.</div>
                 <label class="form-label" for="nlConfirma">Para confirmar, digite <strong>NOVO</strong> <span class="obrigatorio">*</span></label>
                 <input type="text" class="form-control" id="nlConfirma" name="confirmacao" required pattern="[Nn][Oo][Vv][Oo]" style="text-transform: uppercase;">
+                {% else %}
+                <p class="small text-muted mb-0">Ainda não há câmaras: é só dar o nome e montar com <strong>Nova câmara</strong>.</p>
+                {% endif %}
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="submit" class="btn btn-danger"><i class="fas fa-file"></i>Apagar e começar do zero</button>
+                <button type="submit" class="btn btn-{{ 'danger' if linhas else 'primary' }}"><i class="fas fa-file"></i>{{ 'Apagar e começar o layout novo' if linhas else 'Começar o layout' }}</button>
             </div>
         </form>
     </div>
 </div>
-{% endif %}
 
 {# Carregar layout: escolhe qual (o padrão do CD ou um salvo pelo grupo) #}
 <div class="modal fade" id="modalCarregarLayout" tabindex="-1" aria-labelledby="modalCarregarLayoutTitulo" aria-hidden="true">

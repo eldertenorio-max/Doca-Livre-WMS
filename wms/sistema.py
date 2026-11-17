@@ -25,7 +25,7 @@ from .models import AlertaLido, Camara, Configuracao, Palete, PaleteItem, Produt
 
 bp = Blueprint('sistema', __name__)
 
-PADROES = {'separacao': 'FEFO', 'alerta_validade_dias': '30', 'alerta_emails': '', 'backup_manter': '30', 'alerta_ultimo_envio': ''}
+PADROES = {'separacao': 'FEFO', 'alerta_validade_dias': '30', 'alerta_emails': '', 'backup_manter': '30', 'alerta_ultimo_envio': '', 'layout_nome': ''}
 EM_ESTOQUE = ('Aguardando guarda', 'Armazenado', 'Stage')
 
 

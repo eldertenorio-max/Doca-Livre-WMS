@@ -16,6 +16,7 @@ from .etiqueta_zebra import ctx_etiqueta_zebra
 from .hierarquia import chaves_de_layout, empresas_do_usuario
 from .models import Camara, Empresa, Endereco, Inventario, LayoutSalvo, Palete, Vao, agora, db, logo_da_empresa
 from .paletes import NO_ARMAZEM
+from .sistema import definir as definir_config, obter as obter_config
 
 bp = Blueprint('enderecamento', __name__, url_prefix='/enderecamento')
 
@@ -162,7 +163,8 @@ def _pagina_camaras(reabrir=None):
                                       'logo': url_for('cadastros.imagem', nome=logo_da_empresa(e)) if logo_da_empresa(e) else None}
                                      for e in _empresas_para_reserva()],
                            pode_cadastrar_empresa=pode_editar('cadastros'),
-                           layouts=_layouts_do_grupo().order_by(LayoutSalvo.nome).all())
+                           layouts=_layouts_do_grupo().order_by(LayoutSalvo.nome).all(),
+                           layout_nome=obter_config('layout_nome'))
 
 
 @bp.route('/camaras')
@@ -837,52 +839,69 @@ def _gravar_layout(layout, camaras, total):
 @bp.route('/layouts/novo', methods=['POST'])
 @perm('enderecamento')
 def layout_novo():
-    """Comeca um layout do zero: apaga todas as camaras e enderecos para montar outro. So com o armazem vazio
-    (nenhum palete em endereco) e com a confirmacao digitada. Antes, guarda o layout de agora, se a pessoa quiser."""
+    """Comeca um layout novo, com o nome que a pessoa der: apaga todas as camaras e enderecos para montar outro.
+    So com o armazem vazio (nenhum palete em endereco) e com a confirmacao digitada. O layout de agora nao se
+    perde: fica guardado em Carregar layout com o nome que ele ja tinha."""
     voltar = redirect(url_for('enderecamento.camaras'))
+    nome = ' '.join((request.form.get('nome') or '').split())[:60]
+    if not nome:
+        flash('Dê um nome ao layout novo.', 'error')
+        return voltar
+    atual = obter_config('layout_nome')
+    camaras, total = _fotografia_do_layout()
+    if not camaras:
+        # nada para apagar: so da o nome ao layout que vai ser montado
+        definir_config('layout_nome', nome)
+        registrar_log('Começou layout do zero', f'"{nome}" (não havia câmaras)', modulo='enderecamento')
+        db.session.commit()
+        flash(f'Layout "{nome}" iniciado. Use Nova câmara para montar.', 'success')
+        return voltar
     if (request.form.get('confirmacao') or '').strip().upper() != 'NOVO':
         flash('Novo layout não confirmado: para apagar as câmaras e começar do zero, digite NOVO.', 'error')
         return voltar
-    camaras, total = _fotografia_do_layout()
-    if not camaras:
-        flash('Não há câmaras cadastradas: o layout já está em branco. Use Nova câmara para começar.', 'success')
+    do_grupo = LayoutSalvo.query.filter(LayoutSalvo.grupo == _grupo_do_usuario())
+    if nome.lower() != atual.lower() and do_grupo.filter(db.func.lower(LayoutSalvo.nome) == nome.lower()).first():
+        flash(f'Já existe um layout salvo com o nome "{nome}". Escolha outro nome para o layout novo; nada foi apagado.', 'error')
+        return voltar
+    if atual and nome.lower() == atual.lower():
+        flash(f'O layout de agora já se chama "{atual}". Dê outro nome ao layout novo; nada foi apagado.', 'error')
         return voltar
     em_uso = (db.session.query(Camara.codigo, Camara.nome, db.func.count(db.distinct(Palete.id)))
               .join(Endereco, Endereco.camara_id == Camara.id)
               .join(Palete, db.or_(Palete.endereco_id == Endereco.id, Palete.sugerido_id == Endereco.id))
               .group_by(Camara.codigo, Camara.nome).order_by(Camara.codigo).all())
     if em_uso:
-        lista = '; '.join(f'câmara {codigo} · {nome}: {qtd} palete(s)' for codigo, nome, qtd in em_uso[:8])
+        lista = '; '.join(f'câmara {codigo} · {nome_c}: {qtd} palete(s)' for codigo, nome_c, qtd in em_uso[:8])
         flash('Não dá para começar do zero: há paletes ligados a endereços (' + lista + ('…' if len(em_uso) > 8 else '') + '). '
               'Os endereços guardam o histórico desses paletes. Você pode criar câmaras novas ao lado das atuais ou '
               'inativar as que não usa mais.', 'error')
         return voltar
-    nome = ' '.join((request.form.get('salvar_nome') or '').split())[:60]
-    if nome:
-        layout = LayoutSalvo.query.filter(LayoutSalvo.grupo == _grupo_do_usuario(), db.func.lower(LayoutSalvo.nome) == nome.lower()).first()
-        if layout is not None:
-            flash(f'Já existe um layout salvo com o nome "{layout.nome}". Escolha outro nome para guardar o layout atual; '
-                  'nada foi apagado.', 'error')
-            return voltar
-        layout = LayoutSalvo(nome=nome, grupo=_grupo_do_usuario())
-        db.session.add(layout)
-        _gravar_layout(layout, camaras, total)
+    # O layout de agora fica guardado com o nome que ja tinha. Com nome: atualiza o salvo de mesmo nome (e o mesmo
+    # layout, no estado de agora). Sem nome ainda: "Layout anterior", sem passar por cima de outro que exista.
+    antigo = atual or 'Layout anterior'
+    salvo = do_grupo.filter(db.func.lower(LayoutSalvo.nome) == antigo.lower()).first()
+    if salvo is not None and not atual:
+        antigo = f'Layout anterior ({agora().strftime("%d/%m/%Y %H:%M")})'[:60]
+        salvo = do_grupo.filter(db.func.lower(LayoutSalvo.nome) == antigo.lower()).first()
+    if salvo is None:
+        salvo = LayoutSalvo(nome=antigo, grupo=_grupo_do_usuario())
+        db.session.add(salvo)
+    _gravar_layout(salvo, camaras, total)
     # inventarios antigos continuam com o nome da camara nas linhas; so deixam de apontar para a camara apagada
     Inventario.query.filter(Inventario.camara_id.isnot(None)).update({'camara_id': None}, synchronize_session=False)
     try:
         for camara in Camara.query.all():
             db.session.delete(camara)
-        registrar_log('Começou layout do zero', f'{len(camaras)} câmara(s) e {total} endereço(s) apagados'
-                      + (f' · layout anterior salvo como "{nome}"' if nome else ' · layout anterior não foi salvo'),
-                      modulo='enderecamento')
+        definir_config('layout_nome', nome)
+        registrar_log('Começou layout do zero', f'"{nome}": {len(camaras)} câmara(s) e {total} endereço(s) apagados'
+                      f' · o anterior ficou salvo como "{antigo}"', modulo='enderecamento')
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
         flash('Não foi possível apagar as câmaras: algum endereço ainda está em uso no estoque. Nada foi alterado.', 'error')
         return voltar
-    flash(f'Layout em branco: {len(camaras)} câmara(s) e {total} endereço(s) apagados.'
-          + (f' O layout anterior ficou salvo como "{nome}" (em Carregar layout).' if nome else '')
-          + ' Use Nova câmara para montar o novo.', 'success')
+    flash(f'Layout "{nome}" iniciado em branco: {len(camaras)} câmara(s) e {total} endereço(s) apagados. '
+          f'O layout anterior ficou salvo como "{antigo}" (em Carregar layout). Use Nova câmara para montar o novo.', 'success')
     return voltar
 
 
@@ -928,6 +947,8 @@ def _layout_ou_404(lid):
 @perm('enderecamento')
 def layout_carregar(lid):
     layout = _layout_ou_404(lid)
+    if Camara.query.count() == 0:
+        definir_config('layout_nome', layout.nome)   # carregado num sistema em branco: e este o layout de agora
     return _concluir_carga(f'Layout "{layout.nome}"', *_aplicar_layout(json.loads(layout.dados)['camaras']))
 
 
@@ -950,6 +971,8 @@ def layout_renomear(lid):
         return voltar
     registrar_log('Renomeou layout salvo', f'{layout.nome} → {nome}', modulo='enderecamento')
     antigo, layout.nome = layout.nome, nome
+    if obter_config('layout_nome').lower() == antigo.lower():
+        definir_config('layout_nome', nome)          # era o layout de agora: o nome dele acompanha
     db.session.commit()
     flash(f'Layout "{antigo}" agora se chama "{nome}".', 'success')
     return voltar
