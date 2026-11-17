@@ -8,6 +8,10 @@
     <h2><i class="fas fa-cube me-2"></i>Mapa{% if camara %} · {% if camara.codigo|string not in camara.nome %}{{ '%02d'|format(camara.codigo) }} · {% endif %}{{ camara.nome }}{% endif %}</h2>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         {% if tem_enderecos %}
+        <div class="btn-group" role="group" aria-label="O que o mapa mostra">
+            <button type="button" class="btn btn-outline-primary active" data-ver-mapa="ocupacao" aria-pressed="true" title="Mostra o que está guardado em cada posição"><i class="fas fa-boxes-stacked"></i>Ocupação</button>
+            <button type="button" class="btn btn-outline-primary" data-ver-mapa="reservado" aria-pressed="false" title="Mostra de qual cliente é cada espaço reservado"><i class="fas fa-user-tag"></i>Reservado</button>
+        </div>
         <div class="btn-group" role="group" aria-label="Visualização">
             <button type="button" class="btn btn-outline-primary" id="btnVisao2d" aria-pressed="true"><i class="fas fa-table-cells"></i>2D</button>
             <button type="button" class="btn btn-outline-primary" id="btnVisao3d" aria-pressed="false"><i class="fas fa-cube"></i>3D</button>
@@ -34,12 +38,12 @@
 {# Seletor de câmara: funciona também como visão geral (ocupação de cada uma). #}
 <div class="mapa-camaras mb-3" role="navigation" aria-label="Câmaras">
     <a class="mapa-camara-chip{% if not camara %} ativo{% endif %}" href="{{ url_for('enderecamento.mapa') }}">
-        <strong>Visão geral</strong><span>{{ linhas|length }} câmaras</span>
+        <strong>Visão geral</strong><span>{{ linhas|length }} câmaras · {{ linhas|sum(attribute='ocupados') }} ocupadas de {{ linhas|sum(attribute='total') }}</span>
     </a>
     {% for l in linhas %}
     <a class="mapa-camara-chip{% if camara and camara.id == l.camara.id %} ativo{% endif %}" href="{{ url_for('enderecamento.mapa', camara=l.camara.id) }}">
         <strong>{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }}</strong>
-        <span>{{ l.ocupados }} / {{ l.total }} · {{ l.ocupacao }}%</span>
+        <span>{{ l.ocupados }} ocupadas de {{ l.total }} · {{ l.ocupacao }}%</span>
     </a>
     {% endfor %}
 </div>
@@ -61,7 +65,7 @@
     <span><i class="swatch swatch--bloq" aria-hidden="true"></i>Bloqueado</span>
     <span><i class="swatch swatch--porta" aria-hidden="true"></i>Porta</span>
     <span><i class="swatch swatch--nv5" aria-hidden="true"></i>Sem posição</span>
-    <span><i class="swatch swatch--reserva" aria-hidden="true"></i>Reservado (logo do cliente apagado)</span>
+    <span><i class="swatch swatch--reserva" aria-hidden="true"></i>Reservado (aparece no botão Reservado)</span>
     <span><i class="swatch swatch--reentrega" aria-hidden="true"></i>Reentrega</span>
     <span><i class="swatch swatch--devolucao" aria-hidden="true"></i>Devolução</span>
     <form class="d-flex gap-2 ms-auto" id="formBuscaMapa" autocomplete="off">
@@ -75,7 +79,26 @@
 <div id="mapa3d" class="mapa-3d" hidden>
     <div class="mapa-3d-ajuda"><span class="so-mouse">Arraste para girar · roda do mouse para aproximar · botão direito para mover</span><span class="so-toque">Um dedo gira · dois dedos aproximam e movem · toque numa posição para ver o detalhe</span>
         <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnVisaoGeral3d"><i class="fas fa-expand"></i>Visão geral</button>
+        {% if editar and camara %}
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditar3d"><i class="fas fa-up-down-left-right"></i>Editar layout 3D</button>
+        {% elif editar %}
+        <span class="ms-2">Para arrumar as ruas dentro da sala, escolha uma câmara acima.</span>
+        {% endif %}
     </div>
+    {% if editar and camara %}
+    <div class="mapa-3d-edicao" id="barraEditar3d" hidden>
+        <span class="mapa-3d-edicao-texto"><strong>Editando o layout 3D.</strong> Arraste uma rua pelo chão para o lugar dela na sala. Chegando perto de outra, ela encosta sozinha (de costas, sem espaço no meio) ou alinha a ponta.
+            <span id="editar3dRua">Toque numa rua para girar.</span></span>
+        <span class="mapa-3d-edicao-botoes">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-girar3d="-90" disabled><i class="fas fa-rotate-left"></i>Girar 90°</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-girar3d="90" disabled><i class="fas fa-rotate-right"></i>Girar 90°</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-girar3d="15" disabled><i class="fas fa-rotate-right"></i>15°</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPadrao3d"><i class="fas fa-arrows-rotate"></i>Posição padrão</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCancelar3d">Cancelar</button>
+            <button type="button" class="btn btn-sm btn-primary" id="btnSalvar3d"><i class="fas fa-check"></i>Salvar layout 3D</button>
+        </span>
+    </div>
+    {% endif %}
     <div id="mapa3dTela" class="mapa-3d-tela"></div>
     <div id="mapa3dDica" class="mapa-3d-dica" hidden></div>
 </div>
@@ -185,6 +208,8 @@ window.WMS_MAPA = {
     urlEtiquetaPalete: {{ (url_for('entrada.etiqueta_palete', pid=0) if pode_ver('recebimento') else none)|tojson }},
     urlPaletes: {{ (url_for('movimentacao.paletes') if pode_ver('movimentacao') else none)|tojson }},
     porta: {{ url_for('static', filename='img/porta-camara.png')|tojson }},
+    {# arrumar as ruas dentro da sala do 3D: só com uma câmara escolhida e permissão de editar #}
+    urlLayout3d: {{ (url_for('enderecamento.camara_layout3d', cid=camara.id) if editar and camara else none)|tojson }},
     {# a biblioteca do 3D vem do próprio sistema (não depende de outro site estar acessível no aparelho) #}
     three: {{ (url_for('static', filename='vendor/three-r128.min.js') ~ '?v=' ~ assets_version)|tojson }},
     orbit: {{ (url_for('static', filename='vendor/OrbitControls-r128.js') ~ '?v=' ~ assets_version)|tojson }}

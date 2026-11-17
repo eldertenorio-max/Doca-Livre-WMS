@@ -17,6 +17,8 @@
     var ROTULO = { livre: 'Disponível', ocupado: 'Ocupado', bloqueado: 'Bloqueado' };
     var CEL_MIN = 18, CEL_MAX = 40, CEL_MIN_CELULAR = 14, CEL_MAX_CELULAR = 22;
     var celular = window.matchMedia('(max-width: 767px)');
+    // O que o mapa mostra: 'ocupacao' (o que está guardado) ou 'reservado' (de qual cliente é cada espaço).
+    var modoVer = 'ocupacao';
 
     function ler(chave) { try { return localStorage.getItem(chave); } catch (e) { return null; } }
     function gravar(chave, valor) { try { localStorage.setItem(chave, valor); } catch (e) {} }
@@ -240,15 +242,17 @@
     function celula(r, coluna, nivel) {
         var e = r.celulas[coluna + '|' + nivel];
         if (e) {
-            var classe = 'cell ' + (e.status === 'ocupado' ? 'cell--ocupado' : 'cell--disponivel') + (e.bloqueado ? ' cell--bloqueado' : '') + (e.cliente ? ' cell--reservada' : '');
-            var p = e.paletes && e.paletes[0];
+            var verReserva = modoVer === 'reservado';
+            // Ver reservado: só os espaços de cliente aparecem, com o logo; o que está guardado fica de fora.
+            var classe = 'cell ' + (e.status === 'ocupado' && !verReserva ? 'cell--ocupado' : 'cell--disponivel') + (e.bloqueado ? ' cell--bloqueado' : '') + (e.cliente && verReserva ? ' cell--reservada' : '');
+            var p = verReserva ? null : e.paletes && e.paletes[0];
             // Voltou da rua: margem azul (reentrega) ou vermelha (devolução). Se houver os dois na posição, vale a devolução.
             var volta = retornoDe(e);
-            if (volta) classe += ' cell--retorno cell--retorno-' + volta;
+            if (volta && !verReserva) classe += ' cell--retorno cell--retorno-' + volta;
             var dica = escapar(descricao(e));
             if (!p) {
                 // Vazia e reservada: logo do cliente apagado, numa moldura tracejada (a ocupada é cheia, com a nota embaixo).
-                var reserva = e.cliente ? '<span class="cell-reserva">' + marca({ logo: e.cliente_logo, iniciais: e.cliente_iniciais }, 'cell-logo') + '</span>' : '';
+                var reserva = e.cliente && verReserva ? '<span class="cell-reserva">' + marca({ logo: e.cliente_logo, iniciais: e.cliente_iniciais }, 'cell-logo') + '</span>' : '';
                 return '<button type="button" class="' + classe + '" data-id="' + e.id + '" title="' + dica + '" aria-label="' + dica + '">' + reserva + '</button>';
             }
             // Ocupado: logo da empresa e, embaixo, o número da nota. O resumo aparece ao passar o mouse
@@ -447,16 +451,7 @@
 
     function montar3d() {
         var THREE = window.THREE;
-        // Uma câmara, ou todas as câmaras de estante em sequência (visão geral). O stage não tem estante.
-        var ruas = [];
-        dados.camaras.forEach(function (camara, indice) {
-            if (camara.tipo === 'Stage') return;
-            camara.ruas.forEach(function (r, i) {
-                ruas.push({ rua: r.rua, colunas: r.colunas, niveis: r.niveis, celulas: r.celulas,
-                            portas: r.portas, vaos: r.vaos, temMarcas: r.temMarcas,
-                            camara: i === 0 ? nomeComNumero(camara) : null, novaCamara: i === 0 && ruas.length > 0 });
-            });
-        });
+        var verReserva = modoVer === 'reservado';
         var tela = document.getElementById('mapa3dTela');
         var dica = document.getElementById('mapa3dDica');
         var cor = cores();
@@ -478,18 +473,40 @@
         sol.position.set(20, 40, 25);
         scene.add(sol);
 
-        var minCol = Infinity, maxCol = -Infinity, maxNivel = 0;
-        ruas.forEach(function (r) {
-            minCol = Math.min(minCol, r.colunas[0]); maxCol = Math.max(maxCol, r.colunas[r.colunas.length - 1]);
-            maxNivel = Math.max(maxNivel, r.niveis[r.niveis.length - 1]);
-        });
-        var largura = (maxCol - minCol + 1) * L;
-        var ENTRE_CAMARAS = 4.0;       // espaço extra entre uma câmara e a seguinte
-        var zCursor = 0;
-        ruas.forEach(function (r, i) {
-            if (r.novaCamara) zCursor += ENTRE_CAMARAS;
-            r.z = zCursor + P / 2;
-            zCursor += P + (i < ruas.length - 1 ? CORREDOR : 0);
+        // Cada câmara é uma "sala" com as ruas dentro. Cada rua tem o centro (x, z) no chão da sala e um giro:
+        // o padrão é uma atrás da outra, com corredor; quem arrumou a sala (Editar layout 3D) tem as posições guardadas.
+        // Visão geral: as salas em fila. O stage não tem estante.
+        var maxNivel = 0, largura = 0, ENTRE_CAMARAS = 4.0, zCursor = 0;
+        var salas = [], itens = [];
+        function meia(item) {       // metade da largura e do fundo que a rua ocupa no chão, já girada
+            var a = item.giro * Math.PI / 180, c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+            return { hx: c * item.w / 2 + s * P / 2, hz: s * item.w / 2 + c * P / 2 };
+        }
+        dados.camaras.forEach(function (camara) {
+            if (camara.tipo === 'Stage' || !camara.ruas.length) return;
+            var primeira = Math.min.apply(null, camara.ruas.map(function (r) { return r.colunas[0]; }));
+            var guardado = camara.layout3d || {};
+            var sala = { camara: camara, ruas: [] };
+            camara.ruas.forEach(function (r, i) {
+                var w = (r.colunas[r.colunas.length - 1] - r.colunas[0] + 1) * L;
+                var item = { r: r, w: w, sala: sala, topo: r.niveis[r.niveis.length - 1] * A,
+                             padrao: { x: (r.colunas[0] - primeira) * L + w / 2, z: P / 2 + i * (P + CORREDOR), giro: 0 } };
+                var g = guardado[r.rua];
+                item.x = g ? g[0] : item.padrao.x; item.z = g ? g[1] : item.padrao.z; item.giro = g ? g[2] : 0;
+                maxNivel = Math.max(maxNivel, r.niveis[r.niveis.length - 1]);
+                sala.ruas.push(item); itens.push(item);
+            });
+            var b = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+            sala.ruas.forEach(function (item) {
+                var m = meia(item);
+                b.minX = Math.min(b.minX, item.x - m.hx); b.maxX = Math.max(b.maxX, item.x + m.hx);
+                b.minZ = Math.min(b.minZ, item.z - m.hz); b.maxZ = Math.max(b.maxZ, item.z + m.hz);
+            });
+            if (salas.length) zCursor += ENTRE_CAMARAS;
+            sala.b = b; sala.dx = -b.minX; sala.dz = zCursor - b.minZ;
+            zCursor += b.maxZ - b.minZ;
+            largura = Math.max(largura, b.maxX - b.minX);
+            salas.push(sala);
         });
         var fundoTotal = zCursor;
 
@@ -512,10 +529,10 @@
             sprite.scale.set(tamanho * canvas.width / 128, tamanho, 1);
             return sprite;
         }
-        function bloco(w, h, d, corBloco, x, y, z) {
+        function bloco(pai, w, h, d, corBloco, x, y, z) {
             var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: corBloco }));
             m.position.set(x, y, z);
-            scene.add(m);
+            pai.add(m);
             return m;
         }
 
@@ -630,28 +647,46 @@
         var geoRisco = new THREE.BoxGeometry(diagonal, 0.07, 0.07);
         var materialRisco = new THREE.MeshLambertMaterial({ color: cor.semPosicao });
         var inclinacao = Math.atan2(A * 0.78, L * 0.86);
-        function desenharX(x, y, z) {
+        function desenharX(pai, x, y, z) {
             [inclinacao, -inclinacao].forEach(function (angulo) {
                 // um X em cada face da estante, para aparecer dos dois corredores
                 [-P * 0.43, P * 0.43].forEach(function (dz) {
                     var risco = new THREE.Mesh(geoRisco, materialRisco);
                     risco.position.set(x, y, z + dz);
                     risco.rotation.z = angulo;
-                    scene.add(risco);
+                    pai.add(risco);
                 });
             });
         }
-        ruas.forEach(function (r) {
-            var z = r.z;
-            var x0 = (r.colunas[0] - minCol) * L, x1 = (r.colunas[r.colunas.length - 1] - minCol + 1) * L;
-            if (r.camara) {
-                // Visão geral: o nome fica ao lado de cada câmara. Uma câmara só: em cima dela, no meio, bem visível.
-                var nomeCamara = rotulo(r.camara.length > 44 ? r.camara.slice(0, 43) + '…' : r.camara, dados.unica ? 1.5 : 1.2, 'auto');
-                if (dados.unica) nomeCamara.position.set((x0 + x1) / 2, r.niveis[r.niveis.length - 1] * A + 2.6, z);
-                else nomeCamara.position.set(x0 - 8, 2.6, z);
-                scene.add(nomeCamara);
-            }
-            var topo = r.niveis[r.niveis.length - 1] * A;
+        function colocar(item) {
+            item.grupo.position.set(item.x, 0, item.z);
+            item.grupo.rotation.y = item.giro * Math.PI / 180;
+        }
+        salas.forEach(function (sala) {
+            var grupoSala = new THREE.Group();
+            grupoSala.position.set(sala.dx, 0, sala.dz);
+            scene.add(grupoSala);
+            // Visão geral: o nome fica ao lado de cada câmara. Uma câmara só: em cima dela, no meio, bem visível.
+            var texto = nomeComNumero(sala.camara);
+            var nomeCamara = rotulo(texto.length > 44 ? texto.slice(0, 43) + '…' : texto, dados.unica ? 1.5 : 1.2, 'auto');
+            var topoSala = Math.max.apply(null, sala.ruas.map(function (i) { return i.topo; }));
+            if (dados.unica) nomeCamara.position.set((sala.b.minX + sala.b.maxX) / 2, topoSala + 2.6, sala.b.minZ + P / 2);
+            else nomeCamara.position.set(sala.b.minX - 8, 2.6, sala.b.minZ + P / 2);
+            grupoSala.add(nomeCamara);
+            sala.nome = nomeCamara;
+            sala.ruas.forEach(function (item) { desenharRua(item, grupoSala); });
+        });
+        function desenharRua(item, grupoSala) {
+            var r = item.r, w = item.w, z = 0;
+            // A rua é um grupo com a origem no centro dela, no chão: é o que se arrasta e gira no Editar layout 3D.
+            var g = new THREE.Group();
+            item.grupo = g;
+            colocar(item);
+            grupoSala.add(g);
+            var c0 = r.colunas[0];
+            var X = function (divisa) { return (divisa - c0) * L - w / 2; };      // x de uma divisa de coluna, dentro da rua
+            var x0 = -w / 2;
+            var topo = item.topo;
             // montantes (em cada divisa de coluna) e longarinas (em cada nível), como numa estante porta-paletes
             // Onde há porta não passa estante: nem longarina na frente, nem montante no meio do vão.
             var naPorta = function (coluna, nivel) {
@@ -668,49 +703,49 @@
             };
             for (var c = primeiraCol; c <= ultimaCol + 1; c++) {
                 (function (c) {
-                    var x = (c - minCol) * L;
+                    var x = X(c);
                     // o montante da divisa some só nos níveis em que a porta ocupa os dois lados dele
                     trechos(1, ultimoNivel, function (n) { return !(naPorta(c - 1, n) && naPorta(c, n)); }).forEach(function (t) {
                         var base = (t[0] - 1) * A, alto = t[1] * A + (t[1] === ultimoNivel ? 0.1 : 0);
-                        [-P / 2, P / 2].forEach(function (dz) { bloco(0.07, alto - base, 0.07, cor.montante, x, (base + alto) / 2, z + dz); });
+                        [-P / 2, P / 2].forEach(function (dz) { bloco(g, 0.07, alto - base, 0.07, cor.montante, x, (base + alto) / 2, z + dz); });
                     });
                 })(c);
             }
             for (var n = 1; n <= ultimoNivel; n++) {
                 (function (n) {
                     trechos(primeiraCol, ultimaCol, function (col) { return !naPorta(col, n); }).forEach(function (t) {
-                        var xa = (t[0] - minCol) * L, xb = (t[1] - minCol + 1) * L;
-                        [-P / 2, P / 2].forEach(function (dz) { bloco(xb - xa, 0.09, 0.06, cor.longarina, (xa + xb) / 2, (n - 1) * A + 0.045, z + dz); });
+                        var xa = X(t[0]), xb = X(t[1] + 1);
+                        [-P / 2, P / 2].forEach(function (dz) { bloco(g, xb - xa, 0.09, 0.06, cor.longarina, (xa + xb) / 2, (n - 1) * A + 0.045, z + dz); });
                     });
                 })(n);
             }
             var nomeRua = rotulo(r.rua, 1.5);
             nomeRua.position.set(x0 - 1.6, 1.0, z);
-            scene.add(nomeRua);
+            g.add(nomeRua);
             r.colunas.forEach(function (c) {
                 var numero = rotulo(String(c), 0.55);
-                numero.position.set((c - minCol + 0.5) * L, topo + 0.45, z);
-                scene.add(numero);
+                numero.position.set(X(c + 0.5), topo + 0.45, z);
+                g.add(numero);
             });
             r.portas.forEach(function (p) {
                 var larguraPorta = (p.c1 - p.c0 + 1) * L, alturaPorta = (p.n1 - p.n0 + 1) * A;
                 var material = new THREE.MeshLambertMaterial({ color: imagemPorta ? 0xffffff : 0x1d4ed8, map: imagemPorta });
                 materiaisPorta.push(material);
                 var placa = new THREE.Mesh(new THREE.BoxGeometry(larguraPorta * 0.96, alturaPorta * 0.97, P * 0.9), material);
-                placa.position.set((p.c0 - minCol) * L + larguraPorta / 2, (p.n0 - 1) * A + alturaPorta / 2, z);
-                scene.add(placa);
+                placa.position.set(X(p.c0) + larguraPorta / 2, (p.n0 - 1) * A + alturaPorta / 2, z);
+                g.add(placa);
             });
             r.colunas.forEach(function (coluna) {
                 r.niveis.forEach(function (nivel) {
                     if (r.celulas[coluna + '|' + nivel] || portaDe(r, coluna, nivel)) return;
-                    desenharX((coluna - minCol + 0.5) * L, (nivel - 1) * A + 0.09 + A * 0.39, z);
+                    desenharX(g, X(coluna + 0.5), (nivel - 1) * A + 0.09 + A * 0.39, z);
                 });
             });
             Object.keys(r.celulas).forEach(function (chave) {
                 var e = r.celulas[chave];
-                var x = (e.coluna - minCol + 0.5) * L, base = (e.nivel - 1) * A + 0.09;
+                var x = X(e.coluna + 0.5), base = (e.nivel - 1) * A + 0.09;
                 var caixa;
-                if (e.status === 'ocupado') {
+                if (e.status === 'ocupado' && !verReserva) {
                     // Posição ocupada: uma caixa de papelão com fita, em cima do palete.
                     caixa = new THREE.Mesh(geoCarga, new THREE.MeshLambertMaterial({ color: 0xc9a26b }));
                     caixa.position.set(x, base + 0.1 + A * 0.3, z);
@@ -728,22 +763,32 @@
                             if (filho.geometry === geoFita) filho.material = new THREE.MeshLambertMaterial({ color: COR_RETORNO[volta3d] });
                         });
                     }
-                    if (e.bloqueado) desenharX(x, base + A * 0.39, z);
+                    if (e.bloqueado) desenharX(g, x, base + A * 0.39, z);
                 } else {
-                    var reservada = e.status === 'livre' && e.cliente;
-                    var corCaixa = reservada ? COR_RESERVA : cor[e.status];
+                    // Ver reservado: todo espaço de cliente aparece com o logo dele; o resto, como posição vazia.
+                    var reservada = verReserva && e.cliente;
+                    var estado = verReserva ? (e.bloqueado ? 'bloqueado' : 'livre') : e.status;
+                    var vazada = reservada || estado === 'livre';
+                    var corCaixa = reservada ? COR_RESERVA : cor[estado];
                     caixa = new THREE.Mesh(geoCaixa, new THREE.MeshLambertMaterial({
-                        color: corCaixa, transparent: e.status === 'livre', opacity: reservada ? 0.2 : e.status === 'livre' ? 0.28 : 1
+                        color: corCaixa, transparent: vazada, opacity: reservada ? 0.2 : vazada ? 0.28 : 1
                     }));
                     caixa.position.set(x, base + A * 0.39, z);
                     caixa.add(new THREE.LineSegments(geoBorda, new THREE.LineBasicMaterial({ color: corCaixa })));
                     if (reservada) etiquetarReserva(caixa, e);
                 }
                 caixa.userData.endereco = e;
-                scene.add(caixa);
+                g.add(caixa);
                 caixas.push(caixa);
             });
-        });
+            // "alça" da rua: caixa invisível do tamanho dela, que o Editar layout 3D usa para pegar e destacar
+            item.alca = new THREE.Mesh(new THREE.BoxGeometry(w + 0.2, topo + 0.3, P + 0.2),
+                                       new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0, depthWrite: false }));
+            item.alca.position.set(0, (topo + 0.3) / 2, 0);
+            item.alca.userData.item = item;
+            item.alca.visible = false;
+            g.add(item.alca);
+        }
 
         var centro = new THREE.Vector3(largura / 2, maxNivel * A / 2, fundoTotal / 2);
         var quadroPedido = false;
@@ -767,6 +812,11 @@
                 // um pouco mais longe, para caber a câmara inteira e o nome dela em cima
                 camera.position.set(centro.x - alcance * 0.22, centro.y + alcance * 0.5, centro.z + alcance * 0.86);
             }
+            // garante que a cena inteira cabe (ruas espalhadas pela sala no Editar layout 3D pedem mais distância)
+            var raioCena = 0.5 * Math.sqrt(largura * largura + fundoTotal * fundoTotal + Math.pow(maxNivel * A, 2));
+            var meioCampo = Math.min(22.5 * Math.PI / 180, Math.atan(Math.tan(22.5 * Math.PI / 180) * camera.aspect));
+            var direcao = camera.position.clone().sub(centro), precisa = raioCena / Math.sin(meioCampo) * 0.62;
+            if (direcao.length() < precisa) camera.position.copy(centro).add(direcao.setLength(precisa));
             controls.target.copy(centro);
             mexeu = false;
             pedirQuadro();
@@ -785,7 +835,8 @@
         }
         controls.addEventListener('change', pedirQuadro);
         controls.addEventListener('start', function () { mexeu = true; });
-        if (window.ResizeObserver) new ResizeObserver(ajustarTamanho).observe(tela);
+        var observador = window.ResizeObserver ? new ResizeObserver(ajustarTamanho) : null;
+        if (observador) observador.observe(tela);
         window.addEventListener('resize', ajustarTamanho);
 
         // passar o mouse / clicar
@@ -803,6 +854,7 @@
             if (caixa && caixa !== destaque) caixa.material.emissive.setHex(ligado ? 0x555555 : 0x000000);
         }
         renderer.domElement.addEventListener('pointermove', function (ev) {
+            if (editando) { aoArrastar(ev); return; }
             var caixa = alvo(ev);
             if (caixa !== sobre) { realcar(sobre, false); sobre = caixa; realcar(sobre, true); pedirQuadro(); }
             renderer.domElement.style.cursor = caixa ? 'pointer' : 'grab';
@@ -818,8 +870,13 @@
             }
         });
         renderer.domElement.addEventListener('pointerleave', function () { realcar(sobre, false); sobre = null; dica.hidden = true; pedirQuadro(); });
-        renderer.domElement.addEventListener('pointerdown', function (ev) { inicioClique = { x: ev.clientX, y: ev.clientY }; });
+        renderer.domElement.addEventListener('pointerdown', function (ev) {
+            inicioClique = { x: ev.clientX, y: ev.clientY };
+            if (editando) aoPegar(ev);
+        });
+        renderer.domElement.addEventListener('pointercancel', function () { if (editando) aoSoltar(); });
         renderer.domElement.addEventListener('pointerup', function (ev) {
+            if (editando) { aoSoltar(); return; }
             // só é clique se o mouse não arrastou (arrastar gira a câmera)
             if (!inicioClique || Math.abs(ev.clientX - inicioClique.x) + Math.abs(ev.clientY - inicioClique.y) > 6) return;
             var caixa = alvo(ev);
@@ -832,16 +889,123 @@
             if (!destaque) return;
             destaque.material.emissive.setHex(0xaa8800);
             destaque.scale.set(1.18, 1.18, 1.18);
-            controls.target.copy(destaque.position);
-            camera.position.set(destaque.position.x - 4, destaque.position.y + 5, destaque.position.z + 9);
+            scene.updateMatrixWorld(true);
+            var onde = destaque.getWorldPosition(new THREE.Vector3());      // a caixa está dentro do grupo da rua
+            controls.target.copy(onde);
+            camera.position.set(onde.x - 4, onde.y + 5, onde.z + 9);
             pedirQuadro();
         }
+
+        // ------------------------------------------------ Editar layout 3D: arrastar e girar as ruas na sala
+        var editando = false, selecionada = null, arrasto = null, voltouAoPadrao = false, aoSelecionar = null;
+        var chao = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), grade = null;
+        function pontoNoChao(ev) {
+            var caixaTela = renderer.domElement.getBoundingClientRect();
+            ponteiro.x = ((ev.clientX - caixaTela.left) / caixaTela.width) * 2 - 1;
+            ponteiro.y = -((ev.clientY - caixaTela.top) / caixaTela.height) * 2 + 1;
+            raio.setFromCamera(ponteiro, camera);
+            var p = new THREE.Vector3();
+            return raio.ray.intersectPlane(chao, p) ? p : null;
+        }
+        function selecionar(item) {
+            if (selecionada) selecionada.alca.material.opacity = 0;
+            selecionada = item;
+            if (item) item.alca.material.opacity = 0.22;
+            if (aoSelecionar) aoSelecionar(item ? item.r.rua : null);
+            pedirQuadro();
+        }
+        // Ímã: perto de outra rua (as duas retas), encosta de costas sem espaço, alinha o centro ou a ponta.
+        function ima(item) {
+            if (item.giro % 90) return;
+            var m = meia(item), IMA = 0.45, melhorX = null, melhorZ = null;
+            function tenta(atual, alvoPos, melhor) {
+                var d = Math.abs(alvoPos - atual);
+                return d <= IMA && (!melhor || d < melhor.d) ? { d: d, v: alvoPos } : melhor;
+            }
+            itens.forEach(function (o) {
+                if (o === item || o.giro % 90) return;
+                var n = meia(o);
+                if (Math.abs(item.x - o.x) > m.hx + n.hx + 1.5 || Math.abs(item.z - o.z) > m.hz + n.hz + 1.5) return;
+                [o.z - (m.hz + n.hz), o.z + (m.hz + n.hz), o.z].forEach(function (v) { melhorZ = tenta(item.z, v, melhorZ); });
+                [o.x - (m.hx + n.hx), o.x + (m.hx + n.hx), o.x, o.x - n.hx + m.hx, o.x + n.hx - m.hx].forEach(function (v) { melhorX = tenta(item.x, v, melhorX); });
+            });
+            if (melhorX) item.x = melhorX.v;
+            if (melhorZ) item.z = melhorZ.v;
+        }
+        function aoPegar(ev) {
+            scene.updateMatrixWorld(true);
+            var caixaTela = renderer.domElement.getBoundingClientRect();
+            ponteiro.x = ((ev.clientX - caixaTela.left) / caixaTela.width) * 2 - 1;
+            ponteiro.y = -((ev.clientY - caixaTela.top) / caixaTela.height) * 2 + 1;
+            raio.setFromCamera(ponteiro, camera);
+            var achados = raio.intersectObjects(itens.map(function (i) { return i.alca; }), false);
+            if (!achados.length) return;                      // pegou o chão: a câmera gira normalmente
+            var item = achados[0].object.userData.item, p = pontoNoChao(ev);
+            selecionar(item);
+            if (!p) return;
+            controls.enabled = false;                         // enquanto arrasta a rua, a câmera fica parada
+            arrasto = { item: item, dx: item.x - p.x, dz: item.z - p.z };
+            try { renderer.domElement.setPointerCapture(ev.pointerId); } catch (e) {}
+        }
+        function aoArrastar(ev) {
+            if (!arrasto) return;
+            var p = pontoNoChao(ev);
+            if (!p) return;
+            var item = arrasto.item;
+            item.x = Math.max(-300, Math.min(300, Math.round((p.x + arrasto.dx) * 20) / 20));
+            item.z = Math.max(-300, Math.min(300, Math.round((p.z + arrasto.dz) * 20) / 20));
+            ima(item);
+            voltouAoPadrao = false;
+            colocar(item);
+            pedirQuadro();
+        }
+        function aoSoltar() {
+            arrasto = null;
+            controls.enabled = true;
+        }
+        var edicao = {
+            iniciar: function (avisar) {
+                editando = true; aoSelecionar = avisar;
+                dica.hidden = true;
+                itens.forEach(function (i) { i.alca.visible = true; });
+                salas.forEach(function (s) { s.nome.visible = false; });      // o nome da câmara atrapalharia o arrasto
+                piso.scale.set(4, 4, 1);                                       // mais chão para espalhar as ruas
+                grade = new THREE.GridHelper(Math.ceil(Math.max(largura, fundoTotal) * 4 + 32), Math.ceil(Math.max(largura, fundoTotal) * 4 + 32), 0x94a3b8, 0xcbd5e1);
+                grade.position.set(largura / 2, 0.005, fundoTotal / 2);
+                grade.material.transparent = true; grade.material.opacity = 0.35;
+                scene.add(grade);
+                renderer.domElement.style.cursor = 'move';
+                pedirQuadro();
+            },
+            girar: function (graus) {
+                if (!selecionada) return;
+                selecionada.giro = ((selecionada.giro + graus) % 360 + 360) % 360;
+                voltouAoPadrao = false;
+                colocar(selecionada);
+                pedirQuadro();
+            },
+            padrao: function () {
+                itens.forEach(function (i) { i.x = i.padrao.x; i.z = i.padrao.z; i.giro = 0; colocar(i); });
+                voltouAoPadrao = true;
+                pedirQuadro();
+            },
+            // o que vai ser gravado: {rua: {x, z, giro}}; vazio = a câmara volta à posição padrão
+            posicoes: function () {
+                var mapa = {};
+                if (!voltouAoPadrao) itens.forEach(function (i) { mapa[i.r.rua] = { x: i.x, z: i.z, giro: i.giro }; });
+                return mapa;
+            }
+        };
 
         ajustarTamanho();
         enquadrar();
         return {
-            enquadrar: enquadrar, destacar: destacar, ajustar: ajustarTamanho,
-            destruir: function () { renderer.dispose(); tela.innerHTML = ''; }
+            enquadrar: enquadrar, destacar: destacar, ajustar: ajustarTamanho, edicao: edicao,
+            destruir: function () {
+                window.removeEventListener('resize', ajustarTamanho);
+                if (observador) observador.disconnect();
+                controls.dispose(); renderer.dispose(); tela.innerHTML = '';
+            }
         };
     }
 
@@ -897,11 +1061,85 @@
     }
     document.getElementById('btnVisaoGeral3d').addEventListener('click', function () { if (cena3d) cena3d.enquadrar(); });
 
+    // ------------------------------------------------------------ Editar layout 3D (botões)
+    var btnEditar3d = document.getElementById('btnEditar3d'), barraEditar3d = document.getElementById('barraEditar3d');
+    function refazer3d() {
+        if (cena3d) { cena3d.destruir(); cena3d = null; }
+        carregando3d = null;
+        if (visaoAtual === '3d') return abrir3d();
+        return Promise.resolve();
+    }
+    function modoEdicao3d(ligado) {
+        if (!barraEditar3d) return;
+        barraEditar3d.hidden = !ligado;
+        btnEditar3d.hidden = ligado;
+        area3d.classList.toggle('mapa-3d--editando', ligado);
+        document.querySelectorAll('[data-girar3d]').forEach(function (b) { b.disabled = true; });
+        document.getElementById('editar3dRua').textContent = 'Toque numa rua para girar.';
+    }
+    if (btnEditar3d && cfg.urlLayout3d) {
+        btnEditar3d.addEventListener('click', function () {
+            if (!cena3d) return;
+            modoEdicao3d(true);
+            cena3d.edicao.iniciar(function (rua) {
+                document.querySelectorAll('[data-girar3d]').forEach(function (b) { b.disabled = !rua; });
+                document.getElementById('editar3dRua').textContent = rua ? 'Rua ' + rua + ' selecionada: use os botões para girar.' : 'Toque numa rua para girar.';
+            });
+        });
+        document.querySelectorAll('[data-girar3d]').forEach(function (b) {
+            b.addEventListener('click', function () { if (cena3d) cena3d.edicao.girar(Number(b.getAttribute('data-girar3d'))); });
+        });
+        document.getElementById('btnPadrao3d').addEventListener('click', function () { if (cena3d) cena3d.edicao.padrao(); });
+        document.getElementById('btnCancelar3d').addEventListener('click', function () { modoEdicao3d(false); refazer3d(); });
+        document.getElementById('btnSalvar3d').addEventListener('click', function () {
+            if (!cena3d) return;
+            var botao = this, posicoes = cena3d.edicao.posicoes();
+            var csrf = document.querySelector('meta[name="csrf-token"]');
+            botao.disabled = true;
+            fetch(cfg.urlLayout3d, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf ? csrf.getAttribute('content') : '', 'X-Requested-With': 'fetch' },
+                body: JSON.stringify({ ruas: posicoes })
+            }).then(function (r) {
+                return r.json().catch(function () { return {}; }).then(function (corpo) {
+                    if (!r.ok || !corpo.ok) throw new Error(corpo.erro || 'Não foi possível salvar o layout 3D. Tente de novo.');
+                    return corpo;
+                });
+            }).then(function (corpo) {
+                dados.camaras.forEach(function (c) { c.layout3d = corpo.ruas; });      // aqui há só uma câmara na tela
+                modoEdicao3d(false);
+                return refazer3d().then(function () { aviso.textContent = 'Layout 3D salvo.'; });
+            }).catch(function (erro) {
+                aviso.textContent = erro.message;
+            }).then(function () { botao.disabled = false; });
+        });
+    }
+
+    // ------------------------------------------------------------ ver: ocupação x reservado
+    var botoesVer = document.querySelectorAll('[data-ver-mapa]');
+    function verMapa(modo, refazer) {
+        modoVer = modo === 'reservado' ? 'reservado' : 'ocupacao';
+        botoesVer.forEach(function (b) {
+            var ativo = b.getAttribute('data-ver-mapa') === modoVer;
+            b.classList.toggle('active', ativo);
+            b.setAttribute('aria-pressed', ativo);
+        });
+        gravar('wms.mapa.ver', modoVer);
+        if (!refazer) return;
+        desenhar2d();
+        modoEdicao3d(false);
+        refazer3d();
+    }
+    botoesVer.forEach(function (b) {
+        b.addEventListener('click', function () { verMapa(b.getAttribute('data-ver-mapa'), true); });
+    });
+    verMapa(ler('wms.mapa.ver'), false);
+
     // O tema mudou: o 3D é refeito com as cores novas.
     new MutationObserver(function () {
         if (!cena3d) return;
-        cena3d.destruir(); cena3d = null; carregando3d = null;
-        if (visaoAtual === '3d') abrir3d();
+        modoEdicao3d(false);
+        refazer3d();
     }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-tema'] });
 
     desenhar2d();

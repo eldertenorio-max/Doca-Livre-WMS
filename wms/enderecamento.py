@@ -14,7 +14,8 @@ from .codigo_endereco import codigo_bipagem, codigo_endereco, digito_verificador
 from .core import perm, pode_editar, registrar_log, usuario_atual
 from .etiqueta_zebra import ctx_etiqueta_zebra
 from .hierarquia import chaves_de_layout, empresas_do_usuario
-from .models import Camara, Empresa, Endereco, Inventario, LayoutSalvo, Palete, Vao, agora, db, logo_da_empresa
+from .models import (Camara, Empresa, Endereco, Inventario, LayoutSalvo, Palete, RuaLayout3d, Vao, agora, db,
+                     logo_da_empresa)
 from .paletes import NO_ARMAZEM
 from .sistema import definir as definir_config, obter as obter_config
 
@@ -789,6 +790,8 @@ def _aplicar_layout(camaras):
             db.session.add(camara)
             db.session.flush()
             camaras_novas += 1
+            for rua, x, z, giro in item.get('layout3d', []):          # arrumacao do 3D: so em camara que nasce agora
+                db.session.add(RuaLayout3d(camara_id=camara.id, rua=rua, x=x, z=z, giro=giro))
         existentes = {(e.rua, e.coluna, e.nivel) for e in camara.enderecos}
         for rua, coluna, nivel, destino, fixo, *resto in item['enderecos']:
             if (rua, coluna, nivel) in existentes:
@@ -838,7 +841,8 @@ def _fotografia_do_layout():
         total += len(enderecos)
         camaras.append({'codigo': camara.codigo, 'nome': camara.nome, 'tipo': camara.tipo, 'categoria': camara.categoria,
                         'temp_min': camara.temp_min, 'temp_max': camara.temp_max, 'ativo': camara.ativo,
-                        'enderecos': enderecos, 'vaos': [[v.rua, v.coluna, v.nivel, v.tipo] for v in camara.vaos]})
+                        'enderecos': enderecos, 'vaos': [[v.rua, v.coluna, v.nivel, v.tipo] for v in camara.vaos],
+                        'layout3d': [[p.rua, p.x, p.z, p.giro] for p in camara.layout3d]})
     return camaras, total
 
 
@@ -1086,11 +1090,42 @@ def mapa():
     dados = {'unica': bool(camara),
              'camaras': [{'id': c.id, 'codigo': c.codigo, 'nome': c.nome, 'tipo': c.tipo,
                           'descricao': c.categoria or c.tipo, 'enderecos': _enderecos_mapa(c),
+                          # onde cada rua fica na sala do 3D, quando foi arrumada a mao: {rua: [x, z, giro]}
+                          'layout3d': {p.rua: [p.x, p.z, p.giro] for p in c.layout3d},
                           # portas e pontos sem posicao marcados na criacao da camara
                           'vaos': [{'rua': v.rua, 'coluna': v.coluna, 'nivel': v.nivel, 'tipo': v.tipo} for v in c.vaos]}
                          for c in mostradas]}
     return render_template('enderecamento_mapa.html', linhas=linhas, camara=camara, dados=dados,
                            tem_enderecos=any(c['enderecos'] for c in dados['camaras']))
+
+
+@bp.route('/camaras/<int:cid>/layout3d', methods=['POST'])
+@perm('enderecamento')
+def camara_layout3d(cid):
+    """Guarda onde cada rua fica na sala do desenho 3D (Editar layout 3D do mapa). Corpo JSON:
+    {"ruas": {"A": {"x": 1.5, "z": 0.6, "giro": 90}, ...}}; sem ruas, a camara volta a posicao padrao.
+    So muda o desenho: enderecos, codigos e estoque nao sao tocados."""
+    camara = _camara_ou_404(cid)
+    corpo = request.get_json(silent=True) or {}
+    pedidas = corpo.get('ruas')
+    if not isinstance(pedidas, dict):
+        return jsonify(erro='Dados do layout 3D inválidos.'), 400
+    existentes = {rua for (rua,) in db.session.query(Endereco.rua).filter(Endereco.camara_id == camara.id).distinct()}
+    novas = []
+    for rua, pos in pedidas.items():
+        try:
+            x, z, giro = float(pos['x']), float(pos['z']), int(round(float(pos.get('giro', 0))))
+        except (TypeError, KeyError, ValueError):
+            return jsonify(erro=f'Posição inválida para a rua {rua}.'), 400
+        if rua not in existentes or not (abs(x) <= 1000 and abs(z) <= 1000):      # NaN tambem cai aqui
+            return jsonify(erro=f'Posição inválida para a rua {rua}.'), 400
+        novas.append(RuaLayout3d(camara_id=camara.id, rua=rua, x=round(x, 3), z=round(z, 3), giro=giro % 360))
+    RuaLayout3d.query.filter_by(camara_id=camara.id).delete(synchronize_session=False)
+    db.session.add_all(novas)
+    registrar_log('Arrumou o layout 3D' if novas else 'Voltou o layout 3D ao padrão',
+                  f'{camara.codigo} · {camara.nome}' + (f' · {len(novas)} rua(s)' if novas else ''), modulo='enderecamento')
+    db.session.commit()
+    return jsonify(ok=True, ruas={p.rua: [p.x, p.z, p.giro] for p in novas})
 
 
 @bp.route('/mapa/imprimir')

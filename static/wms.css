@@ -826,6 +826,15 @@ button.cell { cursor: pointer; }
 .mapa-3d-tela { width: 100%; height: min(68vh, 640px); min-height: 360px; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; background: var(--fundo-suave); }
 .mapa-3d-tela canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .mapa-3d-ajuda .so-toque { display: none; }
+.mapa-3d-edicao {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; padding: 8px 12px;
+    border: 1px solid #f59e0b; border-radius: 10px; background: var(--fundo-card); font-size: .82rem;
+}
+.mapa-3d-edicao[hidden] { display: none; }
+.mapa-3d-edicao-texto { flex: 1 1 320px; color: var(--texto-secundario); }
+.mapa-3d-edicao-texto strong { color: var(--texto-titulo); }
+.mapa-3d-edicao-botoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.mapa-3d--editando .mapa-3d-tela { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, .25); }
 @media (hover: none) and (pointer: coarse) {
     .mapa-3d-ajuda .so-mouse { display: none; }
     .mapa-3d-ajuda .so-toque { display: inline; }

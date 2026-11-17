@@ -244,6 +244,22 @@ class Endereco(db.Model):
     criado_em = db.Column(db.DateTime, nullable=False, default=agora)
 
 
+class RuaLayout3d(db.Model):
+    """Onde a rua fica dentro da camara no desenho 3D, quando a pessoa arrumou a sala a mao (Editar layout 3D).
+    x e z: centro da rua no chao, em metros do desenho; giro: graus (0 = como nasce). Rua sem registro aqui
+    fica na posicao padrao (uma atras da outra, com corredor)."""
+    __tablename__ = 'rua_layout3d'
+    __table_args__ = (db.UniqueConstraint('camara_id', 'rua', name='uq_rua_layout3d'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    camara_id = db.Column(db.Integer, db.ForeignKey('camara.id'), nullable=False, index=True)
+    camara = db.relationship('Camara', backref=db.backref('layout3d', cascade='all, delete-orphan'))
+    rua = db.Column(db.String(3), nullable=False)
+    x = db.Column(db.Float, nullable=False, default=0)
+    z = db.Column(db.Float, nullable=False, default=0)
+    giro = db.Column(db.Integer, nullable=False, default=0)
+
+
 class Vao(db.Model):
     """Lugar da estante que nao e posicao de palete: uma porta ou um ponto sem posicao.
 
