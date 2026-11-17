@@ -827,6 +827,13 @@ button.cell { cursor: pointer; }
 .detalhe-endereco--faixa .detalhe-largo { grid-column: span 2; }
 @media (max-width: 420px) { .detalhe-endereco--faixa .detalhe-largo { grid-column: 1 / -1; } }
 
+/* Barra de salvar que acompanha a rolagem (permissões) */
+.salvar-fixo { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 1040; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px;
+    width: min(760px, calc(100vw - 24px)); padding: 12px 16px; border-radius: 12px; background: var(--fundo-card); color: var(--texto-titulo); border: 2px solid #f59e0b; box-shadow: 0 10px 30px rgba(0, 0, 0, .28); }
+.salvar-fixo[hidden] { display: none; }
+.salvar-fixo .fa-triangle-exclamation { color: #f59e0b; }
+.form-select.campo-mudado { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .25); }
+
 /* ============================================================ Tabela de conferência (expedição e recebimento) */
 .tabela-conf { --conf-cor: transparent; border-collapse: separate; border-spacing: 0; }
 .tabela-conf > tbody > tr > td { vertical-align: middle; background: var(--conf-fundo, transparent); border-bottom: 3px solid var(--fundo-card); box-shadow: none; }

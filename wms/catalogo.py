@@ -38,7 +38,9 @@ MODULOS = [
         'id': 'recebimento', 'nome': 'Entrada', 'icone': 'dolly', 'passo': 3,
         'descricao': 'Recebimento de notas fiscais e conferência física.',
         'telas': [
-            {'id': 'notas', 'nome': 'Recebimento', 'icone': 'file-import', 'endpoint': 'entrada.notas'},
+            # os paletes da nota (guardar, indicar endereco, excluir) sao acoes desta tela
+            {'id': 'notas', 'nome': 'Recebimento', 'icone': 'file-import', 'endpoint': 'entrada.notas',
+             'tambem': ['/entrada/paletes']},
             {'id': 'conferencia', 'nome': 'Conferência de entrada', 'icone': 'barcode',
              'endpoint': 'entrada.conferencia'},
         ],

@@ -14,7 +14,7 @@ from .codigo_endereco import codigo_bipagem, codigo_endereco, digito_verificador
 from .core import perm, pode_editar, registrar_log, usuario_atual
 from .etiqueta_zebra import ctx_etiqueta_zebra
 from .hierarquia import chaves_de_layout, empresas_do_usuario
-from .models import Camara, Empresa, Endereco, LayoutSalvo, Palete, Vao, agora, db, logo_da_empresa
+from .models import Camara, Empresa, Endereco, Inventario, LayoutSalvo, Palete, Vao, agora, db, logo_da_empresa
 from .paletes import NO_ARMAZEM
 
 bp = Blueprint('enderecamento', __name__, url_prefix='/enderecamento')
@@ -815,6 +815,77 @@ def layout_padrao():
     return _concluir_carga('Layout do CD', *_aplicar_layout(layout['camaras']))
 
 
+def _fotografia_do_layout():
+    """O layout de agora no formato dos layouts salvos. Devolve (camaras, total de enderecos)."""
+    camaras, total = [], 0
+    for camara in Camara.query.order_by(Camara.codigo):
+        enderecos = [[e.rua, e.coluna, e.nivel, e.destino, e.destino_fixo, e.tipo, e.cliente_id]
+                     for e in camara.enderecos.order_by(Endereco.rua, Endereco.coluna, Endereco.nivel)]
+        total += len(enderecos)
+        camaras.append({'codigo': camara.codigo, 'nome': camara.nome, 'tipo': camara.tipo, 'categoria': camara.categoria,
+                        'temp_min': camara.temp_min, 'temp_max': camara.temp_max, 'ativo': camara.ativo,
+                        'enderecos': enderecos, 'vaos': [[v.rua, v.coluna, v.nivel, v.tipo] for v in camara.vaos]})
+    return camaras, total
+
+
+def _gravar_layout(layout, camaras, total):
+    layout.dados = json.dumps({'camaras': camaras}, ensure_ascii=False)
+    layout.camaras, layout.enderecos = len(camaras), total
+    layout.criado_por, layout.criado_em = usuario_atual().username, agora()
+
+
+@bp.route('/layouts/novo', methods=['POST'])
+@perm('enderecamento')
+def layout_novo():
+    """Comeca um layout do zero: apaga todas as camaras e enderecos para montar outro. So com o armazem vazio
+    (nenhum palete em endereco) e com a confirmacao digitada. Antes, guarda o layout de agora, se a pessoa quiser."""
+    voltar = redirect(url_for('enderecamento.camaras'))
+    if (request.form.get('confirmacao') or '').strip().upper() != 'NOVO':
+        flash('Novo layout não confirmado: para apagar as câmaras e começar do zero, digite NOVO.', 'error')
+        return voltar
+    camaras, total = _fotografia_do_layout()
+    if not camaras:
+        flash('Não há câmaras cadastradas: o layout já está em branco. Use Nova câmara para começar.', 'success')
+        return voltar
+    em_uso = (db.session.query(Camara.codigo, Camara.nome, db.func.count(db.distinct(Palete.id)))
+              .join(Endereco, Endereco.camara_id == Camara.id)
+              .join(Palete, db.or_(Palete.endereco_id == Endereco.id, Palete.sugerido_id == Endereco.id))
+              .group_by(Camara.codigo, Camara.nome).order_by(Camara.codigo).all())
+    if em_uso:
+        lista = '; '.join(f'câmara {codigo} · {nome}: {qtd} palete(s)' for codigo, nome, qtd in em_uso[:8])
+        flash('Não dá para começar do zero: há paletes ligados a endereços (' + lista + ('…' if len(em_uso) > 8 else '') + '). '
+              'Os endereços guardam o histórico desses paletes. Você pode criar câmaras novas ao lado das atuais ou '
+              'inativar as que não usa mais.', 'error')
+        return voltar
+    nome = ' '.join((request.form.get('salvar_nome') or '').split())[:60]
+    if nome:
+        layout = LayoutSalvo.query.filter(LayoutSalvo.grupo == _grupo_do_usuario(), db.func.lower(LayoutSalvo.nome) == nome.lower()).first()
+        if layout is not None:
+            flash(f'Já existe um layout salvo com o nome "{layout.nome}". Escolha outro nome para guardar o layout atual; '
+                  'nada foi apagado.', 'error')
+            return voltar
+        layout = LayoutSalvo(nome=nome, grupo=_grupo_do_usuario())
+        db.session.add(layout)
+        _gravar_layout(layout, camaras, total)
+    # inventarios antigos continuam com o nome da camara nas linhas; so deixam de apontar para a camara apagada
+    Inventario.query.filter(Inventario.camara_id.isnot(None)).update({'camara_id': None}, synchronize_session=False)
+    try:
+        for camara in Camara.query.all():
+            db.session.delete(camara)
+        registrar_log('Começou layout do zero', f'{len(camaras)} câmara(s) e {total} endereço(s) apagados'
+                      + (f' · layout anterior salvo como "{nome}"' if nome else ' · layout anterior não foi salvo'),
+                      modulo='enderecamento')
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash('Não foi possível apagar as câmaras: algum endereço ainda está em uso no estoque. Nada foi alterado.', 'error')
+        return voltar
+    flash(f'Layout em branco: {len(camaras)} câmara(s) e {total} endereço(s) apagados.'
+          + (f' O layout anterior ficou salvo como "{nome}" (em Carregar layout).' if nome else '')
+          + ' Use Nova câmara para montar o novo.', 'success')
+    return voltar
+
+
 @bp.route('/layouts/salvar', methods=['POST'])
 @perm('enderecamento')
 def layout_salvar():
@@ -824,15 +895,7 @@ def layout_salvar():
     if not nome:
         flash('Dê um nome ao layout para salvar.', 'error')
         return voltar
-    camaras = []
-    total = 0
-    for camara in Camara.query.order_by(Camara.codigo):
-        enderecos = [[e.rua, e.coluna, e.nivel, e.destino, e.destino_fixo, e.tipo, e.cliente_id]
-                     for e in camara.enderecos.order_by(Endereco.rua, Endereco.coluna, Endereco.nivel)]
-        total += len(enderecos)
-        camaras.append({'codigo': camara.codigo, 'nome': camara.nome, 'tipo': camara.tipo, 'categoria': camara.categoria,
-                        'temp_min': camara.temp_min, 'temp_max': camara.temp_max, 'ativo': camara.ativo,
-                        'enderecos': enderecos, 'vaos': [[v.rua, v.coluna, v.nivel, v.tipo] for v in camara.vaos]})
+    camaras, total = _fotografia_do_layout()
     if not camaras:
         flash('Não há câmaras para salvar.', 'error')
         return voltar
@@ -845,9 +908,7 @@ def layout_salvar():
         flash(f'Já existe um layout salvo com o nome "{layout.nome}". Para trocar o conteúdo dele, salve de novo '
               'marcando "Substituir".', 'error')
         return voltar
-    layout.dados = json.dumps({'camaras': camaras}, ensure_ascii=False)
-    layout.camaras, layout.enderecos = len(camaras), total
-    layout.criado_por, layout.criado_em = usuario_atual().username, agora()
+    _gravar_layout(layout, camaras, total)
     registrar_log('Salvou layout' if novo else 'Substituiu layout salvo', f'{nome}: {len(camaras)} câmara(s), {total} endereço(s)',
                   modulo='enderecamento')
     db.session.commit()

@@ -1,0 +1,35 @@
+{# Barra de salvar que acompanha a rolagem: aparece assim que algo muda num formulário marcado com data-salvar-fixo.
+   Evita mudar as opções, sair da tela e achar que ficou salvo. #}
+<div class="salvar-fixo" id="salvarFixo" hidden role="status">
+    <span><i class="fas fa-triangle-exclamation me-2"></i><strong id="salvarFixoQtd"></strong> ainda não salva(s). Só vale depois de salvar.</span>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="salvarFixoDesfazer">Desfazer</button>
+        <button type="button" class="btn btn-sm btn-primary" id="salvarFixoBotao"><i class="fas fa-check"></i>Salvar agora</button>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.querySelector('form[data-salvar-fixo]'), barra = document.getElementById('salvarFixo');
+    if (!form || !barra) return;
+    var campos = Array.prototype.slice.call(form.querySelectorAll('select'));
+    var enviando = false;
+    campos.forEach(function (c) { c.setAttribute('data-original', c.value); });
+    function mudados() { return campos.filter(function (c) { return c.value !== c.getAttribute('data-original'); }); }
+    function atualizar() {
+        var lista = mudados();
+        campos.forEach(function (c) { c.classList.toggle('campo-mudado', lista.indexOf(c) !== -1); });
+        barra.hidden = lista.length === 0;
+        document.getElementById('salvarFixoQtd').textContent = lista.length + ' alteração(ões)';
+    }
+    campos.forEach(function (c) { c.addEventListener('change', atualizar); });
+    document.getElementById('salvarFixoBotao').addEventListener('click', function () { enviando = true; form.submit(); });
+    document.getElementById('salvarFixoDesfazer').addEventListener('click', function () {
+        campos.forEach(function (c) { c.value = c.getAttribute('data-original'); });
+        atualizar();
+    });
+    form.addEventListener('submit', function () { enviando = true; });
+    window.addEventListener('beforeunload', function (ev) {
+        if (!enviando && mudados().length) { ev.preventDefault(); ev.returnValue = ''; }
+    });
+});
+</script>

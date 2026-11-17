@@ -12,6 +12,9 @@
         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalSalvarLayout"><i class="fas fa-floppy-disk"></i>Salvar layout do CD</button>
         {% endif %}
         <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCarregarLayout"><i class="fas fa-download"></i>Carregar layout</button>
+        {% if linhas %}
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalNovoLayout"><i class="fas fa-file"></i>Novo layout do zero</button>
+        {% endif %}
         <button type="button" class="btn btn-primary" id="btnNovaCamara"><i class="fas fa-plus"></i>Nova câmara</button>
     </div>
     {% endif %}
@@ -221,6 +224,38 @@
         </form>
     </div>
 </div>
+
+{# Novo layout do zero: apaga as câmaras de agora para montar outro (guardando o atual, se quiser) #}
+{% if linhas %}
+<div class="modal fade" id="modalNovoLayout" tabindex="-1" aria-labelledby="modalNovoLayoutTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('enderecamento.layout_novo') }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovoLayoutTitulo"><i class="fas fa-file me-2"></i>Novo layout do zero</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    Isto <strong>apaga as {{ linhas|length }} câmara(s) e os {{ total_enderecos }} endereço(s)</strong> de agora, com as leituras de temperatura delas,
+                    para você montar outro layout a partir de uma tela em branco.
+                </div>
+                <p class="small text-muted">Só funciona com o armazém vazio: se houver palete ligado a algum endereço, nada é apagado e o sistema mostra onde estão.
+                    As etiquetas de longarina já impressas deixam de valer.</p>
+                <label class="form-label" for="nlSalvar">Guardar o layout atual antes, com o nome</label>
+                <input type="text" class="form-control" id="nlSalvar" name="salvar_nome" maxlength="60" value="Layout anterior">
+                <div class="form-text mb-3">Ele fica em <strong>Carregar layout</strong>, para o seu grupo ({{ perfil_nome }}), e pode ser trazido de volta. Deixe em branco para não guardar.</div>
+                <label class="form-label" for="nlConfirma">Para confirmar, digite <strong>NOVO</strong> <span class="obrigatorio">*</span></label>
+                <input type="text" class="form-control" id="nlConfirma" name="confirmacao" required pattern="[Nn][Oo][Vv][Oo]" style="text-transform: uppercase;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-danger"><i class="fas fa-file"></i>Apagar e começar do zero</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 {# Carregar layout: escolhe qual (o padrão do CD ou um salvo pelo grupo) #}
 <div class="modal fade" id="modalCarregarLayout" tabindex="-1" aria-labelledby="modalCarregarLayoutTitulo" aria-hidden="true">
