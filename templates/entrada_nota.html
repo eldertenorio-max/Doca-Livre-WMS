@@ -138,8 +138,18 @@
                         </div>
                         <div class="col-6 col-md-3"><label class="form-label" for="pFab">Fabricação</label><input type="date" class="form-control" id="pFab" name="fabricacao"></div>
                         <div class="col-6 col-md-3"><label class="form-label" for="pVal">Validade</label><input type="date" class="form-control" id="pVal" name="validade"></div>
-                        <div class="col-12 col-md-6 d-flex align-items-end gap-2">
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i>Montar palete</button>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="pExistente">Adicionar a um palete existente <span class="text-muted fw-normal">(opcional)</span></label>
+                            <input type="text" class="form-control codigo-mono" id="pExistente" name="palete_existente" list="pExistentes" maxlength="24"
+                                   placeholder="Etiqueta ou endereço (vazio = novo)">
+                            <datalist id="pExistentes">
+                                {% for p in pendentes %}<option value="{{ p.etiqueta }}">{{ resumo_itens(p) }} · aguardando guarda</option>{% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+                            <button type="submit" class="btn btn-primary" id="pMontar"><i class="fas fa-plus"></i><span>Montar palete</span></button>
+                            <button type="button" class="btn btn-laranja" data-bs-toggle="modal" data-bs-target="#modalDividir"><i class="fas fa-scissors"></i>Dividir palete</button>
+                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalJuntar"><i class="fas fa-object-group"></i>Juntar paletes</button>
                             <span class="text-muted small" id="pAviso" aria-live="polite"></span>
                         </div>
                     </div>
@@ -152,17 +162,17 @@
 
 {# Paletes da nota #}
 <div class="card">
-    <div class="card-header"><i class="fas fa-pallet me-2"></i>Paletes <span class="text-muted fw-normal">({{ nota.paletes|length }}{% if pendentes %} · {{ pendentes|length }} aguardando guarda{% endif %})</span></div>
+    <div class="card-header"><i class="fas fa-pallet me-2"></i>Paletes <span class="text-muted fw-normal">({{ paletes|length }}{% if pendentes %} · {{ pendentes|length }} aguardando guarda{% endif %})</span></div>
     <div class="card-body">
-        {% if nota.paletes %}
+        {% if paletes %}
         <div class="tabela-scroll">
             <table class="table mb-0">
                 <thead><tr><th>Etiqueta</th><th>Conteúdo</th><th>Lote / validade</th><th>Classificação</th><th>Situação</th><th>Endereço</th><th></th></tr></thead>
                 <tbody>
-                    {% for p in nota.paletes %}
+                    {% for p in paletes %}
                     {% set it = p.itens[0] if p.itens else none %}
                     <tr id="palete-{{ p.id }}">
-                        <td><span class="codigo-mono">{{ p.etiqueta }}</span>{% if p.up %}<br><small>UP {{ p.up }}</small>{% endif %}</td>
+                        <td><span class="codigo-mono">{{ p.etiqueta }}</span>{% if p.up %}<br><small>UP {{ p.up }}</small>{% endif %}{% if p.nota_id != nota.id %}<br><small class="text-muted">palete de outra nota{% if p.nota %} (NF {{ p.nota.numero }}){% endif %}</small>{% endif %}</td>
                         <td>{{ resumo_itens(p) }}</td>
                         <td>{{ it.lote or '—' if it else '—' }}{% if it and it.validade %}<br><small>val. {{ it.validade.strftime('%d/%m/%Y') }}</small>{% endif %}</td>
                         <td>{{ selo(p.classificacao) }}</td>
@@ -374,17 +384,164 @@
 {% endblock %}
 
 {% block scripts %}
+{% if editar and aberta and nota.itens %}
+{# Juntar paletes: marca os conferidos (aguardando guarda) que vão virar um só, para guardar numa posição #}
+<div class="modal fade" id="modalJuntar" tabindex="-1" aria-labelledby="modalJuntarTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <form class="modal-content" method="POST" action="{{ url_for('entrada.juntar_paletes', nid=nota.id) }}" id="formJuntar">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalJuntarTitulo"><i class="fas fa-object-group me-2"></i>Juntar paletes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                {% if pendentes|length < 2 %}
+                <p class="text-muted mb-0">Para juntar é preciso ter pelo menos dois paletes desta nota aguardando guarda. Palete já guardado não entra aqui.</p>
+                {% else %}
+                <p class="text-muted small">Marque os paletes conferidos que vão ser guardados juntos, numa posição só. Os itens passam todos para o
+                    <strong>primeiro da lista entre os marcados</strong>; os outros deixam de existir. Depois reimprima a etiqueta do palete que ficou.</p>
+                <table class="table mb-0">
+                    <thead><tr><th></th><th>Etiqueta</th><th>Conteúdo</th><th>Classificação</th><th>Guardar em</th></tr></thead>
+                    <tbody>
+                        {% for p in pendentes %}
+                        <tr>
+                            <td><input class="form-check-input" type="checkbox" name="palete" value="{{ p.id }}" id="jp{{ p.id }}" aria-label="Juntar o palete {{ p.etiqueta }}"></td>
+                            <td><label class="codigo-mono mb-0" for="jp{{ p.id }}">{{ p.etiqueta }}</label></td>
+                            <td>{{ resumo_itens(p) }}</td>
+                            <td>{{ p.classificacao }}</td>
+                            <td class="codigo-mono">{{ p.sugerido.codigo if p.sugerido else '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <span class="text-muted small me-auto" id="juntarAviso" aria-live="polite"></span>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                {% if pendentes|length >= 2 %}<button type="submit" class="btn btn-primary" id="btnJuntar" disabled><i class="fas fa-object-group"></i>Juntar</button>{% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Dividir palete: busca um palete endereçado e tira parte dele para um palete novo #}
+<div class="modal fade" id="modalDividir" tabindex="-1" aria-labelledby="modalDividirTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDividirTitulo"><i class="fas fa-scissors me-2"></i>Dividir palete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dividirBusca">
+                    <label class="form-label" for="dvBusca">Palete endereçado</label>
+                    <input type="text" class="form-control codigo-mono mb-2" id="dvBusca" placeholder="Bipe a etiqueta ou o endereço, ou digite o SKU / nome do produto" autocomplete="off">
+                    <div id="dvLista" class="lista-dividir" aria-live="polite"></div>
+                </div>
+                <form method="POST" action="" id="formDividir" data-abre-etiqueta hidden>
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <input type="hidden" name="nota" value="{{ nota.id }}">
+                    <p class="mb-2"><button type="button" class="btn btn-sm btn-outline-secondary me-2" id="dvVoltar"><i class="fas fa-arrow-left"></i>Outro palete</button>
+                        <strong class="codigo-mono" id="dvEtiqueta"></strong> <span class="text-muted" id="dvOnde"></span></p>
+                    <p class="text-muted small">Informe quanto de cada item <strong>sai para o palete novo</strong>. O que sobrar continua no palete original, no mesmo endereço.
+                        O palete novo fica aguardando guarda, com endereço indicado, e a etiqueta dele abre em outra aba.</p>
+                    <table class="table mb-0">
+                        <thead><tr><th>Item</th><th>Lote / validade</th><th class="text-end">No palete</th><th style="width: 150px;">Sai para o novo</th></tr></thead>
+                        <tbody id="dvItens"></tbody>
+                    </table>
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-laranja"><i class="fas fa-scissors"></i>Dividir palete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    function escapar(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function numero(n) { return String(Math.round(n * 1000) / 1000).replace('.', ','); }
+
+    // ---- Montar x adicionar a palete existente
+    var existente = document.getElementById('pExistente'), montar = document.querySelector('#pMontar span');
+    if (existente) existente.addEventListener('input', function () {
+        montar.textContent = existente.value.trim() ? 'Adicionar ao palete' : 'Montar palete';
+    });
+
+    // ---- Juntar: só libera com dois ou mais marcados
+    var formJuntar = document.getElementById('formJuntar'), btnJuntar = document.getElementById('btnJuntar');
+    if (btnJuntar) formJuntar.addEventListener('change', function () {
+        var n = formJuntar.querySelectorAll('input[name="palete"]:checked').length;
+        btnJuntar.disabled = n < 2;
+        document.getElementById('juntarAviso').textContent = n ? n + ' palete(s) marcado(s)' : '';
+    });
+
+    // ---- Dividir: busca os paletes endereçados e monta a lista de itens do escolhido
+    var busca = document.getElementById('dvBusca'), lista = document.getElementById('dvLista');
+    var formDividir = document.getElementById('formDividir'), areaBusca = document.getElementById('dividirBusca');
+    var urlBusca = {{ url_for('entrada.paletes_buscar')|tojson }}, espera = null, pedido = 0, achados = [];
+    function buscar() {
+        var meu = ++pedido;
+        lista.innerHTML = '<p class="text-muted small mb-0">Procurando…</p>';
+        fetch(urlBusca + '?q=' + encodeURIComponent(busca.value.trim()), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+            .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+            .then(function (dados) {
+                if (meu !== pedido) return;
+                achados = dados.paletes;
+                if (!achados.length) { lista.innerHTML = '<p class="text-muted small mb-0">Nenhum palete endereçado encontrado.</p>'; return; }
+                lista.innerHTML = achados.map(function (p, i) {
+                    return '<button type="button" class="lista-dividir-item" data-indice="' + i + '"><span><strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong>' +
+                           (p.endereco ? ' · <span class="codigo-mono">' + escapar(p.endereco) + '</span>' : '') + (p.empresa ? ' · ' + escapar(p.empresa) : '') + '</span>' +
+                           '<small>' + p.itens.map(function (it) { return escapar(it.sku) + ' · ' + numero(it.quantidade) + ' ' + escapar(it.unidade); }).join(' + ') + '</small></button>';
+                }).join('');
+                if (achados.length === 1 && busca.value.trim().toUpperCase() === achados[0].etiqueta) escolher(achados[0]);
+            })
+            .catch(function () { if (meu === pedido) lista.innerHTML = '<p class="text-danger small mb-0">Não foi possível buscar os paletes. Tente de novo.</p>'; });
+    }
+    function escolher(p) {
+        formDividir.action = p.dividir;
+        document.getElementById('dvEtiqueta').textContent = p.etiqueta;
+        document.getElementById('dvOnde').textContent = (p.endereco ? '· ' + p.endereco : '') + (p.empresa ? ' · ' + p.empresa : '');
+        document.getElementById('dvItens').innerHTML = p.itens.map(function (it) {
+            return '<tr><td><strong>' + escapar(it.sku) + '</strong><br><small>' + escapar(it.descricao) + '</small></td>' +
+                   '<td>' + escapar(it.lote || '—') + (it.validade ? '<br><small>val. ' + escapar(it.validade) + '</small>' : '') + '</td>' +
+                   '<td class="text-end">' + numero(it.quantidade) + ' ' + escapar(it.unidade) + '</td>' +
+                   '<td><input type="text" inputmode="decimal" class="form-control" name="qtd_' + it.id + '" placeholder="0" aria-label="Quantidade de ' + escapar(it.sku) + ' que sai para o palete novo"></td></tr>';
+        }).join('');
+        areaBusca.hidden = true; formDividir.hidden = false;
+        var primeiro = formDividir.querySelector('input[name^="qtd_"]');
+        if (primeiro) primeiro.focus();
+    }
+    if (busca) {
+        busca.addEventListener('input', function () { clearTimeout(espera); espera = setTimeout(buscar, 250); });
+        busca.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); clearTimeout(espera); buscar(); } });
+        lista.addEventListener('click', function (ev) {
+            var b = ev.target.closest('[data-indice]');
+            if (b) escolher(achados[Number(b.getAttribute('data-indice'))]);
+        });
+        document.getElementById('dvVoltar').addEventListener('click', function () { formDividir.hidden = true; areaBusca.hidden = false; busca.focus(); });
+        document.getElementById('modalDividir').addEventListener('shown.bs.modal', function () {
+            formDividir.hidden = true; areaBusca.hidden = false; busca.value = ''; busca.focus(); buscar();
+        });
+        formDividir.addEventListener('submit', function () { bootstrap.Modal.getInstance(document.getElementById('modalDividir')).hide(); });
+    }
+})();
+</script>
+{% endif %}
 <script>
 // Montar palete: a etiqueta abre em outra aba e esta aba (a nota) continua aberta, já atualizada com o palete novo.
 (function () {
     var ABA = 'wmsEtiquetaPalete';
     if (window.name === ABA) window.name = '';        // a aba da etiqueta voltou para a nota (palete recusado): vira aba comum
-    var form = document.getElementById('formPalete');
-    if (!form) return;
-    form.addEventListener('submit', function () {
-        var aba = null;
-        try { aba = window.open('', ABA); } catch (e) {}
-        form.target = aba ? ABA : '';                  // navegador bloqueou a aba nova: segue na mesma aba, como antes
+    [document.getElementById('formPalete'), document.getElementById('formDividir')].forEach(function (form) {
+        if (!form) return;
+        form.addEventListener('submit', function () {
+            var aba = null;
+            try { aba = window.open('', ABA); } catch (e) {}
+            form.target = aba ? ABA : '';              // navegador bloqueou a aba nova: segue na mesma aba, como antes
+        });
     });
 })();
 </script>

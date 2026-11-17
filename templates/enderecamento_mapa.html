@@ -9,7 +9,8 @@
     <div class="d-flex flex-wrap gap-2 align-items-center">
         {% if tem_enderecos %}
         <div class="btn-group" role="group" aria-label="O que o mapa mostra">
-            <button type="button" class="btn btn-outline-primary active" data-ver-mapa="ocupacao" aria-pressed="true" title="Mostra o que está guardado em cada posição"><i class="fas fa-boxes-stacked"></i>Ocupação</button>
+            <button type="button" class="btn btn-outline-primary active" data-ver-mapa="geral" aria-pressed="true" title="Mostra os dois: o que está guardado e o espaço vazio reservado de cada cliente"><i class="fas fa-layer-group"></i>Geral</button>
+            <button type="button" class="btn btn-outline-primary" data-ver-mapa="ocupacao" aria-pressed="false" title="Mostra só o que está guardado em cada posição"><i class="fas fa-boxes-stacked"></i>Ocupação</button>
             <button type="button" class="btn btn-outline-primary" data-ver-mapa="reservado" aria-pressed="false" title="Mostra de qual cliente é cada espaço reservado"><i class="fas fa-user-tag"></i>Reservado</button>
         </div>
         <div class="btn-group" role="group" aria-label="Visualização">
@@ -65,7 +66,7 @@
     <span><i class="swatch swatch--bloq" aria-hidden="true"></i>Bloqueado</span>
     <span><i class="swatch swatch--porta" aria-hidden="true"></i>Porta</span>
     <span><i class="swatch swatch--nv5" aria-hidden="true"></i>Sem posição</span>
-    <span><i class="swatch swatch--reserva" aria-hidden="true"></i>Reservado (aparece no botão Reservado)</span>
+    <span><i class="swatch swatch--reserva" aria-hidden="true"></i>Reservado (logo do cliente apagado)</span>
     <span><i class="swatch swatch--reentrega" aria-hidden="true"></i>Reentrega</span>
     <span><i class="swatch swatch--devolucao" aria-hidden="true"></i>Devolução</span>
     <form class="d-flex gap-2 ms-auto" id="formBuscaMapa" autocomplete="off">

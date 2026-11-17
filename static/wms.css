@@ -593,6 +593,16 @@ a:hover { text-decoration: underline; }
     background: #fffaf0; border: 1px dashed #f59e0b; border-radius: 3px;
 }
 .cell--reservada.cell--disponivel { background-color: #fff7e6; }
+/* Recebimento: Dividir palete (botão laranja e lista de paletes endereçados) */
+.btn-laranja { background: #f97316; border-color: #f97316; color: #ffffff; }
+.btn-laranja:hover, .btn-laranja:focus-visible { background: #ea580c; border-color: #ea580c; color: #ffffff; }
+.lista-dividir { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow: auto; }
+.lista-dividir-item {
+    display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--borda); background: var(--fundo-card); color: var(--texto-titulo);
+}
+.lista-dividir-item:hover, .lista-dividir-item:focus-visible { border-color: #f97316; }
+.lista-dividir-item small { color: var(--texto-secundario); }
 /* Câmaras e endereços: posições e ocupação por rua, dentro do card da câmara */
 .camara-ruas { width: 100%; margin-top: 12px; font-size: .8rem; border-top: 1px solid var(--borda); }
 .camara-ruas th, .camara-ruas td { padding: 4px 6px; text-align: right; white-space: nowrap; }

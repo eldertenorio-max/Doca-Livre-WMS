@@ -17,8 +17,9 @@
     var ROTULO = { livre: 'Disponível', ocupado: 'Ocupado', bloqueado: 'Bloqueado' };
     var CEL_MIN = 18, CEL_MAX = 40, CEL_MIN_CELULAR = 14, CEL_MAX_CELULAR = 22;
     var celular = window.matchMedia('(max-width: 767px)');
-    // O que o mapa mostra: 'ocupacao' (o que está guardado) ou 'reservado' (de qual cliente é cada espaço).
-    var modoVer = 'ocupacao';
+    // O que o mapa mostra: 'geral' (o que está guardado + o espaço vazio de cada cliente), 'ocupacao' (só o que
+    // está guardado) ou 'reservado' (só de qual cliente é cada espaço).
+    var modoVer = 'geral';
 
     function ler(chave) { try { return localStorage.getItem(chave); } catch (e) { return null; } }
     function gravar(chave, valor) { try { localStorage.setItem(chave, valor); } catch (e) {} }
@@ -244,7 +245,7 @@
         if (e) {
             var verReserva = modoVer === 'reservado';
             // Ver reservado: só os espaços de cliente aparecem, com o logo; o que está guardado fica de fora.
-            var classe = 'cell ' + (e.status === 'ocupado' && !verReserva ? 'cell--ocupado' : 'cell--disponivel') + (e.bloqueado ? ' cell--bloqueado' : '') + (e.cliente && verReserva ? ' cell--reservada' : '');
+            var classe = 'cell ' + (e.status === 'ocupado' && !verReserva ? 'cell--ocupado' : 'cell--disponivel') + (e.bloqueado ? ' cell--bloqueado' : '') + (e.cliente && modoVer !== 'ocupacao' ? ' cell--reservada' : '');
             var p = verReserva ? null : e.paletes && e.paletes[0];
             // Voltou da rua: margem azul (reentrega) ou vermelha (devolução). Se houver os dois na posição, vale a devolução.
             var volta = retornoDe(e);
@@ -252,7 +253,7 @@
             var dica = escapar(descricao(e));
             if (!p) {
                 // Vazia e reservada: logo do cliente apagado, numa moldura tracejada (a ocupada é cheia, com a nota embaixo).
-                var reserva = e.cliente && verReserva ? '<span class="cell-reserva">' + marca({ logo: e.cliente_logo, iniciais: e.cliente_iniciais }, 'cell-logo') + '</span>' : '';
+                var reserva = e.cliente && modoVer !== 'ocupacao' ? '<span class="cell-reserva">' + marca({ logo: e.cliente_logo, iniciais: e.cliente_iniciais }, 'cell-logo') + '</span>' : '';
                 return '<button type="button" class="' + classe + '" data-id="' + e.id + '" title="' + dica + '" aria-label="' + dica + '">' + reserva + '</button>';
             }
             // Ocupado: logo da empresa e, embaixo, o número da nota. O resumo aparece ao passar o mouse
@@ -766,8 +767,8 @@
                     if (e.bloqueado) desenharX(g, x, base + A * 0.39, z);
                 } else {
                     // Ver reservado: todo espaço de cliente aparece com o logo dele; o resto, como posição vazia.
-                    var reservada = verReserva && e.cliente;
                     var estado = verReserva ? (e.bloqueado ? 'bloqueado' : 'livre') : e.status;
+                    var reservada = e.cliente && (verReserva || (modoVer === 'geral' && estado === 'livre'));
                     var vazada = reservada || estado === 'livre';
                     var corCaixa = reservada ? COR_RESERVA : cor[estado];
                     caixa = new THREE.Mesh(geoCaixa, new THREE.MeshLambertMaterial({
@@ -1118,7 +1119,7 @@
     // ------------------------------------------------------------ ver: ocupação x reservado
     var botoesVer = document.querySelectorAll('[data-ver-mapa]');
     function verMapa(modo, refazer) {
-        modoVer = modo === 'reservado' ? 'reservado' : 'ocupacao';
+        modoVer = modo === 'reservado' || modo === 'ocupacao' ? modo : 'geral';
         botoesVer.forEach(function (b) {
             var ativo = b.getAttribute('data-ver-mapa') === modoVer;
             b.classList.toggle('active', ativo);

@@ -8,7 +8,7 @@ import os
 import threading
 import time
 
-from flask import (Blueprint, Response, abort, current_app, flash, g, redirect, render_template, request, send_file,
+from flask import (Blueprint, Response, abort, current_app, flash, g, jsonify, redirect, render_template, request, send_file,
                    url_for)
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill
@@ -20,10 +20,10 @@ from .danfe import (INTERVALO_APOS_FALHA, MAX_FALHAS_POR_DIA, busca_paga_ligada,
                     pdf_pela_chave)
 from .enderecamento import localizar_endereco
 from .etiqueta_zebra import ctx_etiqueta_zebra
-from .models import Empresa, NfSaida, NotaFiscal, NotaItem, Palete, PaleteItem, Produto, agora, db
+from .models import Empresa, Endereco, NfSaida, NotaFiscal, NotaItem, Palete, PaleteItem, Produto, agora, db
 from .nfe import XmlInvalido, ler_nfe
-from .paletes import (CLASSIFICACOES, CLASSIFICACOES_RETORNO, NO_ARMAZEM, colocar_em, gerar_etiqueta, registrar, resumo_itens,
-                      sugerir_endereco, validar_destino)
+from .paletes import (CLASSIFICACOES, CLASSIFICACOES_RETORNO, NO_ARMAZEM, colocar_em, empresa_do_palete, gerar_etiqueta,
+                      localizar_palete, registrar, resumo_itens, sugerir_endereco, validar_destino)
 
 bp = Blueprint('entrada', __name__, url_prefix='/entrada')
 
@@ -96,9 +96,26 @@ def _quantidade(valor):
 def conferido_por_item(nota):
     """item_id -> quantidade ja colocada em paletes desta nota (palete removido do estoque nao conta)."""
     linhas = (db.session.query(PaleteItem.nota_item_id, db.func.sum(PaleteItem.quantidade))
-              .join(Palete).filter(Palete.nota_id == nota.id, Palete.status != 'Baixado')
+              .join(Palete).join(NotaItem, NotaItem.id == PaleteItem.nota_item_id)
+              .filter(NotaItem.nota_id == nota.id, Palete.status != 'Baixado')
               .group_by(PaleteItem.nota_item_id).all())
     return {item_id: round(total or 0, 3) for item_id, total in linhas}
+
+
+def paletes_da_nota(nota):
+    """Paletes montados nesta nota e os de outra nota que receberam item desta (Adicionar a palete existente)."""
+    de_fora = (Palete.query.join(PaleteItem).join(NotaItem, NotaItem.id == PaleteItem.nota_item_id)
+               .filter(NotaItem.nota_id == nota.id, db.or_(Palete.nota_id.is_(None), Palete.nota_id != nota.id)).all())
+    return sorted(set(nota.paletes) | set(de_fora), key=lambda p: p.id)
+
+
+def _mesmo_dono(palete, nota):
+    """Mensagem de erro se a mercadoria do palete e de outra empresa que a da nota; None se pode misturar."""
+    dono = empresa_do_palete(palete)
+    if dono and nota.empresa and dono.id != nota.empresa.id:
+        return (f'O palete {palete.etiqueta} é de {dono.fantasia or dono.nome}; esta nota é de '
+                f'{nota.empresa.fantasia or nota.empresa.nome}. Não dá para misturar mercadoria de empresas diferentes.')
+    return None
 
 
 def _empresa_para(nome, cnpj=None, cidade=None, uf=None):
@@ -472,7 +489,8 @@ def nota(nid):
                            classificacoes=CLASSIFICACOES_RETORNO if nota.tipo == 'Retorno' else CLASSIFICACOES,
                            retorno=nota.tipo == 'Retorno', lista_url=_lista_da(nota), aberta=nota.status in ABERTAS,
                            tem_xml=bool(nota.xml), danfe_oficial=bool(chave_meu_danfe()),
-                           pendentes=[p for p in nota.paletes if p.status == 'Aguardando guarda'],
+                           paletes=paletes_da_nota(nota),
+                           pendentes=[p for p in paletes_da_nota(nota) if p.status == 'Aguardando guarda'],
                            divergentes=[l for l in linhas if l['situacao'] != 'ok'],
                            motivos_divergencia=MOTIVOS_DIVERGENCIA, resumo_itens=resumo_itens,
                            bip=lambda e: codigo_bipagem(e.camara.codigo, e.rua, e.coluna, e.nivel))
@@ -556,6 +574,41 @@ def montar_palete(nid):
         flash('A validade não pode ser anterior à fabricação.', 'error')
         return _voltar_nota(nota)
 
+    existente = (request.form.get('palete_existente') or '').strip()
+    if existente:
+        # Adicionar a um palete que ja existe (aguardando guarda ou ja guardado): o item entra nele, sem palete novo.
+        palete, erro = localizar_palete(existente)
+        if not erro and palete.status != 'Aguardando guarda' and palete.status not in NO_ARMAZEM:
+            erro = f'O palete {palete.etiqueta} está "{palete.status}": só dá para adicionar a palete aguardando guarda ou guardado.'
+        if not erro and palete.carga_id:
+            erro = f'O palete {palete.etiqueta} já está separado para uma carga.'
+        if not erro and palete.classificacao != classificacao:
+            erro = (f'O palete {palete.etiqueta} é "{palete.classificacao}" e este item foi classificado como "{classificacao}". '
+                    'Monte um palete novo para ele.')
+        erro = erro or _mesmo_dono(palete, nota)
+        if erro:
+            flash(erro, 'error')
+            return _voltar_nota(nota)
+        lote = (request.form.get('lote') or '').strip()[:30] or None
+        igual = next((i for i in palete.itens if i.nota_item_id == item.id and i.lote == lote
+                      and i.fabricacao == fabricacao and i.validade == validade), None)
+        if igual:
+            igual.quantidade = round(igual.quantidade + quantidade, 3)
+        else:
+            palete.itens.append(PaleteItem(produto=item.produto, nota_item_id=item.id, quantidade=quantidade, lote=lote,
+                                           fabricacao=fabricacao, validade=validade))
+        registrar(palete, 'Entrada', destino=palete.endereco,
+                  motivo=f'NF {nota.numero} · adicionado ao palete: {item.produto.sku} · {quantidade:g} {item.produto.unidade}')
+        if nota.status == 'Aguardando':
+            nota.status = 'Em conferência'
+        registrar_log('Adicionou item a palete existente', f'{palete.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}',
+                      modulo=_modulo(nota))
+        db.session.commit()
+        onde = (f'no endereço {palete.endereco.codigo}' if palete.endereco else
+                f'guardar em {palete.sugerido.codigo}' if palete.sugerido else 'aguardando guarda')
+        flash(f'{quantidade:g} {item.produto.unidade} de {item.produto.sku} adicionado(s) ao palete {palete.etiqueta} ({onde}).', 'success')
+        return redirect(url_for('entrada.etiqueta_palete', pid=palete.id, novo=1, nota=nota.id))
+
     palete = Palete(etiqueta=gerar_etiqueta(), nota=nota, classificacao=classificacao,
                     up=(request.form.get('up') or '').strip()[:20] or None, criado_por=usuario_atual().username)
     db.session.add(palete)
@@ -580,6 +633,141 @@ def montar_palete(nid):
               'Cadastre ou libere endereços e use "Indicar endereço".', 'error')
     # Como no WMS Pro: depois de montar o palete, a etiqueta de enderecamento dele ja abre para imprimir.
     return redirect(url_for('entrada.etiqueta_palete', pid=palete.id, novo=1))
+
+
+@bp.route('/notas/<int:nid>/paletes/juntar', methods=['POST'])
+@perm('recebimento')
+def juntar_paletes(nid):
+    """Junta paletes conferidos (ainda aguardando guarda) num so, para guardar tudo numa posicao.
+    O primeiro escolhido fica; os itens dos outros passam para ele e os outros deixam de existir."""
+    nota = _nota_ou_404(nid)
+    ids = {int(v) for v in request.form.getlist('palete') if v.isdigit()}
+    escolhidos = [p for p in paletes_da_nota(nota) if p.id in ids]
+    if len(escolhidos) < 2:
+        flash('Marque pelo menos dois paletes para juntar.', 'error')
+        return _voltar_nota(nota)
+    if any(p.status != 'Aguardando guarda' or p.carga_id for p in escolhidos):
+        flash('Só dá para juntar paletes que ainda estão aguardando guarda.', 'error')
+        return _voltar_nota(nota)
+    if len({p.classificacao for p in escolhidos}) > 1:
+        flash('Os paletes marcados têm classificações diferentes (ex.: Bom e Avaria). Junte só os de mesma classificação.', 'error')
+        return _voltar_nota(nota)
+    donos = {d.id for d in (empresa_do_palete(p) for p in escolhidos) if d}
+    if len(donos) > 1:
+        flash('Os paletes marcados são de empresas diferentes. Não dá para misturar.', 'error')
+        return _voltar_nota(nota)
+    fica, saem = escolhidos[0], escolhidos[1:]
+    for outro in saem:
+        for i in list(outro.itens):
+            igual = next((x for x in fica.itens if x.nota_item_id == i.nota_item_id and x.produto_id == i.produto_id
+                          and x.lote == i.lote and x.fabricacao == i.fabricacao and x.validade == i.validade), None)
+            if igual:
+                igual.quantidade = round(igual.quantidade + i.quantidade, 3)
+            else:
+                fica.itens.append(PaleteItem(produto_id=i.produto_id, nota_item_id=i.nota_item_id, lote=i.lote,
+                                             fabricacao=i.fabricacao, validade=i.validade, quantidade=i.quantidade))
+    etiquetas = ', '.join(p.etiqueta for p in saem)
+    for outro in saem:
+        db.session.delete(outro)
+    db.session.flush()
+    registrar(fica, 'Junção', motivo=f'Juntou {len(saem)} palete(s): {etiquetas}'[:200])
+    motivos = []
+    fica.sugerido = sugerir_endereco(fica, motivos)
+    registrar_log('Juntou paletes', f'{fica.etiqueta} recebeu {etiquetas} · NF {nota.numero}', modulo=_modulo(nota))
+    db.session.commit()
+    flash(f'{len(escolhidos)} paletes juntados no palete {fica.etiqueta}'
+          + (f'. Guardar em {fica.sugerido.codigo}.' if fica.sugerido else ', mas não há endereço livre para indicar.')
+          + ' Reimprima a etiqueta dele e descarte as outras.', 'success' if fica.sugerido else 'error')
+    return redirect(url_for('entrada.nota', nid=nota.id) + f'#palete-{fica.id}')
+
+
+@bp.route('/paletes/buscar')
+@perm('recebimento')
+def paletes_buscar():
+    """Paletes enderecados (guardados), para o Dividir palete: busca por etiqueta, endereco, SKU ou descricao."""
+    termo = (request.args.get('q') or '').strip()
+    consulta = Palete.query.filter(Palete.status.in_(NO_ARMAZEM), Palete.carga_id.is_(None))
+    if termo:
+        curinga = f'%{termo.upper()}%'
+        consulta = (consulta.outerjoin(Endereco, Endereco.id == Palete.endereco_id).join(PaleteItem).join(Produto)
+                    .filter(db.or_(db.func.upper(Palete.etiqueta).like(curinga), db.func.upper(Endereco.codigo).like(curinga),
+                                   db.func.upper(Produto.sku).like(curinga), db.func.upper(Produto.descricao).like(curinga))))
+    achados = consulta.order_by(Palete.id.desc()).limit(120).all()
+    vistos, lista = set(), []
+    for p in achados:
+        if p.id in vistos or not p.itens:
+            continue
+        vistos.add(p.id)
+        dono = empresa_do_palete(p)
+        lista.append({'id': p.id, 'etiqueta': p.etiqueta, 'endereco': p.endereco.codigo if p.endereco else None,
+                      'classificacao': p.classificacao, 'empresa': (dono.fantasia or dono.nome) if dono else None,
+                      'dividir': url_for('entrada.palete_dividir', pid=p.id),
+                      'itens': [{'id': i.id, 'sku': i.produto.sku, 'descricao': i.produto.descricao, 'unidade': i.produto.unidade,
+                                 'quantidade': i.quantidade, 'lote': i.lote,
+                                 'validade': i.validade.strftime('%d/%m/%Y') if i.validade else None} for i in p.itens]})
+        if len(lista) >= 40:
+            break
+    return jsonify(paletes=lista)
+
+
+@bp.route('/paletes/<int:pid>/dividir', methods=['POST'])
+@perm('recebimento')
+def palete_dividir(pid):
+    """Divide um palete enderecado: a quantidade informada de cada item sai para um palete novo, que fica
+    aguardando guarda com endereco indicado. O original continua onde esta, com o que sobrou."""
+    palete = _palete_ou_404(pid)
+    nota_tela = db.session.get(NotaFiscal, request.form.get('nota', type=int) or 0)
+    voltar = _voltar_nota(nota_tela) if nota_tela else redirect(url_for('entrada.conferencia'))
+    if palete.status not in NO_ARMAZEM or palete.carga_id:
+        flash(f'O palete {palete.etiqueta} não está guardado (ou já foi separado para uma carga): não dá para dividir.', 'error')
+        return voltar
+    tirar, erro = {}, None
+    for i in palete.itens:
+        bruto = (request.form.get(f'qtd_{i.id}') or '').strip()
+        if not bruto:
+            continue
+        if not bruto.replace(',', '').replace('.', '').strip('0'):
+            continue                                    # zero: este item fica todo no palete original
+        qtd = _quantidade(bruto)
+        if qtd is None or qtd > i.quantidade:
+            erro = f'Quantidade inválida para {i.produto.sku}: informe de 0 a {i.quantidade:g}.'
+            break
+        tirar[i.id] = qtd
+    if not erro and not tirar:
+        erro = 'Informe quanto vai sair para o palete novo.'
+    if not erro and all(tirar.get(i.id, 0) == i.quantidade for i in palete.itens):
+        erro = 'Isso levaria o palete inteiro. Para mudar o palete de lugar, use Movimentação.'
+    if erro:
+        flash(erro, 'error')
+        return voltar
+    novo = Palete(etiqueta=gerar_etiqueta(), nota_id=palete.nota_id, classificacao=palete.classificacao, up=palete.up,
+                  criado_por=usuario_atual().username)
+    db.session.add(novo)
+    partes = []
+    for i in list(palete.itens):
+        qtd = tirar.get(i.id)
+        if not qtd:
+            continue
+        novo.itens.append(PaleteItem(produto_id=i.produto_id, nota_item_id=i.nota_item_id, lote=i.lote,
+                                     fabricacao=i.fabricacao, validade=i.validade, quantidade=qtd))
+        partes.append(f'{i.produto.sku} · {qtd:g} {i.produto.unidade}')
+        i.quantidade = round(i.quantidade - qtd, 3)
+        if i.quantidade <= 0:
+            palete.itens.remove(i)
+    db.session.flush()
+    resumo = ' + '.join(partes)[:150]
+    registrar(palete, 'Divisão', origem=palete.endereco, motivo=f'Saiu para o palete {novo.etiqueta}: {resumo}'[:200])
+    registrar(novo, 'Divisão', origem=palete.endereco, motivo=f'Veio do palete {palete.etiqueta}: {resumo}'[:200])
+    motivos = []
+    novo.sugerido = sugerir_endereco(novo, motivos)
+    registrar_log('Dividiu palete', f'{palete.etiqueta} → {novo.etiqueta} · {resumo}', modulo='recebimento')
+    db.session.commit()
+    flash(f'Palete {palete.etiqueta} dividido: o palete novo {novo.etiqueta} levou {resumo}'
+          + (f'. Guardar em {novo.sugerido.codigo}.' if novo.sugerido else ', mas não há endereço livre para indicar.'),
+          'success' if novo.sugerido else 'error')
+    if nota_tela:
+        return redirect(url_for('entrada.etiqueta_palete', pid=novo.id, novo=1, nota=nota_tela.id))
+    return redirect(url_for('entrada.etiqueta_palete', pid=novo.id))
 
 
 @bp.route('/paletes/<int:pid>/indicar', methods=['POST'])
@@ -659,9 +847,10 @@ def etiqueta_palete(pid):
         return data.strftime('%d/%m/%Y') if data else None
 
     # ?novo=1: veio direto da montagem do palete -> imprime sozinho e oferece "Etiqueta colada — ir guardar".
-    recem_montado = request.args.get('novo') == '1' and palete.nota_id
+    nota_de_volta = request.args.get('nota', type=int) or palete.nota_id
+    recem_montado = request.args.get('novo') == '1' and nota_de_volta
     return render_template('etiquetas/palete.html', etiqueta=palete.etiqueta, auto_print=bool(recem_montado),
-                           voltar_guarda=url_for('entrada.nota', nid=palete.nota_id) + f'#palete-{palete.id}'
+                           voltar_guarda=url_for('entrada.nota', nid=nota_de_volta) + f'#palete-{palete.id}'
                            if recem_montado else None,
                            codigo_wms=destino.codigo if destino else None, destino=destino.codigo if destino else None,
                            endereco_barcode=codigo_bipagem(destino.camara.codigo, destino.rua, destino.coluna, destino.nivel)
@@ -679,7 +868,7 @@ def finalizar(nid):
     if nota.status != 'Em conferência':
         flash('Só é possível finalizar uma nota em conferência (com ao menos um palete montado).', 'error')
         return _voltar_nota(nota)
-    if any(p.status == 'Aguardando guarda' for p in nota.paletes):
+    if any(p.status == 'Aguardando guarda' for p in paletes_da_nota(nota)):
         flash('Ainda há palete aguardando guarda. Guarde todos antes de finalizar.', 'error')
         return _voltar_nota(nota)
     conferido = conferido_por_item(nota)
@@ -968,8 +1157,9 @@ def _dados_extrato(nota):
         itens.append({'item': item, 'conferido': feito, 'diferenca': diferenca,
                       'situacao': 'Conferido' if diferenca == 0 else 'Pendente' if not feito
                       else f'Falta {-diferenca:g}' if diferenca < 0 else f'Sobra {diferenca:g}'})
-    paletes = [p for p in nota.paletes if p.status != 'Baixado']
-    return {'itens': itens, 'paletes': paletes, 'baixados': [p for p in nota.paletes if p.status == 'Baixado'],
+    todos = paletes_da_nota(nota)
+    paletes = [p for p in todos if p.status != 'Baixado']
+    return {'itens': itens, 'paletes': paletes, 'baixados': [p for p in todos if p.status == 'Baixado'],
             'total_nota': round(sum(i.quantidade for i in nota.itens), 3),
             'total_conferido': round(sum(l['conferido'] for l in itens), 3),
             'divergentes': sum(1 for l in itens if l['diferenca'] != 0)}
