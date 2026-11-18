@@ -631,7 +631,7 @@ option.item-conferido { color: #9ca3af; }
 /* seletor de câmara do mapa */
 .mapa-camaras { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .mapa-camara-chip {
-    display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 2px; flex: 1 0 auto;
     padding: 8px 14px; border: 1px solid var(--borda); border-radius: 10px;
     background: var(--fundo-card); color: var(--texto); text-decoration: none !important;
     transition: border-color .2s ease, background .2s ease;
