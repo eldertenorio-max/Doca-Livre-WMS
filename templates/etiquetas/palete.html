@@ -44,6 +44,13 @@
     line-height: 1.4;
   }
   @media print { .print-setup-hint { display: none !important; } }
+  .aviso-mesma-etiqueta {
+    padding: 10px 12px; border-radius: 8px; background: #fff7e6; border: 1px solid #f59e0b; color: #422006;
+    font-size: 13px; line-height: 1.45; max-width: 360px;
+  }
+  .aviso-mesma-etiqueta strong { display: block; margin-bottom: 4px; font-size: 14px; }
+  .aviso-mesma-etiqueta ul { margin: 6px 0 0; padding-left: 18px; }
+  @media print { .aviso-mesma-etiqueta { display: none !important; } }
 
   .etq-page {
     width: var(--lw);
@@ -347,9 +354,16 @@
   data-etq-h="{{ etq_altura_in }}in"
 >
 <div class="toolbar">
-  <button type="button" id="btn-wms-etq-imprimir">Imprimir</button>
+  {% if mesma_etiqueta %}
+  <div class="aviso-mesma-etiqueta">
+    <strong>É a mesma etiqueta do palete — não precisa imprimir de novo.</strong>
+    A etiqueta que já está colada continua valendo. As quantidades foram atualizadas no sistema; o palete agora tem:
+    <ul>{% for linha in conteudo_palete %}<li>{{ linha }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  <button type="button" id="btn-wms-etq-imprimir">{{ 'Imprimir mesmo assim' if mesma_etiqueta else 'Imprimir' }}</button>
   {% if voltar_guarda %}
-  <a href="{{ voltar_guarda }}" id="btn-wms-etq-guardar" style="padding: 8px; font-size: 13px; border-radius: 6px; background: #2e7d32; color: #fff; text-align: center; text-decoration: none; font-weight: 700;">Etiqueta colada — ir guardar</a>
+  <a href="{{ voltar_guarda }}" id="btn-wms-etq-guardar" style="padding: 8px; font-size: 13px; border-radius: 6px; background: #2e7d32; color: #fff; text-align: center; text-decoration: none; font-weight: 700;">{{ 'Entendi — voltar para a nota' if mesma_etiqueta else 'Etiqueta colada — ir guardar' }}</a>
   {% endif %}
   <p class="print-setup-hint">{{ etq_driver_hint | safe }}</p>
 </div>
@@ -470,7 +484,7 @@
       window.opener.location.href = {{ voltar_guarda|tojson }};
       window.opener.location.reload();
       var irGuardar = document.getElementById('btn-wms-etq-guardar');
-      irGuardar.textContent = 'Etiqueta colada — fechar esta aba';
+      irGuardar.textContent = {{ ('Entendi — fechar esta aba' if mesma_etiqueta else 'Etiqueta colada — fechar esta aba')|tojson }};
       irGuardar.addEventListener('click', function (ev) { ev.preventDefault(); window.close(); });
     }
   } catch (e) {}

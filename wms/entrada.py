@@ -612,7 +612,8 @@ def montar_palete(nid):
         onde = (f'no endereço {palete.endereco.codigo}' if palete.endereco else
                 f'guardar em {palete.sugerido.codigo}' if palete.sugerido else 'aguardando guarda')
         flash(f'{quantidade:g} {item.produto.unidade} de {item.produto.sku} adicionado(s) ao palete {palete.etiqueta} ({onde}).', 'success')
-        return redirect(url_for('entrada.etiqueta_palete', pid=palete.id, novo=1, nota=nota.id))
+        # a etiqueta do palete nao muda: a tela abre so com o aviso, sem mandar imprimir
+        return redirect(url_for('entrada.etiqueta_palete', pid=palete.id, adicionado=1, nota=nota.id))
 
     palete = Palete(etiqueta=gerar_etiqueta(), nota=nota, classificacao=classificacao,
                     up=(request.form.get('up') or '').strip()[:20] or None, criado_por=usuario_atual().username)
@@ -853,8 +854,12 @@ def etiqueta_palete(pid):
 
     # ?novo=1: veio direto da montagem do palete -> imprime sozinho e oferece "Etiqueta colada — ir guardar".
     nota_de_volta = request.args.get('nota', type=int) or palete.nota_id
-    recem_montado = request.args.get('novo') == '1' and nota_de_volta
-    return render_template('etiquetas/palete.html', etiqueta=palete.etiqueta, auto_print=bool(recem_montado),
+    # ?adicionado=1: um item entrou num palete que ja existia -> a etiqueta e a mesma (so avisa, nao imprime sozinha)
+    adicionado = request.args.get('adicionado') == '1' and nota_de_volta
+    recem_montado = (request.args.get('novo') == '1' and nota_de_volta) or adicionado
+    return render_template('etiquetas/palete.html', etiqueta=palete.etiqueta, auto_print=bool(recem_montado and not adicionado),
+                           mesma_etiqueta=bool(adicionado), conteudo_palete=[
+                               f'{i.produto.sku} · {i.produto.descricao} — {i.quantidade:g} {i.produto.unidade}' for i in palete.itens],
                            voltar_guarda=url_for('entrada.nota', nid=nota_de_volta) + f'#palete-{palete.id}'
                            if recem_montado else None,
                            codigo_wms=destino.codigo if destino else None, destino=destino.codigo if destino else None,
