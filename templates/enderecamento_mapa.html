@@ -45,6 +45,16 @@
     <a class="mapa-camara-chip{% if camara and camara.id == l.camara.id %} ativo{% endif %}" href="{{ url_for('enderecamento.mapa', camara=l.camara.id) }}">
         <strong>{{ '%02d'|format(l.camara.codigo) }} · {{ l.camara.nome }}</strong>
         <span>{{ l.ocupados }} ocupadas de {{ l.total }} · {{ l.ocupacao }}%</span>
+        {% if l.por_rua %}
+        {# ocupação por rua, como no card de Câmaras e endereços #}
+        <span class="chip-ruas">
+            {% for r in l.por_rua %}
+            <span class="chip-rua" title="Rua {{ r.rua }}: {{ r.ocupados }} ocupadas de {{ r.total }} · {{ r.livres }} livres{% if r.bloqueados %} · {{ r.bloqueados }} bloqueadas{% endif %}">
+                <b>{{ r.rua }}</b><span class="camara-rua-barra" aria-hidden="true"><i style="width: {{ r.ocupacao }}%"></i></span><em>{{ r.ocupados }}/{{ r.total }}</em><em class="chip-rua-pct">{{ r.ocupacao }}%</em>
+            </span>
+            {% endfor %}
+        </span>
+        {% endif %}
     </a>
     {% endfor %}
 </div>

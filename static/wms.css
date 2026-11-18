@@ -594,6 +594,13 @@ a:hover { text-decoration: underline; }
 }
 .cell--reservada.cell--disponivel { background-color: #fff7e6; }
 option.item-conferido { color: #9ca3af; }
+/* Mapa: ocupação por rua dentro da aba de cada câmara */
+.mapa-camara-chip .chip-ruas { display: grid; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--borda); }
+.mapa-camara-chip .chip-rua { display: grid; grid-template-columns: 16px 1fr auto 34px; align-items: center; gap: 6px; font-size: .72rem; white-space: nowrap; }
+.mapa-camara-chip .chip-rua b { color: var(--texto-titulo); }
+.mapa-camara-chip .chip-rua em { font-style: normal; color: var(--texto-secundario); text-align: right; }
+.mapa-camara-chip .chip-rua .chip-rua-pct { color: var(--texto-titulo); font-weight: 600; }
+.mapa-camara-chip .chip-rua .camara-rua-barra { width: auto; min-width: 40px; margin: 0; }
 /* Recebimento: Dividir palete (botão laranja e lista de paletes endereçados) */
 .btn-laranja { background: #f97316; border-color: #f97316; color: #ffffff; }
 .btn-laranja:hover, .btn-laranja:focus-visible { background: #ea580c; border-color: #ea580c; color: #ffffff; }
