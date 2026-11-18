@@ -8,22 +8,27 @@ Variáveis (sem elas o aviso fica DESLIGADO e nada muda no sistema):
   DOCA_CC_SYSTEM_SLUG     wms
   DOCA_CC_WEBHOOK_SECRET  segredo (HMAC) combinado com o Control Center, mínimo 16 caracteres
   DOCA_CC_SYSTEM_NAME     (opcional) nome para as mensagens
+  DOCA_CC_SNAPSHOT_MIN    (opcional) minutos entre os retratos de usuários (padrão 10; 0 desliga)
 
 Garantias: nunca atrasa nem derruba uma resposta (envio em segundo plano, com limite de tempo,
 sem propagar erro); agrupa repetições; no máximo 20 avisos por minuto por processo; não envia o
 corpo dos pedidos nem conteúdo do banco, só a mensagem de erro (sem os valores), a rota e quem
 estava usando. Só usa a biblioteca padrão e o Flask.
+
+Também envia, de tempos em tempos, o "retrato" dos usuários cadastrados (user.updated / user.deleted), só com
+nome, e-mail, usuário, perfil, situação e datas: nunca senha nem token. Ver "Retrato dos usuários" abaixo.
 """
 import hashlib
 import hmac
 import json
 import os
+import random
 import re
 import sys
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib import request as _urlrequest
 from urllib.parse import urlsplit
 
@@ -60,6 +65,7 @@ def _reiniciar_estado():
         _ultimo_por_chave.clear()
         _envios_recentes[:] = []
         _ultimo_log_falha[0] = 0.0
+        _retrato_conhecidos.clear()
 
 
 def _liberado(chave):
@@ -381,6 +387,217 @@ def _instalar_captura_global(nome):
     sys.excepthook = _sys_hook
 
 
+# ---------------------------------------------------------------------------------------------
+# Retrato dos usuários: de tempos em tempos envia ao Control Center quem está cadastrado no WMS
+# (user.updated para cada pessoa e user.deleted para quem sumiu), para o painel mostrar os usuários
+# sem precisar ler o banco do WMS. Só lê (SELECT), só estes campos, e nunca envia senha nem token.
+# Variável opcional: DOCA_CC_SNAPSHOT_MIN = minutos entre os envios (padrão 10, mínimo 2, 0 desliga).
+# ---------------------------------------------------------------------------------------------
+RETRATO_PADRAO_MIN = 10
+RETRATO_MINIMO_MIN = 2
+RETRATO_ATRASO_INICIAL_S = 45
+RETRATO_LIMITE_USUARIOS = 2000
+RETRATO_TEMPO_PRIMEIRO_S = 70  # o Control Center (plano gratuito) pode estar acordando
+RETRATO_TEMPO_DEMAIS_S = 15
+RETRATO_PAUSA_S = 0.1
+RETRATO_MAX_FALHAS_SEGUIDAS = 3
+RETRATO_AUTOMATICO = True  # os testes desligam para não criar o ciclo em cada app de teste
+
+# Perfil do WMS -> papel conhecido pelo Control Center (super_usuario, gestor, operador).
+PAPEL_DO_PERFIL = {'super': 'super_usuario', 'supervisor': 'gestor', 'gestor': 'gestor', 'operador': 'operador'}
+
+_BRT = timezone(timedelta(hours=-3))  # o WMS grava horários de Brasília, sem fuso
+_retrato_conhecidos = {}  # id -> hash do último retrato visto (para saber quem sumiu)
+_retrato_em_andamento = threading.Lock()
+
+
+def intervalo_do_retrato_s():
+    """Segundos entre os retratos; 0 = desligado."""
+    bruto = (os.environ.get('DOCA_CC_SNAPSHOT_MIN') or '').strip()
+    try:
+        minutos = float(bruto) if bruto else RETRATO_PADRAO_MIN
+    except ValueError:
+        minutos = RETRATO_PADRAO_MIN
+    if minutos <= 0:
+        return 0
+    return max(minutos, RETRATO_MINIMO_MIN) * 60
+
+
+def papel_do_cc(perfil):
+    return PAPEL_DO_PERFIL.get(str(perfil or '').strip().lower(), 'operador')
+
+
+def _iso_utc(horario):
+    """Horário de Brasília sem fuso (como o WMS grava) -> ISO em UTC."""
+    if not horario:
+        return None
+    try:
+        return horario.replace(tzinfo=_BRT).astimezone(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+    except Exception:
+        return None
+
+
+def _texto_curto(valor, maximo):
+    return ' '.join(str(valor).split())[:maximo]
+
+
+def payload_do_usuario(u):
+    """Só os campos combinados com o Control Center. `u` é qualquer objeto com id, username, nome, email, perfil,
+    ativo, criado_em e ultimo_acesso (linha do SQLAlchemy ou o próprio modelo). Senha, token, avatar e o resto
+    do cadastro NUNCA entram aqui."""
+    uid = str(u.id)
+    username = _texto_curto(getattr(u, 'username', None) or '', 80)
+    p = {
+        'external_id': uid,
+        'name': _texto_curto(getattr(u, 'nome', None) or username or uid, 120),
+        'role_code': papel_do_cc(getattr(u, 'perfil', None)),
+    }
+    if username:
+        p['username'] = username
+    email = _texto_curto(getattr(u, 'email', None) or '', 120)
+    if email:
+        p['email'] = email
+    criado = _iso_utc(getattr(u, 'criado_em', None))
+    if criado:
+        p['created_at'] = criado
+    ultimo = _iso_utc(getattr(u, 'ultimo_acesso', None))
+    if ultimo:
+        p['last_login_at'] = ultimo
+        p['last_seen_at'] = ultimo
+    # Nunca mandamos "online": isso é decidido pelas sessões ao vivo e o painel não sobrescreve quem está online.
+    # Mandar offline/never (em vez de omitir) faz quem foi DESBLOQUEADO deixar de aparecer como bloqueado.
+    if not getattr(u, 'ativo', True):
+        p['status'] = 'blocked'
+    else:
+        p['status'] = 'offline' if ultimo else 'never'
+    return p
+
+
+def _hash_do_payload(p):
+    return hashlib.sha1(json.dumps(p, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()[:12]
+
+
+def _balde_horario():
+    """Hora atual em UTC (AAAAMMDDHH). O painel guarda para sempre as chaves já processadas e ignora as repetidas;
+    com a hora na chave, qualquer divergência (ex.: bloqueou, desbloqueou e bloqueou de novo) é reparada em até 1 hora."""
+    return datetime.now(timezone.utc).strftime('%Y%m%d%H')
+
+
+def _corpo_do_retrato(slug, tipo, payload, hash_):
+    """Dentro da mesma hora, a chave só muda quando o cadastro muda: repetir o envio não duplica nada."""
+    sufixo = ('del:' if tipo == 'user.deleted' else '') + hash_
+    return {
+        'event_type': tipo,
+        'idempotency_key': 'snap:%s:%s:%s:%s' % (slug, payload['external_id'], sufixo, _balde_horario()),
+        'occurred_at': datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z'),
+        'system_slug': slug,
+        'payload': payload,
+    }
+
+
+def _usuarios_do_banco(app):
+    """Lê os usuários do próprio banco do WMS: só SELECT e só as colunas necessárias."""
+    from wms.models import Usuario, db
+
+    with app.app_context():
+        linhas = (
+            db.session.query(Usuario.id, Usuario.username, Usuario.nome, Usuario.email, Usuario.perfil,
+                             Usuario.ativo, Usuario.criado_em, Usuario.ultimo_acesso)
+            .order_by(Usuario.id).limit(RETRATO_LIMITE_USUARIOS).all()
+        )
+        return [payload_do_usuario(linha) for linha in linhas]
+
+
+def _ciclo_do_retrato(cfg, coletor, enviar):
+    base, segredo, slug, _nome = cfg
+    try:
+        atuais = {p['external_id']: p for p in coletor()}
+    except Exception as e:
+        _logar_falha('retrato dos usuários: não consegui ler o banco (%s)' % (limpar_texto(e, 120) or type(e).__name__))
+        return (0, 0, False)
+    with _trava:
+        anteriores = dict(_retrato_conhecidos)
+    eventos = []  # (tipo, id, corpo)
+    for uid, p in atuais.items():
+        eventos.append(('user.updated', uid, _corpo_do_retrato(slug, 'user.updated', p, _hash_do_payload(p))))
+    for uid, hash_anterior in anteriores.items():
+        if uid not in atuais:
+            eventos.append(('user.deleted', uid,
+                            _corpo_do_retrato(slug, 'user.deleted', {'external_id': uid}, hash_anterior)))
+    enviados = falhas = seguidas = 0
+    interrompido = False
+    apagados_pendentes = set()  # user.deleted que não chegou: tenta de novo no próximo ciclo
+    primeiro = True
+    for i, (tipo, uid, corpo) in enumerate(eventos):
+        try:
+            enviar(corpo, base, segredo, slug, RETRATO_TEMPO_PRIMEIRO_S if primeiro else RETRATO_TEMPO_DEMAIS_S)
+            enviados += 1
+            seguidas = 0
+            primeiro = False
+        except Exception as e:
+            falhas += 1
+            seguidas += 1
+            if tipo == 'user.deleted':
+                apagados_pendentes.add(uid)
+            _logar_falha('retrato dos usuários: %s' % (limpar_texto(e, 120) or type(e).__name__))
+            if seguidas >= RETRATO_MAX_FALHAS_SEGUIDAS:
+                interrompido = True
+                for outro_tipo, outro_id, _c in eventos[i + 1:]:
+                    if outro_tipo == 'user.deleted':
+                        apagados_pendentes.add(outro_id)
+                break
+        if RETRATO_PAUSA_S:
+            time.sleep(RETRATO_PAUSA_S)
+    novos = {uid: _hash_do_payload(p) for uid, p in atuais.items()}
+    for uid in apagados_pendentes:
+        novos[uid] = anteriores[uid]
+    with _trava:
+        _retrato_conhecidos.clear()
+        _retrato_conhecidos.update(novos)
+    return (enviados, falhas, interrompido)
+
+
+def executar_ciclo_retrato(coletor, enviar=None):
+    """Um ciclo do retrato. Devolve (enviados, falhas, interrompido). NUNCA levanta erro."""
+    try:
+        cfg = _config()
+        if cfg is None:
+            return (0, 0, False)
+        if not _retrato_em_andamento.acquire(blocking=False):
+            return (0, 0, False)  # já existe um ciclo rodando: não sobrepõe
+        try:
+            return _ciclo_do_retrato(cfg, coletor, enviar or _enviar_uma_vez)
+        finally:
+            _retrato_em_andamento.release()
+    except Exception:
+        return (0, 0, False)
+
+
+def iniciar_retrato(app, coletor=None):
+    """Agenda o retrato dos usuários (1º ciclo uns 45 s depois de subir, depois a cada DOCA_CC_SNAPSHOT_MIN minutos).
+    Sem as variáveis DOCA_CC_*, ou com DOCA_CC_SNAPSHOT_MIN=0, não faz nada. Devolve True se agendou."""
+    intervalo = intervalo_do_retrato_s()
+    if _config() is None or intervalo <= 0 or not RETRATO_AUTOMATICO:
+        return False
+    if app.extensions.get('doca_cc_retrato'):
+        return True
+    parar = threading.Event()
+    app.extensions['doca_cc_retrato'] = parar
+    coleta = coletor or (lambda: _usuarios_do_banco(app))
+
+    def _laco():
+        espera = RETRATO_ATRASO_INICIAL_S + random.uniform(0, 15)
+        while not parar.wait(espera):
+            try:
+                executar_ciclo_retrato(coleta)
+            except Exception:
+                pass
+            espera = intervalo
+
+    threading.Thread(target=_laco, name='control-center-retrato', daemon=True).start()
+    return True
+
+
 def instalar(app):
     """Liga os avisos neste app Flask. Sem as variáveis DOCA_CC_*, não faz nada. Devolve True se ligou."""
     cfg = _config()
@@ -408,4 +625,8 @@ def instalar(app):
     except Exception:
         pass
     _instalar_captura_global(cfg[3])
+    try:
+        iniciar_retrato(app)
+    except Exception:
+        pass  # o retrato nunca pode impedir o sistema de subir
     return True

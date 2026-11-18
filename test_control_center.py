@@ -18,6 +18,8 @@ from werkzeug.exceptions import HTTPException
 
 import control_center as cc
 
+cc.RETRATO_AUTOMATICO = False  # estes testes não precisam do ciclo do retrato (ele tem testes próprios)
+
 SEGREDO = 'segredo-de-teste-com-entropia-suficiente'
 VARIAVEIS = ('DOCA_CC_URL', 'DOCA_CC_SYSTEM_SLUG', 'DOCA_CC_WEBHOOK_SECRET', 'DOCA_CC_SYSTEM_NAME')
 
