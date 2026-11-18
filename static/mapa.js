@@ -20,6 +20,8 @@
     // O que o mapa mostra: 'geral' (o que está guardado + o espaço vazio de cada cliente), 'ocupacao' (só o que
     // está guardado) ou 'reservado' (só de qual cliente é cada espaço).
     var modoVer = 'geral';
+    // Ruas escondidas no desenho 3D: {"id da câmara|rua": true}. Vale enquanto a tela estiver aberta.
+    var ruasOcultas = {};
 
     function ler(chave) { try { return localStorage.getItem(chave); } catch (e) { return null; } }
     function gravar(chave, valor) { try { localStorage.setItem(chave, valor); } catch (e) {} }
@@ -682,6 +684,7 @@
             // A rua é um grupo com a origem no centro dela, no chão: é o que se arrasta e gira no Editar layout 3D.
             var g = new THREE.Group();
             item.grupo = g;
+            g.visible = !ruasOcultas[item.sala.camara.id + '|' + r.rua];
             colocar(item);
             grupoSala.add(g);
             var c0 = r.colunas[0];
@@ -848,7 +851,7 @@
             ponteiro.x = ((ev.clientX - caixaTela.left) / caixaTela.width) * 2 - 1;
             ponteiro.y = -((ev.clientY - caixaTela.top) / caixaTela.height) * 2 + 1;
             raio.setFromCamera(ponteiro, camera);
-            var achados = raio.intersectObjects(caixas, false);
+            var achados = raio.intersectObjects(caixas, false).filter(function (a) { return a.object.parent.visible; });
             return achados.length ? achados[0].object : null;
         }
         function realcar(caixa, ligado) {
@@ -888,6 +891,10 @@
             if (destaque) { destaque.material.emissive.setHex(0x000000); destaque.scale.set(1, 1, 1); }
             destaque = caixas.filter(function (c) { return c.userData.endereco.id === id; })[0] || null;
             if (!destaque) return;
+            var ruaDele = destaque.userData.endereco;
+            delete ruasOcultas[ruaDele.camara.id + '|' + ruaDele.rua];
+            destaque.parent.visible = true;
+            sincronizarRuas3d();
             destaque.material.emissive.setHex(0xaa8800);
             destaque.scale.set(1.18, 1.18, 1.18);
             scene.updateMatrixWorld(true);
@@ -939,7 +946,7 @@
             ponteiro.x = ((ev.clientX - caixaTela.left) / caixaTela.width) * 2 - 1;
             ponteiro.y = -((ev.clientY - caixaTela.top) / caixaTela.height) * 2 + 1;
             raio.setFromCamera(ponteiro, camera);
-            var achados = raio.intersectObjects(itens.map(function (i) { return i.alca; }), false);
+            var achados = raio.intersectObjects(itens.filter(function (i) { return i.grupo.visible; }).map(function (i) { return i.alca; }), false);
             if (!achados.length) return;                      // pegou o chão: a câmera gira normalmente
             var item = achados[0].object.userData.item, p = pontoNoChao(ev);
             selecionar(item);
@@ -1002,6 +1009,11 @@
         enquadrar();
         return {
             enquadrar: enquadrar, destacar: destacar, ajustar: ajustarTamanho, edicao: edicao,
+            // aplica o que está em "ruasOcultas" sem refazer a cena
+            ocultarRuas: function () {
+                itens.forEach(function (i) { i.grupo.visible = !ruasOcultas[i.sala.camara.id + '|' + i.r.rua]; });
+                pedirQuadro();
+            },
             destruir: function () {
                 window.removeEventListener('resize', ajustarTamanho);
                 if (observador) observador.disconnect();
@@ -1046,6 +1058,8 @@
         visaoAtual = visao;
         area2d.hidden = visao !== '2d';
         area3d.hidden = visao !== '3d';
+        var seletorRuas = document.getElementById('ruas3d');
+        if (seletorRuas) seletorRuas.hidden = visao !== '3d';
         if (btn2d) {
             btn2d.classList.toggle('active', visao === '2d');
             btn3d.classList.toggle('active', visao === '3d');
@@ -1113,6 +1127,40 @@
             }).catch(function (erro) {
                 aviso.textContent = erro.message;
             }).then(function () { botao.disabled = false; });
+        });
+    }
+
+    // ------------------------------------------------------------ 3D: ocultar ruas
+    var ruas3d = document.getElementById('ruas3d'), ruas3dLista = document.getElementById('ruas3dLista');
+    function atualizarBotaoRuas() {
+        var n = Object.keys(ruasOcultas).length;
+        document.getElementById('btnRuas3dTexto').textContent = n ? n + ' rua(s) oculta(s)' : 'Ocultar ruas';
+    }
+    function sincronizarRuas3d() {
+        if (!ruas3dLista) return;
+        ruas3dLista.querySelectorAll('input').forEach(function (c) { c.checked = !ruasOcultas[c.getAttribute('data-rua3d')]; });
+        atualizarBotaoRuas();
+    }
+    if (ruas3d) {
+        var comEstante = dados.camaras.filter(function (c) { return c.tipo !== 'Stage' && c.ruas.length; });
+        ruas3dLista.innerHTML = comEstante.map(function (c) {
+            return (comEstante.length > 1 ? '<h6>' + escapar(nomeComNumero(c)) + '</h6>' : '<h6>Ruas que aparecem</h6>') +
+                c.ruas.map(function (r) {
+                    return '<label><input type="checkbox" class="form-check-input m-0" checked data-rua3d="' + c.id + '|' + escapar(r.rua) + '">Rua ' + escapar(r.rua) + '</label>';
+                }).join('');
+        }).join('');
+        ruas3dLista.addEventListener('change', function (ev) {
+            var chave = ev.target.getAttribute('data-rua3d');
+            if (!chave) return;
+            if (ev.target.checked) delete ruasOcultas[chave]; else ruasOcultas[chave] = true;
+            atualizarBotaoRuas();
+            if (cena3d) cena3d.ocultarRuas();
+        });
+        document.getElementById('ruas3dTodas').addEventListener('click', function () {
+            ruasOcultas = {};
+            ruas3dLista.querySelectorAll('input').forEach(function (c) { c.checked = true; });
+            atualizarBotaoRuas();
+            if (cena3d) cena3d.ocultarRuas();
         });
     }
 

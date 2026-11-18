@@ -79,7 +79,16 @@
     <span><i class="swatch swatch--reserva" aria-hidden="true"></i>Reservado (logo do cliente apagado)</span>
     <span><i class="swatch swatch--reentrega" aria-hidden="true"></i>Reentrega</span>
     <span><i class="swatch swatch--devolucao" aria-hidden="true"></i>Devolução</span>
-    <form class="d-flex gap-2 ms-auto" id="formBuscaMapa" autocomplete="off">
+    <form class="d-flex flex-wrap justify-content-end gap-2 ms-auto" id="formBuscaMapa" autocomplete="off">
+    {# 3D: esconder ruas do desenho (para enxergar a que fica atrás). Só aparece na visão 3D. #}
+    <div class="dropdown" id="ruas3d" hidden>
+        <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" id="btnRuas3d" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"><i class="fas fa-eye-slash"></i><span id="btnRuas3dTexto">Ocultar ruas</span></button>
+        <div class="dropdown-menu dropdown-menu-end ruas3d-menu" aria-labelledby="btnRuas3d">
+            <div class="ruas3d-lista" id="ruas3dLista"></div>
+            <div class="dropdown-divider"></div>
+            <button type="button" class="dropdown-item" id="ruas3dTodas"><i class="fas fa-eye me-2"></i>Mostrar todas</button>
+        </div>
+    </div>
         <input type="search" class="form-control form-control-sm" id="buscaMapa" style="width: 200px;" placeholder="Localizar endereço" aria-label="Localizar endereço (código ou bipagem)">
         <button type="submit" class="btn btn-sm btn-outline-primary"><i class="fas fa-location-crosshairs"></i>Localizar</button>
     </form>
