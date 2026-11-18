@@ -602,6 +602,10 @@ option.item-conferido { color: #9ca3af; }
 .mapa-camara-chip .chip-rua .chip-rua-pct { color: var(--texto-titulo); font-weight: 600; }
 .mapa-camara-chip .chip-rua .camara-rua-barra { width: auto; min-width: 40px; margin: 0; }
 /* Recebimento: Dividir palete (botão laranja e lista de paletes endereçados) */
+.btn-verde-claro { background: #86efac; border-color: #86efac; color: #14532d; font-weight: 600; }
+.btn-verde-claro:hover, .btn-verde-claro:focus-visible { background: #4ade80; border-color: #4ade80; color: #14532d; }
+.btn-amarelo { background: #facc15; border-color: #facc15; color: #422006; font-weight: 600; }
+.btn-amarelo:hover, .btn-amarelo:focus-visible { background: #eab308; border-color: #eab308; color: #422006; }
 .btn-laranja { background: #f97316; border-color: #f97316; color: #ffffff; }
 .btn-laranja:hover, .btn-laranja:focus-visible { background: #ea580c; border-color: #ea580c; color: #ffffff; }
 .lista-dividir { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow: auto; }
