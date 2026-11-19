@@ -22,6 +22,9 @@
     var modoVer = 'geral';
     // Ruas escondidas no desenho 3D: {"id da câmara|rua": true}. Vale enquanto a tela estiver aberta.
     var ruasOcultas = {};
+    // Visual do 3D: 'galpao' (paredes, teto com luminárias, sombras, piso de concreto e colisão ao caminhar)
+    // ou 'simples' (o modelo anterior, só estantes sobre o piso). A pessoa escolhe e fica lembrado.
+    var visual3d = 'galpao';
 
     function ler(chave) { try { return localStorage.getItem(chave); } catch (e) { return null; } }
     function gravar(chave, valor) { try { localStorage.setItem(chave, valor); } catch (e) {} }
@@ -455,6 +458,7 @@
     function montar3d() {
         var THREE = window.THREE;
         var verReserva = modoVer === 'reservado';
+        var galpao = visual3d === 'galpao';
         var tela = document.getElementById('mapa3dTela');
         var dica = document.getElementById('mapa3dDica');
         var cor = cores();
@@ -572,15 +576,72 @@
         }
         function bloco(pai, w, h, d, corBloco, x, y, z) {
             var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: corBloco }));
+            m.castShadow = galpao;
             m.position.set(x, y, z);
             pai.add(m);
             return m;
         }
 
-        var piso = new THREE.Mesh(new THREE.PlaneGeometry(largura + 8, fundoTotal + 8), new THREE.MeshLambertMaterial({ color: cor.piso }));
+        var escuro3d = document.documentElement.getAttribute('data-tema') === 'escuro';
+        // Limites do galpão: as ruas e uma folga em volta (mais na cabeceira, onde ficam a faixa e a entrada dos corredores).
+        var sala3d = { minX: -7, maxX: largura + 4.5, minZ: -4.5, maxZ: fundoTotal + 4.5, alto: maxNivel * A + 3.6 };
+        var piso = new THREE.Mesh(new THREE.PlaneGeometry(galpao ? sala3d.maxX - sala3d.minX : largura + 8, galpao ? sala3d.maxZ - sala3d.minZ : fundoTotal + 8),
+                                  new THREE.MeshLambertMaterial({ color: galpao ? (escuro3d ? '#44464c' : '#a9acb1') : cor.piso }));
         piso.rotation.x = -Math.PI / 2;
-        piso.position.set(largura / 2, -0.01, fundoTotal / 2);
+        if (galpao) piso.position.set((sala3d.minX + sala3d.maxX) / 2, -0.01, (sala3d.minZ + sala3d.maxZ) / 2);
+        else piso.position.set(largura / 2, -0.01, fundoTotal / 2);
+        piso.receiveShadow = galpao;
         scene.add(piso);
+        var predio = null;        // paredes, teto e luminárias (some no Editar layout 3D)
+        if (galpao) {
+            predio = new THREE.Group();
+            var lx = sala3d.maxX - sala3d.minX, lz = sala3d.maxZ - sala3d.minZ;
+            var cx = (sala3d.minX + sala3d.maxX) / 2, cz = (sala3d.minZ + sala3d.maxZ) / 2;
+            // Caixa vista por dentro: de fora, a parede e o teto que ficam na frente da câmera não aparecem,
+            // então dá para olhar o galpão de cima e de lado sem nada tapando.
+            var paredes = new THREE.Mesh(new THREE.BoxGeometry(lx, sala3d.alto + 0.6, lz),
+                                         new THREE.MeshLambertMaterial({ color: escuro3d ? '#2d2f35' : '#dfe2e6', side: THREE.BackSide }));
+            paredes.position.set(cx, sala3d.alto / 2 - 0.3, cz);
+            predio.add(paredes);
+            // rodapé amarelo e preto nas paredes, como em galpão
+            // (a caixa desce abaixo do piso para o fundo dela não cobrir o chão)
+            var rodape = new THREE.Mesh(new THREE.BoxGeometry(lx - 0.02, 1.0, lz - 0.02),
+                                        new THREE.MeshLambertMaterial({ color: 0xfacc15, side: THREE.BackSide }));
+            rodape.position.set(cx, 0, cz);
+            predio.add(rodape);
+            // luminárias pendentes no teto
+            var geoFio = new THREE.CylinderGeometry(0.02, 0.02, 1.1, 6), geoCupula = new THREE.ConeGeometry(0.6, 0.45, 18, 1, true);
+            var geoLampada = new THREE.SphereGeometry(0.17, 12, 8);
+            var matFio = new THREE.MeshLambertMaterial({ color: 0x1f2937 });
+            var matCupula = new THREE.MeshLambertMaterial({ color: 0x111827, side: THREE.DoubleSide });
+            var matLampada = new THREE.MeshBasicMaterial({ color: 0xfff1b8 });
+            var nx = Math.max(1, Math.min(8, Math.round(lx / 9))), nz = Math.max(1, Math.min(8, Math.round(lz / 9)));
+            for (var ix = 0; ix < nx; ix++) {
+                for (var iz = 0; iz < nz; iz++) {
+                    var lum = new THREE.Group();
+                    var fio = new THREE.Mesh(geoFio, matFio); fio.position.y = -0.55;
+                    var cupula = new THREE.Mesh(geoCupula, matCupula); cupula.position.y = -1.3;
+                    var lampada = new THREE.Mesh(geoLampada, matLampada); lampada.position.y = -1.42;
+                    lum.add(fio); lum.add(cupula); lum.add(lampada);
+                    lum.position.set(sala3d.minX + lx * (ix + 0.5) / nx, sala3d.alto, sala3d.minZ + lz * (iz + 0.5) / nz);
+                    predio.add(lum);
+                }
+            }
+            scene.add(predio);
+            // sombras das estantes e das cargas no piso
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            var alcanceSombra = Math.max(lx, lz) / 2 + 6;
+            sol.position.set(cx + alcanceSombra * 0.5, sala3d.alto + alcanceSombra, cz + alcanceSombra * 0.7);
+            sol.target.position.set(cx, 0, cz);
+            scene.add(sol.target);
+            sol.castShadow = true;
+            sol.shadow.mapSize.set(2048, 2048);
+            sol.shadow.camera.left = -alcanceSombra; sol.shadow.camera.right = alcanceSombra;
+            sol.shadow.camera.top = alcanceSombra; sol.shadow.camera.bottom = -alcanceSombra;
+            sol.shadow.camera.near = 1; sol.shadow.camera.far = (sala3d.alto + alcanceSombra) * 3;
+            sol.shadow.bias = -0.0006;
+        }
 
         var geoCaixa = new THREE.BoxGeometry(L * 0.86, A * 0.78, P * 0.86);
         var geoBorda = new THREE.EdgesGeometry(geoCaixa);
@@ -795,6 +856,7 @@
                 if (e.status === 'ocupado' && !verReserva) {
                     // Posição ocupada: uma caixa de papelão com fita, em cima do palete.
                     caixa = new THREE.Mesh(geoCarga, new THREE.MeshLambertMaterial({ color: 0xc9a26b }));
+                    caixa.castShadow = galpao;
                     caixa.position.set(x, base + 0.1 + A * 0.3, z);
                     caixa.add(new THREE.LineSegments(geoCargaBorda, materialCargaBorda));
                     caixa.add(new THREE.Mesh(geoFita, materialFita));
@@ -949,12 +1011,31 @@
 
         // ------------------------------------------------ Caminhar: câmera na altura dos olhos, andando pelos corredores
         var andando = false, direcao3 = new THREE.Vector3(), eixoY = new THREE.Vector3(0, 1, 0);
+        var pontoLocal = new THREE.Vector3();
+        function passagemLivre(x, z) {
+            if (!galpao) return true;                    // no modelo simples continua atravessando, como era
+            if (x < sala3d.minX + 0.4 || x > sala3d.maxX - 0.4 || z < sala3d.minZ + 0.4 || z > sala3d.maxZ - 0.4) return false;
+            for (var i = 0; i < itens.length; i++) {
+                if (!itens[i].grupo.visible) continue;
+                pontoLocal.set(x, 0, z);
+                itens[i].grupo.worldToLocal(pontoLocal);
+                if (Math.abs(pontoLocal.x) < itens[i].w / 2 + 0.3 && Math.abs(pontoLocal.z) < P / 2 + 0.3) return false;
+            }
+            return true;
+        }
         function andar(frente, lado) {
             direcao3.copy(controls.target).sub(camera.position);      // para onde a câmera aponta de verdade
             direcao3.y = 0;
             if (direcao3.lengthSq() < 1e-6) return;
             direcao3.normalize();
             var dx = direcao3.x * frente - direcao3.z * lado, dz = direcao3.z * frente + direcao3.x * lado;
+            var px = camera.position.x, pz = camera.position.z;
+            // bateu em parede ou estante: tenta deslizar só num eixo; se não der, fica parado
+            if (!passagemLivre(px + dx, pz + dz)) {
+                if (passagemLivre(px + dx, pz)) dz = 0;
+                else if (passagemLivre(px, pz + dz)) dx = 0;
+                else return;
+            }
             camera.position.x += dx; camera.position.z += dz;
             controls.target.x += dx; controls.target.z += dz;
             pedirQuadro();
@@ -1078,6 +1159,7 @@
                 salas.forEach(function (s) { s.nome.visible = false; s.faixa.visible = false; });      // atrapalhariam o arrasto
                 if (andando) caminhar(false);
                 piso.scale.set(4, 4, 1);                                       // mais chão para espalhar as ruas
+                if (predio) predio.visible = false;                            // sem paredes enquanto arruma as ruas
                 grade = new THREE.GridHelper(Math.ceil(Math.max(largura, fundoTotal) * 4 + 32), Math.ceil(Math.max(largura, fundoTotal) * 4 + 32), 0x94a3b8, 0xcbd5e1);
                 grade.position.set(largura / 2, 0.005, fundoTotal / 2);
                 grade.material.transparent = true; grade.material.opacity = 0.35;
@@ -1176,6 +1258,22 @@
         btn2d.addEventListener('click', function () { mostrar('2d'); });
         btn3d.addEventListener('click', function () { mostrar('3d'); });
     }
+    var btnVisual3d = document.getElementById('btnVisual3d');
+    function marcarVisual3d() {
+        if (!btnVisual3d) return;
+        btnVisual3d.classList.toggle('active', visual3d === 'galpao');
+        btnVisual3d.setAttribute('aria-pressed', visual3d === 'galpao');
+        btnVisual3d.querySelector('span').textContent = visual3d === 'galpao' ? 'Galpão: ligado' : 'Galpão: desligado';
+    }
+    if (ler('wms.mapa.visual3d') === 'simples') visual3d = 'simples';
+    marcarVisual3d();
+    if (btnVisual3d) btnVisual3d.addEventListener('click', function () {
+        visual3d = visual3d === 'galpao' ? 'simples' : 'galpao';
+        gravar('wms.mapa.visual3d', visual3d);
+        marcarVisual3d();
+        modoEdicao3dSair0();
+        refazer3d();
+    });
     var btnCaminhar = document.getElementById('btnCaminhar3d'), controleAndar = document.getElementById('andar3d');
     function modoCaminhar(ligado) {
         if (!btnCaminhar) return;
@@ -1220,6 +1318,7 @@
         if (visaoAtual === '3d') return abrir3d();
         return Promise.resolve();
     }
+    function modoEdicao3dSair0() { if (barraEditar3d && !barraEditar3d.hidden) modoEdicao3d(false); }
     // quem estava arrumando as ruas e resolve caminhar: sai do editor sem gravar
     function modoEdicao3dSair() {
         if (barraEditar3d && !barraEditar3d.hidden) { modoEdicao3d(false); refazer3d(); }
