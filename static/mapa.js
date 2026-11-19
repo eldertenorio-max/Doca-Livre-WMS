@@ -142,7 +142,26 @@
         return '<div><dt>' + rotulo + '</dt><dd' + (classe ? ' class="' + classe + '"' : '') + '>' + escapar(valor || '—') + '</dd></div>';
     }
     // Todos os dados do palete que está na posição (clique no quadrado).
-    function cartaoPalete(p) {
+    function decimal(n, casas) { return Number(n).toFixed(casas == null ? 1 : casas).replace('.', ','); }
+    // Giro do palete: classe da curva ABC, saídas no período, distância até a doca e a sugestão de troca.
+    function blocoGiro(p, e) {
+        var dias = dados.dias_giro || 90;
+        var classe = p.classe ? '<span class="selo-abc selo-abc--' + p.classe.toLowerCase() + '">' + p.classe + '</span> Curva ' + p.classe
+                              : '<span class="selo-abc selo-abc--n">–</span> Sem saída';
+        var giro = p.saidas ? p.saidas + ' saída(s) em ' + dias + ' dias (' + decimal(p.por_dia, 2) + ' por dia)' + (p.qtd_saida ? ' · ' + escapar(p.qtd_saida) + ' no período' : '')
+                            : 'nenhuma saída nos últimos ' + dias + ' dias';
+        var doca = e && e.dist != null ? ' · ' + decimal(e.dist) + ' m até a doca' : '';
+        var sugestao = '';
+        if (p.sugestao) {
+            sugestao = '<div class="palete-ficha-sugestao"><i class="fas fa-lightbulb"></i><span><strong>Sugestão:</strong> ' +
+                (p.sugestao.acao === 'trocar' ? 'trocar de lugar com o palete <span class="codigo-mono">' + escapar(p.sugestao.com) + '</span>, que está em <strong class="codigo-mono">' + escapar(p.sugestao.destino) + '</strong>'
+                                              : 'mover para <strong class="codigo-mono">' + escapar(p.sugestao.destino) + '</strong>, que está livre') +
+                ' — economia de ' + decimal(p.sugestao.ganho) + ' m de caminhada por dia.' +
+                (cfg.urlPaletes ? ' <a href="' + cfg.urlPaletes + '?q=' + encodeURIComponent(p.etiqueta) + '">Abrir no Controle de palete</a> para movimentar.' : '') + '</span></div>';
+        }
+        return '<div class="palete-ficha-giro"><div><strong>Giro</strong> ' + classe + ' · ' + giro + doca + '</div>' + sugestao + '</div>';
+    }
+    function cartaoPalete(p, e) {
         var itens = (p.itens || []).map(function (i) {
             return '<tr><td><strong>' + escapar(i.sku) + '</strong></td><td>' + escapar(i.descricao || '') + '</td><td class="codigo-mono">' + escapar(i.ean || '—') +
                 '</td><td class="codigo-mono">' + escapar(i.dun || '—') + '</td><td>' + escapar(i.quantidade) + '</td><td>' + escapar(i.lote || '—') +
@@ -164,6 +183,7 @@
                 campo('Palete (etiqueta)', p.etiqueta, 'codigo-mono') + campo('UP', p.up) +
                 campo('Montado por', [p.criado_por, p.criado_em].filter(Boolean).join(' · ')) + campo('Armazenado em', p.armazenado_em) +
             '</dl>' +
+            blocoGiro(p, e) +
             (p.chave ? '<div class="palete-ficha-chave"><dt>Chave de acesso</dt><dd class="codigo-mono">' + escapar(p.chave) + '</dd></div>' : '') +
             (itens ? '<div class="tabela-scroll"><table class="table table-sm table-striped mb-0"><thead><tr><th>SKU</th><th>Descrição</th><th>EAN</th><th>DUN</th><th>Quantidade</th><th>Lote</th><th>Fabricação</th><th>Validade</th></tr></thead><tbody>' + itens + '</tbody></table></div>'
                    : '<p class="text-muted small mb-0">Palete sem itens.</p>') +
@@ -182,7 +202,7 @@
         texto('endCliente', e.cliente || 'Uso livre');
         texto('endStatus', ROTULO[e.status] + (e.bloqueado && e.status !== 'bloqueado' ? ' · bloqueado' : '') + (e.motivo ? ' — ' + e.motivo : ''));
         document.getElementById('endEtiqueta').href = cfg.urlEtiqueta + '?ids=' + e.id;
-        document.getElementById('endPaletes').innerHTML = (e.paletes || []).map(cartaoPalete).join('');
+        document.getElementById('endPaletes').innerHTML = (e.paletes || []).map(function (p) { return cartaoPalete(p, e); }).join('');
         esconderDica();
         var form = document.getElementById('formBloqueio');
         if (form) {
@@ -250,7 +270,7 @@
         if (e) {
             var verReserva = modoVer === 'reservado';
             // Ver reservado: só os espaços de cliente aparecem, com o logo; o que está guardado fica de fora.
-            var classe = 'cell ' + (e.status === 'ocupado' && !verReserva ? 'cell--ocupado' : 'cell--disponivel') + (e.bloqueado ? ' cell--bloqueado' : '') + (e.cliente && modoVer !== 'ocupacao' ? ' cell--reservada' : '');
+            var classe = 'cell ' + (e.status === 'ocupado' && !verReserva ? 'cell--ocupado' : 'cell--disponivel') + (e.bloqueado ? ' cell--bloqueado' : '') + (e.cliente && (modoVer === 'geral' || modoVer === 'reservado') ? ' cell--reservada' : '');
             var p = verReserva ? null : e.paletes && e.paletes[0];
             // Voltou da rua: margem azul (reentrega) ou vermelha (devolução). Se houver os dois na posição, vale a devolução.
             var volta = retornoDe(e);
@@ -258,11 +278,16 @@
             var dica = escapar(descricao(e));
             if (!p) {
                 // Vazia e reservada: logo do cliente apagado, numa moldura tracejada (a ocupada é cheia, com a nota embaixo).
-                var reserva = e.cliente && modoVer !== 'ocupacao' ? '<span class="cell-reserva">' + marca({ logo: e.cliente_logo, iniciais: e.cliente_iniciais }, 'cell-logo') + '</span>' : '';
+                var reserva = e.cliente && (modoVer === 'geral' || modoVer === 'reservado') ? '<span class="cell-reserva">' + marca({ logo: e.cliente_logo, iniciais: e.cliente_iniciais }, 'cell-logo') + '</span>' : '';
                 return '<button type="button" class="' + classe + '" data-id="' + e.id + '" title="' + dica + '" aria-label="' + dica + '">' + reserva + '</button>';
             }
             // Ocupado: logo da empresa e, embaixo, o número da nota. O resumo aparece ao passar o mouse
             // (por isso sem "title", que abriria uma segunda dica por cima).
+            if (modoVer === 'abc') {
+                // Curva ABC: a posição leva a cor da classe do palete e a letra no meio.
+                return '<button type="button" class="' + classe + ' cell--abc cell--abc-' + (p.classe ? p.classe.toLowerCase() : 'n') + '" data-id="' + e.id + '" aria-label="' + dica + '">' +
+                       '<span class="cell-abc-letra">' + (p.classe || '–') + '</span></button>';
+            }
             var nf = p.nf || '';
             if (nf.length > 7) nf = '…' + nf.slice(-6);
             return '<button type="button" class="' + classe + '" data-id="' + e.id + '" aria-label="' + dica + '">' +
@@ -299,6 +324,7 @@
 
     function desenharCamara(camara) {
         var cabecalho = '<header class="camara-header"><h2>' + escapar(nomeComNumero(camara)) + '</h2><span class="camara-header-tipo">' + escapar(camara.descricao) + '</span>' +
+            (camara.doca ? '<span class="camara-header-tipo"><i class="fas fa-door-open me-1"></i>Doca: rua ' + escapar(camara.doca.rua) + ' · ' + (camara.doca.ponta === 'fim' ? 'fim' : 'início') + '</span>' : '') +
             '<button type="button" class="camara-info-btn" data-info="' + camara.id + '" title="Ver notas fiscais e produtos armazenados" aria-label="Informações da ' + escapar(camara.nome) + '">' +
             '<svg class="camara-info-btn-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10v6M12 7h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>' +
             (dados.unica ? '' : '<a class="camara-abrir" href="' + cfg.urlMapa + '?camara=' + camara.id + '">Abrir só esta câmara</a>') + '</header>';
@@ -660,6 +686,7 @@
         var etiquetas = {};
         var COR_RETORNO = { reentrega: '#2563eb', devolucao: '#dc2626' };
         var COR_RESERVA = '#f59e0b';
+        var COR_ABC = { A: 0xdc2626, B: 0xfacc15, C: 0x16a34a, N: 0x9ca3af };       // curva ABC: quem mais sai em vermelho
         function seloDaEmpresa(imagem, iniciais, retorno, reserva) {
             var tela = document.createElement('canvas');
             tela.width = 256; tela.height = 192;
@@ -828,6 +855,13 @@
             var nomeRua = placaDaRua(r.rua);
             nomeRua.position.set(x0 - 1.3, topo + 1.5, z);
             g.add(nomeRua);
+            // doca cadastrada ao lado desta rua: placa no chão, na ponta escolhida
+            var doca = item.sala.camara.doca;
+            if (doca && doca.rua === r.rua) {
+                var placaDoca = rotulo('DOCA', 1.1, 'auto');
+                placaDoca.position.set(doca.ponta === 'fim' ? -x0 + 3.0 : x0 - 3.6, 0.7, z);
+                g.add(placaDoca);
+            }
             // sapatas de proteção amarelas nas duas pontas da estante
             [x0 - 0.14, -x0 + 0.14].forEach(function (xp) { bloco(g, 0.2, 0.34, P + 0.24, 0xfacc15, xp, 0.17, z); });
             r.colunas.forEach(function (c) {
@@ -855,7 +889,8 @@
                 var caixa;
                 if (e.status === 'ocupado' && !verReserva) {
                     // Posição ocupada: uma caixa de papelão com fita, em cima do palete.
-                    caixa = new THREE.Mesh(geoCarga, new THREE.MeshLambertMaterial({ color: 0xc9a26b }));
+                    var doAbc = modoVer === 'abc' ? (e.paletes && e.paletes[0] && e.paletes[0].classe) || 'N' : null;
+                    caixa = new THREE.Mesh(geoCarga, new THREE.MeshLambertMaterial({ color: doAbc ? COR_ABC[doAbc] : 0xc9a26b }));
                     caixa.castShadow = galpao;
                     caixa.position.set(x, base + 0.1 + A * 0.3, z);
                     caixa.add(new THREE.LineSegments(geoCargaBorda, materialCargaBorda));
@@ -863,7 +898,7 @@
                     var palete = new THREE.Mesh(geoPalete, materialPalete);
                     palete.position.y = -(A * 0.3 + 0.05);
                     caixa.add(palete);
-                    if (e.paletes && e.paletes[0]) {
+                    if (e.paletes && e.paletes[0] && !doAbc) {
                         var doSelo = e.paletes[0], volta3d = retornoDe(e);
                         if (volta3d !== (doSelo.retorno || null)) { doSelo = Object.assign({}, doSelo); doSelo.retorno = volta3d; }
                         etiquetar(caixa, doSelo);
@@ -1407,7 +1442,10 @@
     // ------------------------------------------------------------ ver: ocupação x reservado
     var botoesVer = document.querySelectorAll('[data-ver-mapa]');
     function verMapa(modo, refazer) {
-        modoVer = modo === 'reservado' || modo === 'ocupacao' ? modo : 'geral';
+        modoVer = modo === 'reservado' || modo === 'ocupacao' || modo === 'abc' ? modo : 'geral';
+        document.querySelectorAll('.legenda-abc').forEach(function (l) { l.hidden = modoVer !== 'abc'; });
+        if (modoVer === 'abc' && refazer && !dados.tem_giro) aviso.textContent = 'Ainda não há saídas nos últimos ' + dados.dias_giro + ' dias: por enquanto todos os paletes aparecem como "sem saída". A curva aparece conforme as cargas forem separadas.';
+        else if (refazer && aviso.textContent.indexOf('Ainda não há saídas') === 0) aviso.textContent = '';
         botoesVer.forEach(function (b) {
             var ativo = b.getAttribute('data-ver-mapa') === modoVer;
             b.classList.toggle('active', ativo);

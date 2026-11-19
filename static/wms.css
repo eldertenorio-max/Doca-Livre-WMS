@@ -848,6 +848,20 @@ button.cell { cursor: pointer; }
 .mapa-3d-tela { width: 100%; height: min(68vh, 640px); min-height: 360px; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; background: var(--fundo-suave); }
 .mapa-3d-tela canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .mapa-3d-ajuda .so-toque { display: none; }
+/* Curva ABC: cores das posições, legenda e ficha do palete */
+.cell--abc.cell--abc-a { background-color: #dc2626; }
+.cell--abc.cell--abc-b { background-color: #facc15; }
+.cell--abc.cell--abc-c { background-color: #16a34a; }
+.cell--abc.cell--abc-n { background-color: #9ca3af; }
+.cell-abc-letra { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: calc(var(--cel) * .42); color: #ffffff; pointer-events: none; padding: var(--rack-beam-w, 2px) 0 0 var(--rack-upright-w, 2px); }
+.cell--abc-b .cell-abc-letra { color: #422006; }
+.swatch--abc-a { background: #dc2626; } .swatch--abc-b { background: #facc15; } .swatch--abc-c { background: #16a34a; } .swatch--abc-n { background: #9ca3af; }
+.legenda-abc[hidden] { display: none; }
+.selo-abc { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; font-weight: 800; font-size: .8rem; color: #ffffff; margin: 0 4px 0 6px; vertical-align: -3px; }
+.selo-abc--a { background: #dc2626; } .selo-abc--b { background: #facc15; color: #422006; } .selo-abc--c { background: #16a34a; } .selo-abc--n { background: #9ca3af; }
+.palete-ficha-giro { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 8px; background: var(--fundo-suave); font-size: .85rem; }
+.palete-ficha-sugestao { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--borda); }
+.palete-ficha-sugestao i { color: #f59e0b; margin-top: 3px; }
 /* 3D: caminhar pelos corredores */
 .andar-3d { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; z-index: 4; }
 .andar-3d[hidden] { display: none; }

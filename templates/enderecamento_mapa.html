@@ -12,6 +12,7 @@
             <button type="button" class="btn btn-outline-primary active" data-ver-mapa="geral" aria-pressed="true" title="Mostra os dois: o que está guardado e o espaço vazio reservado de cada cliente"><i class="fas fa-layer-group"></i>Geral</button>
             <button type="button" class="btn btn-outline-primary" data-ver-mapa="ocupacao" aria-pressed="false" title="Mostra só o que está guardado em cada posição"><i class="fas fa-boxes-stacked"></i>Ocupação</button>
             <button type="button" class="btn btn-outline-primary" data-ver-mapa="reservado" aria-pressed="false" title="Mostra de qual cliente é cada espaço reservado"><i class="fas fa-user-tag"></i>Reservado</button>
+            <button type="button" class="btn btn-outline-primary" data-ver-mapa="abc" aria-pressed="false" title="Pinta cada palete pela curva ABC: quem mais sai (A), médio (B) e pouco (C), pelas saídas dos últimos 90 dias"><i class="fas fa-chart-simple"></i>Curva ABC</button>
         </div>
         <div class="btn-group" role="group" aria-label="Visualização">
             <button type="button" class="btn btn-outline-primary" id="btnVisao2d" aria-pressed="true"><i class="fas fa-table-cells"></i>2D</button>
@@ -79,6 +80,18 @@
     <span><i class="swatch swatch--reserva" aria-hidden="true"></i>Reservado (logo do cliente apagado)</span>
     <span><i class="swatch swatch--reentrega" aria-hidden="true"></i>Reentrega</span>
     <span><i class="swatch swatch--devolucao" aria-hidden="true"></i>Devolução</span>
+    {# só na visão Curva ABC #}
+    <span class="legenda-abc" hidden><i class="swatch swatch--abc-a" aria-hidden="true"></i>Curva A (mais sai)</span>
+    <span class="legenda-abc" hidden><i class="swatch swatch--abc-b" aria-hidden="true"></i>Curva B</span>
+    <span class="legenda-abc" hidden><i class="swatch swatch--abc-c" aria-hidden="true"></i>Curva C</span>
+    <span class="legenda-abc" hidden><i class="swatch swatch--abc-n" aria-hidden="true"></i>Sem saída em 90 dias</span>
+    {% if camara and camara.tipo != 'Stage' %}
+    {% if editar %}
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalDoca" title="Onde fica a doca desta câmara (usada nas sugestões de troca)"><i class="fas fa-door-open"></i>Doca: {% if camara.doca_rua %}rua {{ camara.doca_rua }} · {{ 'início' if camara.doca_ponta != 'fim' else 'fim' }}{% else %}não definida{% endif %}</button>
+    {% elif camara.doca_rua %}
+    <span><i class="fas fa-door-open me-1"></i>Doca: rua {{ camara.doca_rua }} · {{ 'início' if camara.doca_ponta != 'fim' else 'fim' }}</span>
+    {% endif %}
+    {% endif %}
     <form class="d-flex flex-wrap justify-content-end gap-2 ms-auto" id="formBuscaMapa" autocomplete="off">
     {# 3D: esconder ruas do desenho (para enxergar a que fica atrás). Só aparece na visão 3D. #}
     <div class="dropdown" id="ruas3d" hidden>
@@ -149,6 +162,47 @@
         </div>
     </div>
 </div>
+
+{% if editar and camara and camara.tipo != 'Stage' %}
+{# Doca da câmara: ao lado de qual rua e em qual ponta. Serve para sugerir quem deve ficar perto dela. #}
+{% set ruas_da_camara = (linhas|selectattr('camara.id', 'equalto', camara.id)|list)[0].ruas %}
+<div class="modal fade" id="modalDoca" tabindex="-1" aria-labelledby="modalDocaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ url_for('enderecamento.camara_doca', cid=camara.id) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDocaTitulo"><i class="fas fa-door-open me-2"></i>Doca da câmara</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">Diga por onde a mercadoria sai desta câmara. Com isso o sistema calcula a distância de cada endereço até a doca e
+                    sugere trazer para perto os paletes que mais saem (na ficha do palete e na visão Curva ABC).</p>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label" for="docaRua">Ao lado da rua</label>
+                        <select class="form-select" id="docaRua" name="rua">
+                            <option value="">— sem doca —</option>
+                            {% for r in ruas_da_camara %}<option value="{{ r }}" {% if camara.doca_rua == r %}selected{% endif %}>Rua {{ r }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="docaPonta">Em qual ponta</label>
+                        <select class="form-select" id="docaPonta" name="ponta">
+                            <option value="inicio" {% if camara.doca_ponta != 'fim' %}selected{% endif %}>Início (coluna 1)</option>
+                            <option value="fim" {% if camara.doca_ponta == 'fim' %}selected{% endif %}>Fim (última coluna)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-text">A distância é uma estimativa pelas medidas do desenho (1,25 m por coluna e 4,15 m de uma rua para a outra).</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 {# Detalhe do endereço (aberto pelo clique no 2D ou no 3D) #}
 <div class="modal fade" id="modalEndereco" tabindex="-1" aria-labelledby="modalEnderecoTitulo" aria-hidden="true">

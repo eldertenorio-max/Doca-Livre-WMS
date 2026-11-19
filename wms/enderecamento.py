@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from .codigo_endereco import codigo_bipagem, codigo_endereco, digito_verificador, interpretar
 from .core import perm, pode_editar, registrar_log, usuario_atual
 from .etiqueta_zebra import ctx_etiqueta_zebra
+from .giro import DIAS as DIAS_GIRO, distancias_da_doca, giro_do_palete, giro_dos_produtos, sugestoes_de_troca
 from .hierarquia import chaves_de_layout, empresas_do_usuario
 from .models import (Camara, Empresa, Endereco, Inventario, LayoutSalvo, Palete, RuaLayout3d, Vao, agora, db,
                      logo_da_empresa)
@@ -790,6 +791,8 @@ def _aplicar_layout(camaras):
             db.session.add(camara)
             db.session.flush()
             camaras_novas += 1
+            if item.get('doca'):
+                camara.doca_rua, camara.doca_ponta = item['doca']
             for rua, x, z, giro in item.get('layout3d', []):          # arrumacao do 3D: so em camara que nasce agora
                 db.session.add(RuaLayout3d(camara_id=camara.id, rua=rua, x=x, z=z, giro=giro))
         existentes = {(e.rua, e.coluna, e.nivel) for e in camara.enderecos}
@@ -842,7 +845,8 @@ def _fotografia_do_layout():
         camaras.append({'codigo': camara.codigo, 'nome': camara.nome, 'tipo': camara.tipo, 'categoria': camara.categoria,
                         'temp_min': camara.temp_min, 'temp_max': camara.temp_max, 'ativo': camara.ativo,
                         'enderecos': enderecos, 'vaos': [[v.rua, v.coluna, v.nivel, v.tipo] for v in camara.vaos],
-                        'layout3d': [[p.rua, p.x, p.z, p.giro] for p in camara.layout3d]})
+                        'layout3d': [[p.rua, p.x, p.z, p.giro] for p in camara.layout3d],
+                        'doca': [camara.doca_rua, camara.doca_ponta] if camara.doca_rua else None})
     return camaras, total
 
 
@@ -1007,8 +1011,12 @@ def layout_excluir(lid):
 
 # ---------------------------------------------------------------- mapa 2D / 3D
 
-def _enderecos_mapa(camara):
+def _enderecos_mapa(camara, giro=None):
     ocupados = paletes_por_endereco(camara.id)
+    giro = giro or {}
+    todos = camara.enderecos.all()
+    distancia = distancias_da_doca(camara, todos)                 # vazio se a camara nao tem doca cadastrada
+    sugestoes = sugestoes_de_troca(camara, todos, ocupados, giro)
 
     def data(valor, formato='%d/%m/%Y'):
         return valor.strftime(formato) if valor else None
@@ -1031,7 +1039,13 @@ def _enderecos_mapa(camara):
             retorno = 'devolucao'
         else:
             retorno = None
+        do_palete = giro_do_palete(palete, giro)
+        do_item = giro.get(item.produto_id) if item else None
         return {'id': palete.id, 'etiqueta': palete.etiqueta, 'classificacao': palete.classificacao,
+                # giro: classe da curva ABC e saidas nos ultimos 90 dias (do palete inteiro e do primeiro item)
+                'classe': do_palete['classe'], 'saidas': do_palete['saidas'], 'por_dia': do_palete['por_dia'],
+                'qtd_saida': f'{do_item["quantidade"]:g} {item.produto.unidade}' if do_item else None,
+                'sugestao': sugestoes.get(palete.id),
                 'retorno': retorno, 'motivo_retorno': nota.motivo_retorno if nota is not None and retorno else None,
                 'status': palete.status, 'up': palete.up,
                 'nf': nota.numero if nota else None, 'serie': nota.serie if nota else None,
@@ -1069,6 +1083,7 @@ def _enderecos_mapa(camara):
              'cliente_iniciais': marca_do_cliente(e.cliente)[1] if e.cliente_id else None,
              'bip': codigo_bipagem(camara.codigo, e.rua, e.coluna, e.nivel), 'tipo': e.tipo,
              'destino': e.destino, 'status': _status(e, ocupados), 'bloqueado': e.bloqueado,
+             'dist': distancia.get(e.id),
              'motivo': e.motivo_bloqueio,
              'cliente': (e.cliente.fantasia or e.cliente.nome) if e.cliente_id else None,
              'paletes': [conteudo(p) for p in ocupados.get(e.id, [])]}
@@ -1087,9 +1102,11 @@ def mapa():
         camara = linhas[0]['camara']
     # Uma camara escolhida ou, na visao geral, todas empilhadas (como no mapa do WMS Plus).
     mostradas = [camara] if camara else [l['camara'] for l in linhas if l['total']]
-    dados = {'unica': bool(camara),
+    giro = giro_dos_produtos()
+    dados = {'unica': bool(camara), 'dias_giro': DIAS_GIRO, 'tem_giro': bool(giro),
              'camaras': [{'id': c.id, 'codigo': c.codigo, 'nome': c.nome, 'tipo': c.tipo,
-                          'descricao': c.categoria or c.tipo, 'enderecos': _enderecos_mapa(c),
+                          'descricao': c.categoria or c.tipo, 'enderecos': _enderecos_mapa(c, giro),
+                          'doca': {'rua': c.doca_rua, 'ponta': c.doca_ponta or 'inicio'} if c.doca_rua else None,
                           # onde cada rua fica na sala do 3D, quando foi arrumada a mao: {rua: [x, z, giro]}
                           'layout3d': {p.rua: [p.x, p.z, p.giro] for p in c.layout3d},
                           # portas e pontos sem posicao marcados na criacao da camara
@@ -1097,6 +1114,33 @@ def mapa():
                          for c in mostradas]}
     return render_template('enderecamento_mapa.html', linhas=linhas, camara=camara, dados=dados,
                            tem_enderecos=any(c['enderecos'] for c in dados['camaras']))
+
+
+@bp.route('/camaras/<int:cid>/doca', methods=['POST'])
+@perm('enderecamento')
+def camara_doca(cid):
+    """Cadastra onde fica a doca da camara (ao lado de qual rua e em qual ponta). Vazio = sem doca.
+    So serve para estimar a caminhada e sugerir trocas; nao muda enderecos nem estoque."""
+    camara = _camara_ou_404(cid)
+    rua = (request.form.get('rua') or '').strip().upper()[:3]
+    ponta = request.form.get('ponta')
+    voltar = redirect(url_for('enderecamento.mapa', camara=camara.id))
+    if not rua:
+        camara.doca_rua = camara.doca_ponta = None
+        registrar_log('Tirou a doca da câmara', f'{camara.codigo} · {camara.nome}', modulo='enderecamento')
+        db.session.commit()
+        flash('Doca removida desta câmara: as sugestões de troca deixam de aparecer.', 'success')
+        return voltar
+    existe = db.session.query(Endereco.id).filter(Endereco.camara_id == camara.id, Endereco.rua == rua).first()
+    if not existe or ponta not in ('inicio', 'fim'):
+        flash('Escolha a rua e a ponta onde fica a doca.', 'error')
+        return voltar
+    camara.doca_rua, camara.doca_ponta = rua, ponta
+    registrar_log('Definiu a doca da câmara', f'{camara.codigo} · {camara.nome} · rua {rua}, '
+                  + ('início' if ponta == 'inicio' else 'fim'), modulo='enderecamento')
+    db.session.commit()
+    flash(f'Doca da câmara definida: ao lado da rua {rua}, no ' + ('início (coluna 1).' if ponta == 'inicio' else 'fim (última coluna).'), 'success')
+    return voltar
 
 
 @bp.route('/camaras/<int:cid>/layout3d', methods=['POST'])

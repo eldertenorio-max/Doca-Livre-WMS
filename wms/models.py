@@ -210,6 +210,10 @@ class Camara(db.Model):
     temp_min = db.Column(db.Float)
     temp_max = db.Column(db.Float)
     ativo = db.Column(db.Boolean, nullable=False, default=True)
+    # Onde fica a doca (a porta por onde a mercadoria sai): ao lado de qual rua e em qual ponta dela
+    # ('inicio' = lado da coluna 1, 'fim' = lado da ultima coluna). Serve para sugerir quem deve ficar perto.
+    doca_rua = db.Column(db.String(3))
+    doca_ponta = db.Column(db.String(6))
     criado_em = db.Column(db.DateTime, nullable=False, default=agora)
     enderecos = db.relationship('Endereco', backref='camara', cascade='all, delete-orphan', lazy='dynamic')
 
