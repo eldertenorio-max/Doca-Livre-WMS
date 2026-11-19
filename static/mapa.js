@@ -532,6 +532,44 @@
             sprite.scale.set(tamanho * canvas.width / 128, tamanho, 1);
             return sprite;
         }
+        // Placa de rua como as de galpão: quadro preto com a letra e a tarja amarela "RUA" embaixo.
+        function placaDaRua(letra) {
+            var tela = document.createElement('canvas');
+            tela.width = 256; tela.height = 320;
+            var ctx = tela.getContext('2d');
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(8, 0, 240, 236);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '800 ' + (String(letra).length > 2 ? 110 : String(letra).length > 1 ? 140 : 180) + 'px Inter, Arial, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(letra, 128, 124);
+            ctx.fillStyle = '#facc15';
+            ctx.fillRect(48, 246, 160, 66);
+            ctx.fillStyle = '#111111';
+            ctx.font = '800 44px Inter, Arial, sans-serif';
+            ctx.fillText('RUA', 128, 281);
+            var sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(tela), transparent: true, depthTest: false }));
+            sprite.scale.set(1.2, 1.5, 1);
+            return sprite;
+        }
+        // Faixa pintada no chão com o nome da câmara, na cabeceira das ruas.
+        var CORES_FAIXA = ['#f97316', '#fde68a', '#fb923c', '#e5e7eb'];
+        function faixaNoChao(texto, comprimento, indice) {
+            var tela = document.createElement('canvas');
+            tela.width = 1024; tela.height = 96;
+            var ctx = tela.getContext('2d');
+            ctx.fillStyle = CORES_FAIXA[indice % CORES_FAIXA.length];
+            ctx.fillRect(0, 0, 1024, 96);
+            ctx.fillStyle = '#1f2937';
+            ctx.font = '800 58px Inter, Arial, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(texto.length > 30 ? texto.slice(0, 29) + '…' : texto, 512, 50);
+            var faixa = new THREE.Mesh(new THREE.PlaneGeometry(comprimento, 1.3),
+                                       new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(tela) }));
+            faixa.rotation.x = -Math.PI / 2;
+            faixa.rotation.z = dados.unica ? -Math.PI / 2 : Math.PI / 2;      // ao longo das cabeceiras, legível de onde a câmera olha
+            return faixa;
+        }
         function bloco(pai, w, h, d, corBloco, x, y, z) {
             var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: corBloco }));
             m.position.set(x, y, z);
@@ -677,6 +715,9 @@
             else nomeCamara.position.set(sala.b.minX - 8, 2.6, sala.b.minZ + P / 2);
             grupoSala.add(nomeCamara);
             sala.nome = nomeCamara;
+            sala.faixa = faixaNoChao(texto, Math.max(sala.b.maxZ - sala.b.minZ + 1.2, 6), salas.indexOf(sala));
+            sala.faixa.position.set(sala.b.minX - 3.4, 0.012, (sala.b.minZ + sala.b.maxZ) / 2);
+            grupoSala.add(sala.faixa);
             sala.ruas.forEach(function (item) { desenharRua(item, grupoSala); });
         });
         function desenharRua(item, grupoSala) {
@@ -723,9 +764,11 @@
                     });
                 })(n);
             }
-            var nomeRua = rotulo(r.rua, 1.5);
-            nomeRua.position.set(x0 - 1.6, 1.0, z);
+            var nomeRua = placaDaRua(r.rua);
+            nomeRua.position.set(x0 - 1.3, topo + 1.5, z);
             g.add(nomeRua);
+            // sapatas de proteção amarelas nas duas pontas da estante
+            [x0 - 0.14, -x0 + 0.14].forEach(function (xp) { bloco(g, 0.2, 0.34, P + 0.24, 0xfacc15, xp, 0.17, z); });
             r.colunas.forEach(function (c) {
                 var numero = rotulo(String(c), 0.55);
                 numero.position.set(X(c + 0.5), topo + 0.45, z);
@@ -904,6 +947,62 @@
             pedirQuadro();
         }
 
+        // ------------------------------------------------ Caminhar: câmera na altura dos olhos, andando pelos corredores
+        var andando = false, direcao3 = new THREE.Vector3(), eixoY = new THREE.Vector3(0, 1, 0);
+        function andar(frente, lado) {
+            direcao3.copy(controls.target).sub(camera.position);      // para onde a câmera aponta de verdade
+            direcao3.y = 0;
+            if (direcao3.lengthSq() < 1e-6) return;
+            direcao3.normalize();
+            var dx = direcao3.x * frente - direcao3.z * lado, dz = direcao3.z * frente + direcao3.x * lado;
+            camera.position.x += dx; camera.position.z += dz;
+            controls.target.x += dx; controls.target.z += dz;
+            pedirQuadro();
+        }
+        function virar(graus) {
+            var olhar = controls.target.clone().sub(camera.position).applyAxisAngle(eixoY, -graus * Math.PI / 180);
+            controls.target.copy(camera.position).add(olhar);
+            pedirQuadro();
+        }
+        function caminhar(ligar) {
+            if (ligar && editando) return;
+            andando = !!ligar;
+            controls.enablePan = !andando;
+            controls.enableZoom = !andando;
+            controls.rotateSpeed = andando ? -0.35 : 1;                 // arrastar passa a "olhar em volta"
+            controls.maxPolarAngle = andando ? Math.PI * 0.8 : Math.PI / 2 - 0.03;
+            controls.minPolarAngle = andando ? Math.PI * 0.2 : 0;
+            if (!andando) { enquadrar(); return; }
+            // começa na entrada do corredor da primeira rua visível, olhando ao longo dela
+            var item = itens.filter(function (i) { return i.grupo.visible; })[0] || itens[0];
+            scene.updateMatrixWorld(true);
+            var olho = item.grupo.localToWorld(new THREE.Vector3(-item.w / 2 - 3.5, 1.7, P / 2 + CORREDOR / 2));
+            var frente = item.grupo.localToWorld(new THREE.Vector3(-item.w / 2 - 3.4, 1.7, P / 2 + CORREDOR / 2));
+            camera.position.copy(olho);
+            controls.target.copy(frente);
+            camera.lookAt(frente);
+            mexeu = true;
+            pedirQuadro();
+        }
+        function teclaDaCaminhada(ev) {
+            if (!andando || /INPUT|TEXTAREA|SELECT/.test((ev.target && ev.target.tagName) || '')) return;
+            var k = ev.key;
+            if (k === 'ArrowUp' || k === 'w' || k === 'W') andar(0.6, 0);
+            else if (k === 'ArrowDown' || k === 's' || k === 'S') andar(-0.6, 0);
+            else if (k === 'a' || k === 'A') andar(0, -0.6);
+            else if (k === 'd' || k === 'D') andar(0, 0.6);
+            else if (k === 'ArrowLeft') virar(-8);
+            else if (k === 'ArrowRight') virar(8);
+            else return;
+            ev.preventDefault();
+        }
+        document.addEventListener('keydown', teclaDaCaminhada);
+        renderer.domElement.addEventListener('wheel', function (ev) {
+            if (!andando) return;
+            ev.preventDefault();
+            andar(ev.deltaY < 0 ? 0.8 : -0.8, 0);
+        }, { passive: false });
+
         // ------------------------------------------------ Editar layout 3D: arrastar e girar as ruas na sala
         var editando = false, selecionada = null, arrasto = null, voltouAoPadrao = false, aoSelecionar = null;
         var chao = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), grade = null;
@@ -976,7 +1075,8 @@
                 editando = true; aoSelecionar = avisar;
                 dica.hidden = true;
                 itens.forEach(function (i) { i.alca.visible = true; });
-                salas.forEach(function (s) { s.nome.visible = false; });      // o nome da câmara atrapalharia o arrasto
+                salas.forEach(function (s) { s.nome.visible = false; s.faixa.visible = false; });      // atrapalhariam o arrasto
+                if (andando) caminhar(false);
                 piso.scale.set(4, 4, 1);                                       // mais chão para espalhar as ruas
                 grade = new THREE.GridHelper(Math.ceil(Math.max(largura, fundoTotal) * 4 + 32), Math.ceil(Math.max(largura, fundoTotal) * 4 + 32), 0x94a3b8, 0xcbd5e1);
                 grade.position.set(largura / 2, 0.005, fundoTotal / 2);
@@ -1009,6 +1109,7 @@
         enquadrar();
         return {
             enquadrar: enquadrar, destacar: destacar, ajustar: ajustarTamanho, edicao: edicao,
+            caminhar: caminhar, andar: andar, virar: virar, andando: function () { return andando; },
             // aplica o que está em "ruasOcultas" sem refazer a cena
             ocultarRuas: function () {
                 itens.forEach(function (i) { i.grupo.visible = !ruasOcultas[i.sala.camara.id + '|' + i.r.rua]; });
@@ -1016,6 +1117,7 @@
             },
             destruir: function () {
                 window.removeEventListener('resize', ajustarTamanho);
+                document.removeEventListener('keydown', teclaDaCaminhada);
                 if (observador) observador.disconnect();
                 controls.dispose(); renderer.dispose(); tela.innerHTML = '';
             }
@@ -1074,17 +1176,56 @@
         btn2d.addEventListener('click', function () { mostrar('2d'); });
         btn3d.addEventListener('click', function () { mostrar('3d'); });
     }
-    document.getElementById('btnVisaoGeral3d').addEventListener('click', function () { if (cena3d) cena3d.enquadrar(); });
+    var btnCaminhar = document.getElementById('btnCaminhar3d'), controleAndar = document.getElementById('andar3d');
+    function modoCaminhar(ligado) {
+        if (!btnCaminhar) return;
+        btnCaminhar.classList.toggle('active', ligado);
+        btnCaminhar.querySelector('span').textContent = ligado ? 'Sair da caminhada' : 'Caminhar';
+        controleAndar.hidden = !ligado;
+        area3d.classList.toggle('mapa-3d--andando', ligado);
+    }
+    document.getElementById('btnVisaoGeral3d').addEventListener('click', function () {
+        if (!cena3d) return;
+        if (cena3d.andando()) { cena3d.caminhar(false); modoCaminhar(false); } else cena3d.enquadrar();
+    });
+    if (btnCaminhar) {
+        btnCaminhar.addEventListener('click', function () {
+            if (!cena3d) return;
+            var ligar = !cena3d.andando();
+            if (ligar) modoEdicao3dSair();
+            cena3d.caminhar(ligar);
+            modoCaminhar(cena3d.andando());
+        });
+        // botões na tela (celular): segurar repete o passo
+        var repetir = null;
+        function parar() { clearInterval(repetir); repetir = null; }
+        controleAndar.querySelectorAll('[data-andar]').forEach(function (b) {
+            function passo() {
+                if (!cena3d) return;
+                var a = b.getAttribute('data-andar');
+                if (a === 'frente') cena3d.andar(0.6, 0); else if (a === 'tras') cena3d.andar(-0.6, 0);
+                else if (a === 'esq') cena3d.virar(-8); else cena3d.virar(8);
+            }
+            b.addEventListener('pointerdown', function (ev) { ev.preventDefault(); passo(); parar(); repetir = setInterval(passo, 110); });
+            ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (tipo) { b.addEventListener(tipo, parar); });
+        });
+    }
 
     // ------------------------------------------------------------ Editar layout 3D (botões)
     var btnEditar3d = document.getElementById('btnEditar3d'), barraEditar3d = document.getElementById('barraEditar3d');
     function refazer3d() {
+        modoCaminhar(false);
         if (cena3d) { cena3d.destruir(); cena3d = null; }
         carregando3d = null;
         if (visaoAtual === '3d') return abrir3d();
         return Promise.resolve();
     }
+    // quem estava arrumando as ruas e resolve caminhar: sai do editor sem gravar
+    function modoEdicao3dSair() {
+        if (barraEditar3d && !barraEditar3d.hidden) { modoEdicao3d(false); refazer3d(); }
+    }
     function modoEdicao3d(ligado) {
+        if (ligado) modoCaminhar(false);
         if (!barraEditar3d) return;
         barraEditar3d.hidden = !ligado;
         btnEditar3d.hidden = ligado;

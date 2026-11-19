@@ -99,6 +99,7 @@
 <div id="mapa3d" class="mapa-3d" hidden>
     <div class="mapa-3d-ajuda"><span class="so-mouse">Arraste para girar · roda do mouse para aproximar · botão direito para mover</span><span class="so-toque">Um dedo gira · dois dedos aproximam e movem · toque numa posição para ver o detalhe</span>
         <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="btnVisaoGeral3d"><i class="fas fa-expand"></i>Visão geral</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCaminhar3d" title="Anda pelos corredores na altura dos olhos"><i class="fas fa-person-walking"></i><span>Caminhar</span></button>
         {% if editar and camara %}
         <button type="button" class="btn btn-sm btn-outline-primary" id="btnEditar3d"><i class="fas fa-up-down-left-right"></i>Editar layout 3D</button>
         {% elif editar %}
@@ -121,6 +122,18 @@
     {% endif %}
     <div id="mapa3dTela" class="mapa-3d-tela"></div>
     <div id="mapa3dDica" class="mapa-3d-dica" hidden></div>
+    {# Caminhar: controles na tela (no computador também valem as setas, W A S D e a roda do mouse) #}
+    <div class="andar-3d" id="andar3d" hidden>
+        <span class="andar-3d-texto"><span class="so-mouse">Setas ou W/S andam · ← → viram · A/D andam de lado · arraste para olhar em volta</span><span class="so-toque">Use os botões para andar · arraste para olhar em volta</span></span>
+        <div class="andar-3d-botoes">
+            <button type="button" class="btn btn-sm btn-light" data-andar="esq" aria-label="Virar à esquerda"><i class="fas fa-rotate-left"></i></button>
+            <span class="andar-3d-meio">
+                <button type="button" class="btn btn-sm btn-light" data-andar="frente" aria-label="Andar para a frente"><i class="fas fa-arrow-up"></i></button>
+                <button type="button" class="btn btn-sm btn-light" data-andar="tras" aria-label="Andar para trás"><i class="fas fa-arrow-down"></i></button>
+            </span>
+            <button type="button" class="btn btn-sm btn-light" data-andar="dir" aria-label="Virar à direita"><i class="fas fa-rotate-right"></i></button>
+        </div>
+    </div>
 </div>
 
 {# Notas fiscais e produtos armazenados numa câmara (botão "i" do cabeçalho) e conteúdo do stage #}
