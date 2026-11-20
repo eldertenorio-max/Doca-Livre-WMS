@@ -125,6 +125,11 @@ class Empresa(db.Model):
     logo = db.Column(db.String(40))             # arquivo do logo em instance/logos/ (aparece no mapa)
     ativo = db.Column(db.Boolean, nullable=False, default=True)
     criado_em = db.Column(db.DateTime, nullable=False, default=agora)
+    # Embarcador (dono da mercadoria): preenchido quando esta empresa remete carga de outro cadastro, por exemplo
+    # outro CNPJ do mesmo cliente. Vazio = ela mesma e a dona. O sistema grava sozinho na primeira vez que alguem
+    # confirma, na conferencia, que as duas sao do mesmo embarcador (paletes.vincular_embarcador).
+    embarcador_id = db.Column(db.Integer, db.ForeignKey('empresa.id'))
+    embarcador = db.relationship('Empresa', remote_side=[id], foreign_keys=[embarcador_id])
 
 
 def logo_da_empresa(empresa):

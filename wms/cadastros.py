@@ -83,6 +83,9 @@ CADASTROS = {
             {'nome': 'uf', 'rotulo': 'UF', 'tipo': 'opcao', 'opcoes': UFS, 'lista': True, 'col': 2},
             {'nome': 'email', 'rotulo': 'E-mail', 'tipo': 'texto', 'max': 120, 'col': 5},
         ],
+        # O formulario ganha a opcao "Agrupa enderecos": outros CNPJs que podem ser guardados junto com esta empresa
+        # (mesmos paletes e posicoes reservadas). E a ligacao que a conferencia grava sozinha (Empresa.embarcador_id).
+        'grupo_de_enderecos': True,
     },
     'pessoas': {
         'modelo': Pessoa, 'titulo': 'Pessoas', 'singular': 'pessoa', 'icone': 'id-card',
@@ -267,6 +270,51 @@ def lista(slug):
                            total_geral=definicao['modelo'].query.count())
 
 
+def _grupo_de_enderecos(definicao, registro, form=None):
+    """Dados da opcao "Agrupa enderecos" para o formulario da empresa: ligada ou nao, as empresas marcadas e, quando
+    a propria empresa esta no grupo de outra, qual e."""
+    if not definicao.get('grupo_de_enderecos'):
+        return {}
+    ligadas = Empresa.query.filter(Empresa.embarcador_id == registro.id).all() if registro else []
+    if form is not None:
+        marcadas = {int(v) for v in form.getlist('agrupadas') if v.isdigit()}
+        ligado = form.get('agrupa_enderecos') == '1'
+    else:
+        marcadas = {e.id for e in ligadas}
+        ligado = bool(marcadas)
+    # quem pode ser marcado: as empresas ativas (menos transportadora e ela mesma) e as ja ligadas, mesmo inativas
+    candidatas = {e.id: e for e in _empresas_ativas() if e.tipo != 'Transportadora'}
+    candidatas.update({e.id: e for e in ligadas})
+    if registro:
+        candidatas.pop(registro.id, None)
+    return {'agrupa': ligado, 'agrupadas': marcadas, 'grupo_de': registro.embarcador if registro else None,
+            'candidatas': sorted(candidatas.values(), key=lambda e: (e.fantasia or e.nome).lower())}
+
+
+def _salvar_grupo_de_enderecos(empresa):
+    """Grava a opcao "Agrupa enderecos": as empresas marcadas passam a ser do mesmo embarcador desta (mesmos paletes
+    e posicoes reservadas); as desmarcadas deixam de ser. Devolve os nomes das que ficaram no grupo."""
+    marcadas = {int(v) for v in request.form.getlist('agrupadas') if v.isdigit()} if request.form.get('agrupa_enderecos') == '1' else set()
+    marcadas.discard(empresa.id)
+    for outra in Empresa.query.filter(Empresa.embarcador_id == empresa.id).all():
+        if outra.id not in marcadas:
+            outra.embarcador_id = None
+    nomes = []
+    for outra in (Empresa.query.filter(Empresa.id.in_(marcadas)).order_by(Empresa.nome).all() if marcadas else []):
+        outra.embarcador_id = empresa.id
+        nomes.append(outra.fantasia or outra.nome)
+    # Sem volta: se, subindo pela ligacao, a empresa chega nela mesma (estava no grupo de uma que agora marcou),
+    # ela passa a ser a principal.
+    vistos, atual = set(), empresa
+    while atual is not None and atual.embarcador_id and atual.id not in vistos:
+        vistos.add(atual.id)
+        atual = db.session.get(Empresa, atual.embarcador_id)
+        if atual is not None and atual.id == empresa.id:
+            empresa.embarcador_id = None
+            break
+    return nomes
+
+
 @bp.route('/<slug>/novo', methods=['GET', 'POST'])
 @bp.route('/<slug>/<int:rid>', methods=['GET', 'POST'])
 @perm('cadastros')
@@ -302,7 +350,8 @@ def formulario(slug, rid=None):
             for erro in erros:
                 flash(erro, 'error')
             return render_template('cadastro_form.html', slug=slug, d=definicao, registro=registro,
-                                   form=request.form, empresas=_empresas_ativas())
+                                   form=request.form, empresas=_empresas_ativas(),
+                                   **_grupo_de_enderecos(definicao, registro, request.form))
         novo = registro is None
         if novo:
             registro = modelo()
@@ -329,6 +378,12 @@ def formulario(slug, rid=None):
                 apagar_arquivo('logos', anterior)
         registrar_log(f'{"Criou" if novo else "Alterou"} {definicao["singular"]}',
                       str(valores[definicao['chave']]), modulo='cadastros')
+        if definicao.get('grupo_de_enderecos'):
+            db.session.flush()          # garante o id da empresa nova
+            agrupadas = _salvar_grupo_de_enderecos(registro)
+            if agrupadas:
+                registrar_log('Agrupou endereços de empresas',
+                              f'{registro.fantasia or registro.nome}: {", ".join(agrupadas)}'[:300], modulo='cadastros')
         db.session.commit()
         flash(f'{definicao["singular"].capitalize()} salvo(a).', 'success')
         if request.form.get('acao') == 'salvar_novo':
@@ -336,7 +391,7 @@ def formulario(slug, rid=None):
         return redirect(url_for('cadastros.lista', slug=slug))
 
     return render_template('cadastro_form.html', slug=slug, d=definicao, registro=registro, form=None,
-                           empresas=_empresas_ativas())
+                           empresas=_empresas_ativas(), **_grupo_de_enderecos(definicao, registro))
 
 
 @bp.route('/empresas/rapido', methods=['POST'])
@@ -425,6 +480,9 @@ def excluir(slug, rid):
         abort(404)
     identificacao = str(getattr(registro, definicao['chave']))
     try:
+        if definicao['modelo'] is Empresa:
+            # as empresas do grupo dela ("Agrupa enderecos") voltam a ser donas da propria mercadoria
+            Empresa.query.filter(Empresa.embarcador_id == rid).update({'embarcador_id': None}, synchronize_session=False)
         db.session.delete(registro)
         registrar_log(f'Excluiu {definicao["singular"]}', identificacao, modulo='cadastros')
         db.session.commit()

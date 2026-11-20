@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from .core import usuario_atual
 from .sistema import politica_separacao
-from .models import Camara, Endereco, Movimentacao, Palete, agora, db
+from .models import Camara, Empresa, Endereco, Movimentacao, NotaFiscal, Palete, agora, db
 
 CLASSIFICACOES = ['Bom', 'Avaria', 'Descarte / Perdas', 'Palete bloqueado']
 # No retorno existe mais uma: Reentrega = voltou da rua e espera sair de novo para o mesmo cliente.
@@ -54,6 +54,74 @@ def empresa_do_palete(palete):
     return next((i.produto.depositante for i in palete.itens if i.produto.depositante), None)
 
 
+def embarcador_de(empresa):
+    """Dono da mercadoria: o embarcador a que a empresa esta ligada (Cadastros > Empresas); sem ligacao, ela mesma."""
+    vistos = set()
+    while empresa is not None and empresa.embarcador_id and empresa.id not in vistos and empresa.embarcador is not None:
+        vistos.add(empresa.id)
+        empresa = empresa.embarcador
+    return empresa
+
+
+def mesmo_embarcador(a, b):
+    """True quando as duas empresas sao a mesma ou remetem mercadoria do mesmo embarcador."""
+    if a is None or b is None:
+        return False
+    return a.id == b.id or embarcador_de(a).id == embarcador_de(b).id
+
+
+def empresas_do_embarcador(empresa):
+    """Ids de todas as empresas do mesmo embarcador: a principal e as que remetem mercadoria dele."""
+    raiz = embarcador_de(empresa)
+    ids = novos = {raiz.id}
+    while novos:
+        novos = {i for (i,) in db.session.query(Empresa.id).filter(Empresa.embarcador_id.in_(novos))} - ids
+        ids = ids | novos
+    return ids
+
+
+def vincular_embarcador(empresa, outra):
+    """Aprende que as duas empresas sao do mesmo embarcador e devolve a principal.
+
+    Chamado quando alguem confirma isso na conferencia (juntar num palete de outra empresa ou guardar num espaco
+    reservado para outra). Fica como principal a que tem espaco reservado na camara; sem isso, a que ja era a dona
+    do palete ou do espaco (`outra`). Da para ver e desfazer em Cadastros > Empresas, campo Embarcador."""
+    a, b = embarcador_de(empresa), embarcador_de(outra)
+    if a.id == b.id:
+        return a
+
+    def tem_espaco(e):
+        return db.session.query(Endereco.id).filter(Endereco.cliente_id.in_(empresas_do_embarcador(e))).first() is not None
+
+    principal, ligada = (a, b) if tem_espaco(a) and not tem_espaco(b) else (b, a)
+    ligada.embarcador = principal
+    ligada.embarcador_id = principal.id      # ja vale nesta mesma requisicao, antes de gravar no banco
+    return principal
+
+
+def reserva_de_outro(endereco, palete):
+    """Empresa para quem o endereco esta reservado, quando ela nao e do mesmo embarcador da mercadoria do palete.
+    None quando o palete pode usar o espaco (endereco de uso livre ou reservado para o proprio embarcador)."""
+    if endereco is None or not endereco.cliente_id:
+        return None
+    dono = empresa_do_palete(palete)
+    return None if (dono and mesmo_embarcador(dono, endereco.cliente)) else endereco.cliente
+
+
+def ultima_posicao_do_embarcador(empresa, menos_palete_id=None):
+    """Endereco do palete que o embarcador guardou por ultimo (e que continua no armazem); None se nao ha nenhum.
+    A conferencia mostra essa posicao quando ela e diferente da indicada, para a carga do mesmo dono ficar junta."""
+    if empresa is None:
+        return None
+    consulta = (Palete.query.join(NotaFiscal, Palete.nota_id == NotaFiscal.id)
+                .filter(NotaFiscal.empresa_id.in_(empresas_do_embarcador(empresa)), Palete.status == 'Armazenado',
+                        Palete.endereco_id.isnot(None)))
+    if menos_palete_id:
+        consulta = consulta.filter(Palete.id != menos_palete_id)
+    ultimo = consulta.order_by(Palete.armazenado_em.desc(), Palete.id.desc()).first()
+    return ultimo.endereco if ultimo else None
+
+
 def categoria_do_palete(palete):
     """Categoria (Congelado / Resfriado / Seco) do produto do palete; None quando o cadastro nao informa."""
     return next((i.produto.categoria for i in palete.itens if i.produto.categoria), None)
@@ -77,11 +145,13 @@ def validar_destino(endereco, palete):
 
     Vale o que foi definido na camara: espaco de cliente, categoria da camara, bloqueio e ocupacao.
     """
-    if endereco.cliente_id:
+    reservado = reserva_de_outro(endereco, palete)
+    if reservado:
         dono = empresa_do_palete(palete)
-        if not dono or dono.id != endereco.cliente_id:
-            reservado = endereco.cliente.fantasia or endereco.cliente.nome
-            return f'O endereço {endereco.codigo} é espaço reservado para {reservado}.'
+        return (f'O endereço {endereco.codigo} é espaço reservado para {reservado.fantasia or reservado.nome}'
+                + (f' e a mercadoria deste palete é de {dono.fantasia or dono.nome}. Se forem do mesmo embarcador, indique o '
+                   'endereço pela tela da nota (ela pergunta e o sistema grava) ou marque "Agrupa endereços" em Cadastros › Empresas.'
+                   if dono else '.'))
     if endereco.bloqueado:
         return f'O endereço {endereco.codigo} está bloqueado' + (f' ({endereco.motivo_bloqueio}).' if endereco.motivo_bloqueio else '.')
     if not endereco.camara.ativo:
@@ -156,7 +226,8 @@ def sugerir_endereco(palete, motivos=None):
     normais = livres.filter(Camara.tipo == 'Armazenagem', Endereco.destino_fixo.is_(False))
     dono = empresa_do_palete(palete)
     if dono:
-        normais = normais.filter(db.or_(Endereco.cliente_id.is_(None), Endereco.cliente_id == dono.id))
+        # espaco do proprio embarcador: vale o reservado para qualquer empresa dele (ex.: outro CNPJ do mesmo cliente)
+        normais = normais.filter(db.or_(Endereco.cliente_id.is_(None), Endereco.cliente_id.in_(empresas_do_embarcador(dono))))
     else:
         normais = normais.filter(Endereco.cliente_id.is_(None))
     if categoria:

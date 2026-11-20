@@ -147,6 +147,13 @@
                             <button type="button" class="btn btn-amarelo" data-bs-toggle="modal" data-bs-target="#modalJuntar"><i class="fas fa-object-group"></i>Juntar paletes</button>
                             <span class="text-muted small" id="pAviso" aria-live="polite"></span>
                         </div>
+                        {# Aviso de juntar: aparece quando o produto escolhido já está guardado em algum palete #}
+                        <div class="col-12 d-none" id="pJuntar" aria-live="polite">
+                            <div class="alert alert-info mb-0 py-2">
+                                <strong><i class="fas fa-layer-group me-1"></i>Este produto já está guardado.</strong> Quer juntar no palete que já existe?
+                                <div id="pJuntarLista" class="d-flex flex-wrap gap-2 mt-2"></div>
+                            </div>
+                        </div>
                     </div>
                 </form>
                 {% endif %}
@@ -175,6 +182,8 @@
                         <td>
                             {% if p.status == 'Aguardando guarda' %}
                                 {% if p.sugerido %}<span class="text-muted small">Guardar em</span> <strong class="codigo-mono">{{ p.sugerido.codigo }}</strong>
+                                {# última posição em que o embarcador guardou, quando é outra: ajuda a deixar a carga do mesmo dono junta #}
+                                {% if ultima_posicao and ultima_posicao.id != p.sugerido_id %}<br><small class="text-muted">último deste embarcador: <span class="codigo-mono">{{ ultima_posicao.codigo }}</span></small>{% endif %}
                                 {% else %}<span class="badge bg-danger">Sem indicação</span>{% endif %}
                             {% elif p.endereco %}<strong class="codigo-mono">{{ p.endereco.codigo }}</strong>
                             {% else %}—{% endif %}
@@ -433,12 +442,12 @@
                 <label class="form-label" for="adBusca">Palete já endereçado que vai receber este item</label>
                 <input type="text" class="form-control codigo-mono mb-2" id="adBusca" placeholder="Bipe a etiqueta ou o endereço, ou digite o SKU / nome do produto" autocomplete="off">
                 <div id="adLista" class="lista-dividir" aria-live="polite"></div>
-                {# Aviso antes de enviar: palete de outra empresa (pede confirmação) ou de outra classificação (não entra) #}
+                {# Aviso antes de enviar: palete de outro embarcador (pergunta e grava) ou de outra classificação (não entra) #}
                 <div id="adAviso" class="alert alert-warning mt-2 mb-0 d-none" role="alert" aria-live="assertive">
                     <p id="adAvisoTexto" class="mb-3"></p>
                     <div class="d-flex flex-wrap gap-2">
-                        <button type="button" class="btn btn-laranja" id="adAvisoConfirmar"><i class="fas fa-layer-group"></i>Adicionar mesmo assim</button>
-                        <button type="button" class="btn btn-outline-secondary" id="adAvisoVoltar">Escolher outro palete</button>
+                        <button type="button" class="btn btn-laranja" id="adAvisoConfirmar"><i class="fas fa-check"></i>Sim, é o mesmo embarcador — adicionar</button>
+                        <button type="button" class="btn btn-outline-secondary" id="adAvisoVoltar">Não, escolher outro palete</button>
                     </div>
                 </div>
                 <p class="text-muted small mt-2 mb-0">Toque no palete para adicionar. Ele continua no mesmo endereço e com a mesma etiqueta; só as quantidades são atualizadas no sistema.</p>
@@ -464,12 +473,13 @@
     var busca = document.getElementById('adBusca'), lista = document.getElementById('adLista');
     var janela = document.getElementById('modalAdicionar');
     var urlBusca = {{ url_for('entrada.paletes_buscar')|tojson }}, espera = null, pedido = 0, achados = [];
-    // Empresa (remetente) desta nota: palete de outra empresa só entra depois do aviso e da confirmação.
-    var notaEmpresa = {{ {'id': nota.empresa_id, 'nome': ((nota.empresa.fantasia or nota.empresa.nome) if nota.empresa else none)}|tojson }};
+    // Embarcador (dono da mercadoria) desta nota: palete de outro só entra depois da pergunta; confirmando, o sistema
+    // grava que as duas empresas são do mesmo embarcador e não pergunta mais.
+    var notaEmpresa = {{ empresa_da_nota|tojson }};
     var confirmarEmpresa = document.getElementById('pConfirmarEmpresa');
     var aviso = document.getElementById('adAviso'), avisoTexto = document.getElementById('adAvisoTexto');
-    var avisoConfirmar = document.getElementById('adAvisoConfirmar'), escolhido = null;
-    function outraEmpresa(p) { return !!(p.empresa_id && notaEmpresa.id && p.empresa_id !== notaEmpresa.id); }
+    var avisoConfirmar = document.getElementById('adAvisoConfirmar'), escolhido = null, avisoPendente = null;
+    function outraEmpresa(p) { return !!(p.embarcador_id && notaEmpresa.embarcador_id && p.embarcador_id !== notaEmpresa.embarcador_id); }
     function esconderAviso() { escolhido = null; aviso.classList.add('d-none'); lista.classList.remove('d-none'); }
     function mostrarAviso(html, podeConfirmar) {
         avisoTexto.innerHTML = html;
@@ -478,17 +488,46 @@
         lista.classList.add('d-none');
         (podeConfirmar ? avisoConfirmar : document.getElementById('adAvisoVoltar')).focus();
     }
+    function descreverItem() {
+        var item = document.getElementById('pItem');
+        document.getElementById('adItem').textContent = item.options[item.selectedIndex].text.replace(/\u0336/g, '').replace(/^✓ /, '') +
+            ' — ' + document.getElementById('pQtd').value;
+    }
     function enviarPara(p, confirmado) {
         existente.value = p.etiqueta;
         confirmarEmpresa.value = confirmado ? '1' : '';
-        bootstrap.Modal.getInstance(janela).hide();
+        var aberta = bootstrap.Modal.getInstance(janela);
+        if (aberta) aberta.hide();
         if (form.requestSubmit) form.requestSubmit(); else form.submit();
+    }
+    // Palete escolhido (na janela ou no aviso "quer juntar?"): confere antes de enviar e avisa o que o servidor recusaria.
+    function escolher(p) {
+        var classe = document.getElementById('pClass').value, html = null, pergunta = false;
+        if (p.classificacao !== classe) {
+            html = 'O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é <strong>' + escapar(p.classificacao) +
+                '</strong> e este item está classificado como <strong>' + escapar(classe) + '</strong>. Troque a classificação do item ou escolha outro palete.';
+        } else if (outraEmpresa(p)) {
+            pergunta = true;
+            html = '<strong>Empresas diferentes.</strong> O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é de <strong>' +
+                escapar(p.empresa) + '</strong> e esta nota é de <strong>' + escapar(notaEmpresa.nome) + '</strong>.<br><strong>' + escapar(p.empresa) + ' e ' +
+                escapar(notaEmpresa.nome) + ' são do mesmo embarcador?</strong> Se sim, o sistema grava e não pergunta de novo.';
+        }
+        if (!html) { enviarPara(p, false); return; }
+        if (janela.classList.contains('show')) {
+            escolhido = pergunta ? p : null;
+            mostrarAviso(html, pergunta);
+            return;
+        }
+        // veio do aviso "quer juntar?": a janela abre direto na pergunta
+        avisoPendente = { html: html, pergunta: pergunta, palete: p };
+        descreverItem();
+        bootstrap.Modal.getOrCreateInstance(janela).show();
     }
     function buscar() {
         esconderAviso();
         var meu = ++pedido;
         lista.innerHTML = '<p class="text-muted small mb-0">Procurando…</p>';
-        fetch(urlBusca + '?q=' + encodeURIComponent(busca.value.trim()), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+        fetch(urlBusca + '?nota={{ nota.id }}&q=' + encodeURIComponent(busca.value.trim()), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
             .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
             .then(function (dados) {
                 if (meu !== pedido) return;
@@ -510,38 +549,84 @@
         document.getElementById('pAdicionar').addEventListener('click', function () {
             existente.value = '';
             if (!form.reportValidity()) return;
-            var item = document.getElementById('pItem');
-            document.getElementById('adItem').textContent = item.options[item.selectedIndex].text.replace(/\u0336/g, '').replace(/^✓ /, '') +
-                ' — ' + document.getElementById('pQtd').value;
+            avisoPendente = null;
+            descreverItem();
             bootstrap.Modal.getOrCreateInstance(janela).show();
         });
-        janela.addEventListener('shown.bs.modal', function () { busca.value = ''; busca.focus(); buscar(); });
+        janela.addEventListener('shown.bs.modal', function () {
+            busca.value = '';
+            if (avisoPendente) {
+                var a = avisoPendente;
+                avisoPendente = null;
+                lista.innerHTML = '';
+                escolhido = a.pergunta ? a.palete : null;
+                mostrarAviso(a.html, a.pergunta);
+                return;
+            }
+            busca.focus();
+            buscar();
+        });
         busca.addEventListener('input', function () { clearTimeout(espera); espera = setTimeout(buscar, 250); });
         busca.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); clearTimeout(espera); buscar(); } });
         lista.addEventListener('click', function (ev) {
             var b = ev.target.closest('[data-indice]');
-            if (!b) return;
-            var p = achados[Number(b.getAttribute('data-indice'))];
-            var classe = document.getElementById('pClass').value;
-            if (p.classificacao !== classe) {
-                // o servidor recusaria: avisa aqui mesmo, antes de enviar
-                mostrarAviso('O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é <strong>' + escapar(p.classificacao) +
-                    '</strong> e este item está classificado como <strong>' + escapar(classe) + '</strong>. Troque a classificação do item ou escolha outro palete.', false);
-                return;
-            }
-            if (outraEmpresa(p)) {
-                escolhido = p;
-                mostrarAviso('<strong>Atenção: empresas diferentes.</strong> O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é de <strong>' +
-                    escapar(p.empresa) + '</strong> e esta nota é de <strong>' + escapar(notaEmpresa.nome) + '</strong>. Se for mercadoria do mesmo cliente, pode adicionar.', true);
-                return;
-            }
-            enviarPara(p, false);
+            if (b) escolher(achados[Number(b.getAttribute('data-indice'))]);
         });
         avisoConfirmar.addEventListener('click', function () { if (escolhido) enviarPara(escolhido, true); });
-        document.getElementById('adAvisoVoltar').addEventListener('click', esconderAviso);
+        document.getElementById('adAvisoVoltar').addEventListener('click', function () {
+            esconderAviso();
+            if (!lista.innerHTML) { busca.focus(); buscar(); }
+        });
+
+        // ---- "Este produto já está guardado": ao escolher o item, a tela mostra os paletes que já têm o produto e
+        // pergunta se a pessoa quer juntar neles (em vez de montar um palete novo).
+        var sugestoes = {{ juntar|tojson }}, caixaJuntar = document.getElementById('pJuntar'), listaJuntar = document.getElementById('pJuntarLista');
+        window.wmsSugerirJuntar = function (itemId) {
+            var opcoes = sugestoes[String(itemId)] || [];
+            caixaJuntar.classList.toggle('d-none', !opcoes.length);
+            listaJuntar.innerHTML = opcoes.map(function (p, i) {
+                return '<button type="button" class="btn btn-sm btn-laranja" data-juntar="' + i + '" data-item="' + escapar(itemId) + '"><i class="fas fa-layer-group"></i>' +
+                       '<span class="codigo-mono">' + escapar(p.etiqueta) + '</span>' + (p.endereco ? ' · ' + escapar(p.endereco) : '') +
+                       ' · ' + numero(p.quantidade) + ' ' + escapar(p.unidade) + (outraEmpresa(p) ? ' · outra empresa' : '') + '</button>';
+            }).join('');
+        };
+        listaJuntar.addEventListener('click', function (ev) {
+            var b = ev.target.closest('[data-juntar]');
+            if (!b) return;
+            existente.value = '';
+            if (!form.reportValidity()) return;
+            escolher((sugestoes[b.getAttribute('data-item')] || [])[Number(b.getAttribute('data-juntar'))]);
+        });
     }
 })();
 </script>
+{% endif %}
+{% if pergunta %}
+{# Endereço reservado para outra empresa: pergunta se é o mesmo embarcador; confirmando, o sistema grava e segue #}
+<div class="modal fade" id="modalEmbarcador" tabindex="-1" aria-labelledby="modalEmbarcadorTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="POST" action="{{ pergunta.url }}" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="codigo" value="{{ pergunta.endereco }}">
+            <input type="hidden" name="confirmar_empresa" value="1">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEmbarcadorTitulo"><i class="fas fa-location-dot me-2"></i>Espaço reservado para {{ pergunta.reservado }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>O endereço <strong class="codigo-mono">{{ pergunta.endereco }}</strong> é espaço reservado para <strong>{{ pergunta.reservado }}</strong>,
+                    e a mercadoria do palete <span class="codigo-mono">{{ pergunta.palete.etiqueta }}</span> é de <strong>{{ pergunta.dono }}</strong>.</p>
+                <p class="mb-0"><strong>{{ pergunta.dono }} e {{ pergunta.reservado }} são do mesmo embarcador?</strong> Se sim, o sistema grava e não
+                    pergunta de novo: os paletes e as posições reservadas passam a valer para as duas.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Não, escolher outro endereço</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i>Sim, é o mesmo embarcador</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEmbarcador')).show();</script>
 {% endif %}
 <script>
 // Montar palete: a etiqueta abre em outra aba e esta aba (a nota) continua aberta, já atualizada com o palete novo.
@@ -599,6 +684,7 @@
         var cega = {{ 'true' if cega else 'false' }};
         function preencher(achado, porCaixa) {
             item.value = achado.id;
+            if (window.wmsSugerirJuntar) window.wmsSugerirJuntar(achado.id);   // "este produto já está guardado: quer juntar?"
             if (!cega && achado.falta > 0) qtd.value = String(achado.falta).replace('.', ',');
             else if (porCaixa) qtd.value = String(achado.fator).replace('.', ',');
             if (achado.lote) document.getElementById('pLote').value = achado.lote;

@@ -62,6 +62,42 @@
                     {% endif %}
                 </div>
                 {% endif %}
+                {% if d.grupo_de_enderecos %}
+                {# Agrupa endereços: outros CNPJs do mesmo embarcador, guardados nos mesmos paletes e posições reservadas #}
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="agrupa_enderecos" name="agrupa_enderecos" value="1" {% if agrupa %}checked{% endif %}>
+                        <label class="form-check-label" for="agrupa_enderecos">Agrupa endereços (guarda junto mercadoria de outros CNPJs)</label>
+                    </div>
+                    <div class="form-text">Para o embarcador que remete por mais de um CNPJ. As empresas marcadas abaixo passam a usar os mesmos paletes
+                        e as mesmas posições reservadas desta. O sistema também marca sozinho quando alguém confirma isso na conferência.</div>
+                    {% if grupo_de %}
+                    <div class="alert alert-info py-2 mt-2 mb-0">Esta empresa já está no grupo de <strong>{{ grupo_de.fantasia or grupo_de.nome }}</strong>
+                        (definido no cadastro dela).</div>
+                    {% endif %}
+                    <div id="agrupadasBox" class="mt-2{% if not agrupa %} d-none{% endif %}">
+                        <label class="form-label">CNPJs que podem ser guardados junto com esta empresa</label>
+                        <div class="row g-1">
+                            {% for e in candidatas %}
+                            <div class="col-12 col-lg-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="agrupadas" value="{{ e.id }}" id="ag{{ e.id }}" {% if e.id in agrupadas %}checked{% endif %}>
+                                    <label class="form-check-label" for="ag{{ e.id }}">{{ e.fantasia or e.nome }}
+                                        <span class="text-muted small">{% if e.fantasia %}· {{ e.nome }} {% endif %}· CNPJ {{ e.cnpj or '—' }}{% if not e.ativo %} · inativa{% endif %}</span></label>
+                                </div>
+                            </div>
+                            {% else %}
+                            <p class="text-muted mb-0">Não há outra empresa cadastrada para agrupar.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <script>
+                    document.getElementById('agrupa_enderecos').addEventListener('change', function (ev) {
+                        document.getElementById('agrupadasBox').classList.toggle('d-none', !ev.target.checked);
+                    });
+                    </script>
+                </div>
+                {% endif %}
                 <div class="col-12">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" id="ativo" name="ativo" value="1" {% if v_ativo %}checked{% endif %}>

@@ -7,7 +7,7 @@ unidades diferentes (CX, KG, UN) nao se comparam.
 from datetime import timedelta
 
 from .models import CargaItem, Separacao, agora, db
-from .paletes import empresa_do_palete
+from .paletes import empresa_do_palete, mesmo_embarcador
 
 DIAS = 90
 # Medidas usadas so para estimar a caminhada (as mesmas do desenho 3D): passo de uma coluna para a outra,
@@ -72,7 +72,7 @@ def sugestoes_de_troca(camara, enderecos, ocupados, giro):
 
     def serve(endereco, dono):
         return (not endereco.bloqueado and not endereco.destino_fixo
-                and (endereco.cliente_id is None or (dono is not None and dono.id == endereco.cliente_id)))
+                and (endereco.cliente_id is None or mesmo_embarcador(dono, endereco.cliente)))
 
     postos = []          # (endereco, palete ou None, saidas por dia, dono)
     for e in enderecos:

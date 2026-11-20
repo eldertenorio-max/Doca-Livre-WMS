@@ -22,8 +22,9 @@ from .enderecamento import localizar_endereco
 from .etiqueta_zebra import ctx_etiqueta_zebra
 from .models import Empresa, Endereco, NfSaida, NotaFiscal, NotaItem, Palete, PaleteItem, Produto, agora, db
 from .nfe import XmlInvalido, ler_nfe
-from .paletes import (CLASSIFICACOES, CLASSIFICACOES_RETORNO, NO_ARMAZEM, colocar_em, empresa_do_palete, gerar_etiqueta,
-                      localizar_palete, registrar, resumo_itens, sugerir_endereco, validar_destino)
+from .paletes import (CLASSIFICACOES, CLASSIFICACOES_RETORNO, NO_ARMAZEM, colocar_em, embarcador_de, empresa_do_palete,
+                      gerar_etiqueta, localizar_palete, mesmo_embarcador, registrar, reserva_de_outro, resumo_itens,
+                      sugerir_endereco, ultima_posicao_do_embarcador, validar_destino, vincular_embarcador)
 
 bp = Blueprint('entrada', __name__, url_prefix='/entrada')
 
@@ -114,17 +115,86 @@ def paletes_da_nota(nota):
     return sorted(set(nota.paletes) | set(de_fora), key=lambda p: p.id)
 
 
-def _mesmo_dono(palete, nota):
-    """Aviso quando a mercadoria do palete e de outra empresa (remetente) que a da nota; None se e a mesma.
+def _nome(empresa):
+    return empresa.fantasia or empresa.nome
 
-    Nao bloqueia: o mesmo cliente pode remeter por mais de um CNPJ (ex.: Alora e LD Food Service). A tela mostra o
-    aviso e pede a confirmacao (campo confirmar_empresa) antes de juntar; sem a confirmacao, nada e misturado."""
+
+def _mesmo_dono(palete, nota):
+    """Aviso quando a mercadoria do palete e de outro embarcador que o da nota; None se e o mesmo.
+
+    O mesmo embarcador pode remeter por mais de um CNPJ (ex.: Alora e LD Food Service). Na primeira vez a tela
+    pergunta se as duas empresas sao do mesmo embarcador (campo confirmar_empresa); confirmando, o sistema grava a
+    ligacao (_aprender_embarcador) e nao pergunta mais. Sem a confirmacao, nada e misturado."""
     dono = empresa_do_palete(palete)
-    if dono and nota.empresa and dono.id != nota.empresa.id:
-        return (f'O palete {palete.etiqueta} é de {dono.fantasia or dono.nome}; esta nota é de '
-                f'{nota.empresa.fantasia or nota.empresa.nome}. Para juntar mesmo assim, use "Adicionar ao palete" '
-                'e confirme o aviso.')
+    if dono and nota.empresa and not mesmo_embarcador(dono, nota.empresa):
+        return (f'O palete {palete.etiqueta} é de {_nome(dono)}; esta nota é de {_nome(nota.empresa)}. Se forem do mesmo '
+                'embarcador, use "Adicionar ao palete" e confirme: o sistema grava e não pergunta de novo.')
     return None
+
+
+def _aprender_embarcador(empresa, outra, modulo):
+    """Grava que as duas empresas sao do mesmo embarcador (confirmado na tela) e devolve o aviso para mostrar."""
+    principal = vincular_embarcador(empresa, outra)
+    registrar_log('Ligou empresas ao mesmo embarcador',
+                  f'{_nome(empresa)} + {_nome(outra)} → embarcador {_nome(principal)}'[:300], modulo=modulo)
+    return (f'O sistema gravou que {_nome(empresa)} e {_nome(outra)} são do mesmo embarcador ({_nome(principal)}). '
+            'Não vai perguntar de novo: os paletes e as posições reservadas valem para as duas. '
+            f'Para ver ou desfazer: Cadastros › Empresas › {_nome(principal)}, opção "Agrupa endereços".')
+
+
+def _reserva_a_confirmar(palete, endereco, acao):
+    """Endereco reservado para outra empresa: devolve (resposta, aviso).
+
+    Com a confirmacao da tela (confirmar_empresa), grava que as duas sao do mesmo embarcador e devolve o aviso.
+    Sem ela, e vindo da tela da nota, devolve o redirecionamento que faz a tela perguntar. Fora disso (None, None):
+    quem chamou segue para o validar_destino, que explica a recusa."""
+    reservado = reserva_de_outro(endereco, palete)
+    dono = empresa_do_palete(palete)
+    if not reservado or not dono:
+        return None, None
+    if request.form.get('confirmar_empresa') == '1':
+        return None, _aprender_embarcador(dono, reservado, _modulo(palete.nota) if palete.nota else 'recebimento')
+    if palete.nota_id and f'/entrada/notas/{palete.nota_id}' in (request.referrer or ''):
+        return redirect(url_for('entrada.nota', nid=palete.nota_id, perguntar=palete.id, endereco=endereco.codigo, acao=acao)), None
+    return None, None
+
+
+def _pergunta_de_reserva(nota):
+    """Dados da pergunta "e o mesmo embarcador?" que a tela da nota faz quando o endereco indicado ou bipado esta
+    reservado para outra empresa (ver _reserva_a_confirmar). None quando nao ha o que perguntar."""
+    palete = db.session.get(Palete, request.args.get('perguntar', type=int) or 0)
+    acao = request.args.get('acao')
+    if not palete or palete.status != 'Aguardando guarda' or acao not in ('indicar', 'guardar') or palete not in paletes_da_nota(nota):
+        return None
+    endereco, erro = localizar_endereco(request.args.get('endereco'))
+    reservado = None if erro else reserva_de_outro(endereco, palete)
+    dono = empresa_do_palete(palete)
+    if not reservado or not dono:
+        return None
+    return {'palete': palete, 'endereco': endereco.codigo, 'dono': _nome(dono), 'reservado': _nome(reservado),
+            'acao': acao, 'url': url_for('entrada.indicar' if acao == 'indicar' else 'entrada.guardar', pid=palete.id)}
+
+
+def paletes_com_os_produtos(nota):
+    """id do item da nota -> paletes guardados que ja tem o mesmo produto (ate 3; o guardado por ultimo primeiro).
+    A tela da nota usa para avisar "este produto ja esta guardado" e perguntar se a pessoa quer juntar nele."""
+    produtos = {i.produto_id for i in nota.itens}
+    if not produtos:
+        return {}
+    conteudos = (PaleteItem.query.join(Palete)
+                 .filter(PaleteItem.produto_id.in_(produtos), Palete.status.in_(NO_ARMAZEM), Palete.carga_id.is_(None))
+                 .order_by(Palete.armazenado_em.desc(), Palete.id.desc()).limit(400).all())
+    por_produto = {}
+    for conteudo in conteudos:
+        lista, palete = por_produto.setdefault(conteudo.produto_id, []), conteudo.palete
+        if len(lista) >= 3 or any(p['etiqueta'] == palete.etiqueta for p in lista):
+            continue
+        dono = empresa_do_palete(palete)
+        lista.append({'etiqueta': palete.etiqueta, 'endereco': palete.endereco.codigo if palete.endereco else None,
+                      'classificacao': palete.classificacao, 'empresa': _nome(dono) if dono else None,
+                      'embarcador_id': embarcador_de(dono).id if dono else None, 'unidade': conteudo.produto.unidade,
+                      'quantidade': round(sum(i.quantidade for i in palete.itens if i.produto_id == conteudo.produto_id), 3)})
+    return {str(i.id): por_produto[i.produto_id] for i in nota.itens if por_produto.get(i.produto_id)}
 
 
 def _empresa_para(nome, cnpj=None, cidade=None, uf=None):
@@ -494,9 +564,18 @@ def nota(nid):
                 'falta': max(l['falta'], 0), 'lote': l['item'].lote,
                 'fabricacao': l['item'].fabricacao.isoformat() if l['item'].fabricacao else '',
                 'validade': l['item'].validade.isoformat() if l['item'].validade else ''} for l in linhas]
+    aberta = nota.status in ABERTAS
+    raiz = embarcador_de(nota.empresa) if nota.empresa else None
     return render_template('entrada_nota.html', nota=nota, linhas=linhas, bipagem=bipagem,
                            classificacoes=CLASSIFICACOES_RETORNO if nota.tipo == 'Retorno' else CLASSIFICACOES,
-                           retorno=nota.tipo == 'Retorno', lista_url=_lista_da(nota), aberta=nota.status in ABERTAS,
+                           retorno=nota.tipo == 'Retorno', lista_url=_lista_da(nota), aberta=aberta,
+                           # mesmo embarcador: a tela so avisa quando o palete escolhido e de outro
+                           empresa_da_nota={'embarcador_id': raiz.id if raiz else None,
+                                            'nome': _nome(nota.empresa) if nota.empresa else None},
+                           # "este produto ja esta guardado: quer juntar?" e a ultima posicao guardada do embarcador
+                           juntar=paletes_com_os_produtos(nota) if aberta else {},
+                           ultima_posicao=ultima_posicao_do_embarcador(nota.empresa) if aberta else None,
+                           pergunta=_pergunta_de_reserva(nota) if aberta else None,
                            tem_xml=bool(nota.xml), danfe_oficial=bool(chave_meu_danfe()),
                            paletes=paletes_da_nota(nota), riscado=rotulo_riscado,
                            pendentes=[p for p in paletes_da_nota(nota) if p.status == 'Aguardando guarda'],
@@ -594,13 +673,14 @@ def montar_palete(nid):
         if not erro and palete.classificacao != classificacao:
             erro = (f'O palete {palete.etiqueta} é "{palete.classificacao}" e este item foi classificado como "{classificacao}". '
                     'Monte um palete novo para ele.')
-        # Palete de outra empresa: entra so com a confirmacao que a tela pede (aviso com os dois nomes).
+        # Palete de outro embarcador: entra so com a confirmacao que a tela pede; confirmando, o sistema aprende.
         outra_empresa = None if erro else _mesmo_dono(palete, nota)
         if outra_empresa and request.form.get('confirmar_empresa') != '1':
             erro = outra_empresa
         if erro:
             flash(erro, 'error')
             return _voltar_nota(nota)
+        aprendido = _aprender_embarcador(nota.empresa, empresa_do_palete(palete), _modulo(nota)) if outra_empresa else None
         lote = (request.form.get('lote') or '').strip()[:30] or None
         igual = next((i for i in palete.itens if i.nota_item_id == item.id and i.lote == lote
                       and i.fabricacao == fabricacao and i.validade == validade), None)
@@ -610,13 +690,14 @@ def montar_palete(nid):
             palete.itens.append(PaleteItem(produto=item.produto, nota_item_id=item.id, quantidade=quantidade, lote=lote,
                                            fabricacao=fabricacao, validade=validade))
         registrar(palete, 'Entrada', destino=palete.endereco,
-                  motivo=(f'NF {nota.numero} · adicionado ao palete: {item.produto.sku} · {quantidade:g} {item.produto.unidade}'
-                          + (' · palete de outra empresa (confirmado)' if outra_empresa else ''))[:200])
+                  motivo=f'NF {nota.numero} · adicionado ao palete: {item.produto.sku} · {quantidade:g} {item.produto.unidade}'[:200])
         if nota.status == 'Aguardando':
             nota.status = 'Em conferência'
-        registrar_log('Adicionou item a palete de outra empresa' if outra_empresa else 'Adicionou item a palete existente',
-                      f'{palete.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}', modulo=_modulo(nota))
+        registrar_log('Adicionou item a palete existente', f'{palete.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}',
+                      modulo=_modulo(nota))
         db.session.commit()
+        if aprendido:
+            flash(aprendido, 'success')
         onde = (f'no endereço {palete.endereco.codigo}' if palete.endereco else
                 f'guardar em {palete.sugerido.codigo}' if palete.sugerido else 'aguardando guarda')
         flash(f'{quantidade:g} {item.produto.unidade} de {item.produto.sku} adicionado(s) ao palete {palete.etiqueta} ({onde}).', 'success')
@@ -640,8 +721,12 @@ def montar_palete(nid):
         nota.status = 'Em conferência'
     db.session.commit()
     if palete.sugerido:
+        # a ultima posicao em que o embarcador guardou, quando e outra: ajuda a deixar a carga do mesmo dono junta
+        ultima = ultima_posicao_do_embarcador(nota.empresa, menos_palete_id=palete.id)
         flash(f'Palete {palete.etiqueta} montado. Guardar em {palete.sugerido.codigo}'
-              + (f' ({"; ".join(motivos)})' if motivos else '') + '.', 'success')
+              + (f' ({"; ".join(motivos)})' if motivos else '') + '.'
+              + (f' O último palete deste embarcador foi guardado em {ultima.codigo}.'
+                 if ultima and ultima.id != palete.sugerido_id else ''), 'success')
     else:
         flash(f'Palete {palete.etiqueta} montado, mas não há endereço livre para indicar. '
               'Cadastre ou libere endereços e use "Indicar endereço".', 'error')
@@ -666,7 +751,7 @@ def juntar_paletes(nid):
     if len({p.classificacao for p in escolhidos}) > 1:
         flash('Os paletes marcados têm classificações diferentes (ex.: Bom e Avaria). Junte só os de mesma classificação.', 'error')
         return _voltar_nota(nota)
-    donos = {d.id for d in (empresa_do_palete(p) for p in escolhidos) if d}
+    donos = {embarcador_de(d).id for d in (empresa_do_palete(p) for p in escolhidos) if d}
     if len(donos) > 1:
         flash('Os paletes marcados são de empresas diferentes. Não dá para misturar.', 'error')
         return _voltar_nota(nota)
@@ -715,13 +800,18 @@ def paletes_buscar():
         dono = empresa_do_palete(p)
         lista.append({'id': p.id, 'etiqueta': p.etiqueta, 'endereco': p.endereco.codigo if p.endereco else None,
                       'classificacao': p.classificacao, 'empresa': (dono.fantasia or dono.nome) if dono else None,
-                      'empresa_id': dono.id if dono else None,
+                      'embarcador_id': embarcador_de(dono).id if dono else None,
                       'dividir': url_for('entrada.palete_dividir', pid=p.id),
                       'itens': [{'id': i.id, 'sku': i.produto.sku, 'descricao': i.produto.descricao, 'unidade': i.produto.unidade,
                                  'quantidade': i.quantidade, 'lote': i.lote,
                                  'validade': i.validade.strftime('%d/%m/%Y') if i.validade else None} for i in p.itens]})
         if len(lista) >= 40:
             break
+    # Com a nota informada (Adicionar ao palete), os paletes do mesmo embarcador dela aparecem primeiro.
+    nota = db.session.get(NotaFiscal, request.args.get('nota', type=int) or 0)
+    if nota and nota.empresa:
+        raiz = embarcador_de(nota.empresa).id
+        lista.sort(key=lambda p: p['embarcador_id'] != raiz)
     return jsonify(paletes=lista)
 
 
@@ -794,10 +884,17 @@ def indicar(pid):
         flash('Este palete já foi guardado.', 'error')
         return _voltar_nota(palete.nota)
     codigo = (request.form.get('codigo') or '').strip()
+    aprendido = None
     if codigo:
         endereco, erro = localizar_endereco(codigo)
+        if not erro:
+            # espaco reservado para outra empresa: a tela da nota pergunta se e o mesmo embarcador e o sistema grava
+            pergunta, aprendido = _reserva_a_confirmar(palete, endereco, 'indicar')
+            if pergunta:
+                return pergunta
         erro = erro or validar_destino(endereco, palete)
         if erro:
+            db.session.rollback()
             flash(erro, 'error')
             return _voltar_nota(palete.nota)
     else:
@@ -807,6 +904,8 @@ def indicar(pid):
             return _voltar_nota(palete.nota)
     palete.sugerido = endereco
     db.session.commit()
+    if aprendido:
+        flash(aprendido, 'success')
     flash(f'Indicação do palete {palete.etiqueta}: {endereco.codigo}.', 'success')
     return redirect(url_for('entrada.nota', nid=palete.nota_id) + f'#palete-{palete.id}')
 
@@ -824,12 +923,20 @@ def guardar(pid):
     if not erro and palete.sugerido_id and endereco.id != palete.sugerido_id:
         erro = (f'Endereço bipado ({endereco.codigo}) é diferente do indicado ({palete.sugerido.codigo}). '
                 'Para guardar em outro lugar, use "Indicar endereço" primeiro.')
+    aprendido = None
+    if not erro:
+        pergunta, aprendido = _reserva_a_confirmar(palete, endereco, 'guardar')
+        if pergunta:
+            return pergunta
     erro = erro or validar_destino(endereco, palete)
     if erro:
+        db.session.rollback()
         flash(erro, 'error')
         return voltar
     colocar_em(palete, endereco, 'Guarda', motivo=f'NF {palete.nota.numero}' if palete.nota else None)
     db.session.commit()
+    if aprendido:
+        flash(aprendido, 'success')
     flash(f'Palete {palete.etiqueta} guardado em {endereco.codigo}.', 'success')
     return voltar
 
