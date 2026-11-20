@@ -141,6 +141,7 @@
                         <div class="col-6 col-md-3"><label class="form-label" for="pVal">Validade</label><input type="date" class="form-control" id="pVal" name="validade"></div>
                         <div class="col-12 d-flex flex-wrap align-items-center gap-2">
                             <input type="hidden" name="palete_existente" id="pExistente" value="">
+                            <input type="hidden" name="confirmar_empresa" id="pConfirmarEmpresa" value="">
                             <button type="submit" class="btn btn-verde-claro" id="pMontar"><i class="fas fa-plus"></i>Montar palete</button>
                             <button type="button" class="btn btn-laranja" id="pAdicionar" title="Coloca este item num palete que já está endereçado"><i class="fas fa-layer-group"></i>Adicionar ao palete</button>
                             <button type="button" class="btn btn-amarelo" data-bs-toggle="modal" data-bs-target="#modalJuntar"><i class="fas fa-object-group"></i>Juntar paletes</button>
@@ -432,6 +433,14 @@
                 <label class="form-label" for="adBusca">Palete já endereçado que vai receber este item</label>
                 <input type="text" class="form-control codigo-mono mb-2" id="adBusca" placeholder="Bipe a etiqueta ou o endereço, ou digite o SKU / nome do produto" autocomplete="off">
                 <div id="adLista" class="lista-dividir" aria-live="polite"></div>
+                {# Aviso antes de enviar: palete de outra empresa (pede confirmação) ou de outra classificação (não entra) #}
+                <div id="adAviso" class="alert alert-warning mt-2 mb-0 d-none" role="alert" aria-live="assertive">
+                    <p id="adAvisoTexto" class="mb-3"></p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-laranja" id="adAvisoConfirmar"><i class="fas fa-layer-group"></i>Adicionar mesmo assim</button>
+                        <button type="button" class="btn btn-outline-secondary" id="adAvisoVoltar">Escolher outro palete</button>
+                    </div>
+                </div>
                 <p class="text-muted small mt-2 mb-0">Toque no palete para adicionar. Ele continua no mesmo endereço e com a mesma etiqueta; só as quantidades são atualizadas no sistema.</p>
             </div>
         </div>
@@ -455,7 +464,28 @@
     var busca = document.getElementById('adBusca'), lista = document.getElementById('adLista');
     var janela = document.getElementById('modalAdicionar');
     var urlBusca = {{ url_for('entrada.paletes_buscar')|tojson }}, espera = null, pedido = 0, achados = [];
+    // Empresa (remetente) desta nota: palete de outra empresa só entra depois do aviso e da confirmação.
+    var notaEmpresa = {{ {'id': nota.empresa_id, 'nome': ((nota.empresa.fantasia or nota.empresa.nome) if nota.empresa else none)}|tojson }};
+    var confirmarEmpresa = document.getElementById('pConfirmarEmpresa');
+    var aviso = document.getElementById('adAviso'), avisoTexto = document.getElementById('adAvisoTexto');
+    var avisoConfirmar = document.getElementById('adAvisoConfirmar'), escolhido = null;
+    function outraEmpresa(p) { return !!(p.empresa_id && notaEmpresa.id && p.empresa_id !== notaEmpresa.id); }
+    function esconderAviso() { escolhido = null; aviso.classList.add('d-none'); lista.classList.remove('d-none'); }
+    function mostrarAviso(html, podeConfirmar) {
+        avisoTexto.innerHTML = html;
+        avisoConfirmar.classList.toggle('d-none', !podeConfirmar);
+        aviso.classList.remove('d-none');
+        lista.classList.add('d-none');
+        (podeConfirmar ? avisoConfirmar : document.getElementById('adAvisoVoltar')).focus();
+    }
+    function enviarPara(p, confirmado) {
+        existente.value = p.etiqueta;
+        confirmarEmpresa.value = confirmado ? '1' : '';
+        bootstrap.Modal.getInstance(janela).hide();
+        if (form.requestSubmit) form.requestSubmit(); else form.submit();
+    }
     function buscar() {
+        esconderAviso();
         var meu = ++pedido;
         lista.innerHTML = '<p class="text-muted small mb-0">Procurando…</p>';
         fetch(urlBusca + '?q=' + encodeURIComponent(busca.value.trim()), { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
@@ -467,7 +497,7 @@
                 lista.innerHTML = achados.map(function (p, i) {
                     return '<button type="button" class="lista-dividir-item" data-indice="' + i + '"><span><strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong>' +
                            (p.endereco ? ' · <span class="codigo-mono">' + escapar(p.endereco) + '</span>' : '') + (p.empresa ? ' · ' + escapar(p.empresa) : '') +
-                           ' · ' + escapar(p.classificacao) + '</span>' +
+                           ' · ' + escapar(p.classificacao) + (outraEmpresa(p) ? ' <span class="badge bg-warning ms-1">outra empresa</span>' : '') + '</span>' +
                            '<small>' + p.itens.map(function (it) { return escapar(it.sku) + ' · ' + numero(it.quantidade) + ' ' + escapar(it.unidade); }).join(' + ') + '</small></button>';
                 }).join('');
             })
@@ -475,7 +505,7 @@
     }
     if (form && busca) {
         // Montar palete (verde) sempre cria palete novo
-        document.getElementById('pMontar').addEventListener('click', function () { existente.value = ''; });
+        document.getElementById('pMontar').addEventListener('click', function () { existente.value = ''; confirmarEmpresa.value = ''; });
         // Adicionar ao palete (laranja): primeiro o item e a quantidade, depois escolhe o palete
         document.getElementById('pAdicionar').addEventListener('click', function () {
             existente.value = '';
@@ -491,10 +521,24 @@
         lista.addEventListener('click', function (ev) {
             var b = ev.target.closest('[data-indice]');
             if (!b) return;
-            existente.value = achados[Number(b.getAttribute('data-indice'))].etiqueta;
-            bootstrap.Modal.getInstance(janela).hide();
-            if (form.requestSubmit) form.requestSubmit(); else form.submit();
+            var p = achados[Number(b.getAttribute('data-indice'))];
+            var classe = document.getElementById('pClass').value;
+            if (p.classificacao !== classe) {
+                // o servidor recusaria: avisa aqui mesmo, antes de enviar
+                mostrarAviso('O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é <strong>' + escapar(p.classificacao) +
+                    '</strong> e este item está classificado como <strong>' + escapar(classe) + '</strong>. Troque a classificação do item ou escolha outro palete.', false);
+                return;
+            }
+            if (outraEmpresa(p)) {
+                escolhido = p;
+                mostrarAviso('<strong>Atenção: empresas diferentes.</strong> O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é de <strong>' +
+                    escapar(p.empresa) + '</strong> e esta nota é de <strong>' + escapar(notaEmpresa.nome) + '</strong>. Se for mercadoria do mesmo cliente, pode adicionar.', true);
+                return;
+            }
+            enviarPara(p, false);
         });
+        avisoConfirmar.addEventListener('click', function () { if (escolhido) enviarPara(escolhido, true); });
+        document.getElementById('adAvisoVoltar').addEventListener('click', esconderAviso);
     }
 })();
 </script>
@@ -503,7 +547,36 @@
 // Montar palete: a etiqueta abre em outra aba e esta aba (a nota) continua aberta, já atualizada com o palete novo.
 (function () {
     var ABA = 'wmsEtiquetaPalete';
-    if (window.name === ABA) window.name = '';        // a aba da etiqueta voltou para a nota (palete recusado): vira aba comum
+    // Aviso de recusa em destaque no topo desta tela (chamado pela aba da etiqueta quando o servidor recusa a ação).
+    window.wmsMostrarRecusa = function (mensagens) {
+        var onde = document.getElementById('mainContent');
+        if (!onde || !mensagens || !mensagens.length) return;
+        var caixa = document.createElement('div');
+        caixa.className = 'alert alert-danger alert-dismissible fade show';
+        caixa.setAttribute('role', 'alert');
+        caixa.innerHTML = '<strong><i class="fas fa-triangle-exclamation me-2"></i>Não foi feito.</strong> <span></span>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>';
+        caixa.querySelector('span').textContent = mensagens.join(' ');
+        onde.insertBefore(caixa, onde.firstChild);
+        window.scrollTo(0, 0);
+        try { window.focus(); } catch (e) {}
+    };
+    if (window.name === ABA) {
+        // A nota abriu na aba da etiqueta: o servidor recusou a ação. O aviso volta para a aba onde a pessoa
+        // estava (antes ele ficava só aqui, e parecia que a tela tinha piscado sem fazer nada) e esta aba se fecha.
+        var recusas = [].map.call(document.querySelectorAll('#mainContent > .alert.alert-danger'), function (a) {
+            return a.textContent.replace(/\s+/g, ' ').trim();
+        }).filter(Boolean);
+        var devolvido = false;
+        try {
+            if (recusas.length && window.opener && !window.opener.closed && typeof window.opener.wmsMostrarRecusa === 'function') {
+                window.opener.wmsMostrarRecusa(recusas);
+                devolvido = true;
+            }
+        } catch (e) {}
+        window.name = '';                             // sem aba de origem: vira aba comum, com o aviso no topo
+        if (devolvido) window.close();
+    }
     [document.getElementById('formPalete')].forEach(function (form) {
         if (!form) return;
         form.addEventListener('submit', function () {

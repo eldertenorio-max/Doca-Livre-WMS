@@ -115,11 +115,15 @@ def paletes_da_nota(nota):
 
 
 def _mesmo_dono(palete, nota):
-    """Mensagem de erro se a mercadoria do palete e de outra empresa que a da nota; None se pode misturar."""
+    """Aviso quando a mercadoria do palete e de outra empresa (remetente) que a da nota; None se e a mesma.
+
+    Nao bloqueia: o mesmo cliente pode remeter por mais de um CNPJ (ex.: Alora e LD Food Service). A tela mostra o
+    aviso e pede a confirmacao (campo confirmar_empresa) antes de juntar; sem a confirmacao, nada e misturado."""
     dono = empresa_do_palete(palete)
     if dono and nota.empresa and dono.id != nota.empresa.id:
         return (f'O palete {palete.etiqueta} é de {dono.fantasia or dono.nome}; esta nota é de '
-                f'{nota.empresa.fantasia or nota.empresa.nome}. Não dá para misturar mercadoria de empresas diferentes.')
+                f'{nota.empresa.fantasia or nota.empresa.nome}. Para juntar mesmo assim, use "Adicionar ao palete" '
+                'e confirme o aviso.')
     return None
 
 
@@ -590,7 +594,10 @@ def montar_palete(nid):
         if not erro and palete.classificacao != classificacao:
             erro = (f'O palete {palete.etiqueta} é "{palete.classificacao}" e este item foi classificado como "{classificacao}". '
                     'Monte um palete novo para ele.')
-        erro = erro or _mesmo_dono(palete, nota)
+        # Palete de outra empresa: entra so com a confirmacao que a tela pede (aviso com os dois nomes).
+        outra_empresa = None if erro else _mesmo_dono(palete, nota)
+        if outra_empresa and request.form.get('confirmar_empresa') != '1':
+            erro = outra_empresa
         if erro:
             flash(erro, 'error')
             return _voltar_nota(nota)
@@ -603,11 +610,12 @@ def montar_palete(nid):
             palete.itens.append(PaleteItem(produto=item.produto, nota_item_id=item.id, quantidade=quantidade, lote=lote,
                                            fabricacao=fabricacao, validade=validade))
         registrar(palete, 'Entrada', destino=palete.endereco,
-                  motivo=f'NF {nota.numero} · adicionado ao palete: {item.produto.sku} · {quantidade:g} {item.produto.unidade}')
+                  motivo=(f'NF {nota.numero} · adicionado ao palete: {item.produto.sku} · {quantidade:g} {item.produto.unidade}'
+                          + (' · palete de outra empresa (confirmado)' if outra_empresa else ''))[:200])
         if nota.status == 'Aguardando':
             nota.status = 'Em conferência'
-        registrar_log('Adicionou item a palete existente', f'{palete.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}',
-                      modulo=_modulo(nota))
+        registrar_log('Adicionou item a palete de outra empresa' if outra_empresa else 'Adicionou item a palete existente',
+                      f'{palete.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}', modulo=_modulo(nota))
         db.session.commit()
         onde = (f'no endereço {palete.endereco.codigo}' if palete.endereco else
                 f'guardar em {palete.sugerido.codigo}' if palete.sugerido else 'aguardando guarda')
@@ -707,6 +715,7 @@ def paletes_buscar():
         dono = empresa_do_palete(p)
         lista.append({'id': p.id, 'etiqueta': p.etiqueta, 'endereco': p.endereco.codigo if p.endereco else None,
                       'classificacao': p.classificacao, 'empresa': (dono.fantasia or dono.nome) if dono else None,
+                      'empresa_id': dono.id if dono else None,
                       'dividir': url_for('entrada.palete_dividir', pid=p.id),
                       'itens': [{'id': i.id, 'sku': i.produto.sku, 'descricao': i.produto.descricao, 'unidade': i.produto.unidade,
                                  'quantidade': i.quantidade, 'lote': i.lote,
