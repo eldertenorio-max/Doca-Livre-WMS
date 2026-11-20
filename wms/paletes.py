@@ -17,15 +17,19 @@ MOTIVOS_RETORNO = ['Cliente ausente', 'Recusa do cliente', 'Endereço não local
 DESTINO_DA_CLASSIFICACAO = {'Avaria': 'AVARIA', 'Descarte / Perdas': 'DESCARTE', 'Palete bloqueado': 'BLOQUEADO',
                             'Reentrega': 'REENTREGA'}
 NO_ARMAZEM = ('Armazenado', 'Stage')          # status em que o palete ocupa um endereco
+# Produto recebido com etiqueta de recebimento (codigo RC...), ainda sem palete. Fica guardado como um "palete" com
+# este status so ate entrar num palete novo ou num ja guardado; as telas de estoque, guarda e saida nao olham este status.
+RECEBIDO = 'Recebido'
 
 MOTIVOS_SAIDA = ['Expedição', 'Transferência', 'Auditoria', 'Manutenção', 'Outro']
 MOTIVOS_BAIXA = ['NF incorreta', 'Endereçamento incorreto', 'Entrada duplicada', 'Dados do item incorretos',
                  'XML com erro', 'Quantidade incorreta', 'Entrada indevida', 'Outro']
 
 
-def gerar_etiqueta():
-    """Etiqueta do palete com exatamente 22 caracteres: UP + data/hora + sorteio (padrao do WMS Pro)."""
-    prefixo = 'UP' + datetime.now(timezone.utc).strftime('%y%m%d%H%M')
+def gerar_etiqueta(inicio='UP'):
+    """Etiqueta do palete com exatamente 22 caracteres: UP + data/hora + sorteio (padrao do WMS Pro).
+    A etiqueta de recebimento usa o mesmo formato com RC no lugar de UP."""
+    prefixo = inicio + datetime.now(timezone.utc).strftime('%y%m%d%H%M')
     while True:
         etiqueta = prefixo + ''.join(secrets.choice(string.digits + string.ascii_uppercase)
                                      for _ in range(22 - len(prefixo)))

@@ -22,7 +22,7 @@ from .enderecamento import localizar_endereco
 from .etiqueta_zebra import ctx_etiqueta_zebra
 from .models import Empresa, Endereco, NfSaida, NotaFiscal, NotaItem, Palete, PaleteItem, Produto, agora, db
 from .nfe import XmlInvalido, ler_nfe
-from .paletes import (CLASSIFICACOES, CLASSIFICACOES_RETORNO, NO_ARMAZEM, colocar_em, embarcador_de, empresa_do_palete,
+from .paletes import (CLASSIFICACOES, CLASSIFICACOES_RETORNO, NO_ARMAZEM, RECEBIDO, colocar_em, embarcador_de, empresa_do_palete,
                       gerar_etiqueta, localizar_palete, mesmo_embarcador, registrar, reserva_de_outro, resumo_itens,
                       sugerir_endereco, ultima_posicao_do_embarcador, validar_destino, vincular_embarcador)
 
@@ -566,6 +566,9 @@ def nota(nid):
                 'validade': l['item'].validade.isoformat() if l['item'].validade else ''} for l in linhas]
     aberta = nota.status in ABERTAS
     raiz = embarcador_de(nota.empresa) if nota.empresa else None
+    todos = paletes_da_nota(nota)
+    # Produtos com etiqueta de recebimento ainda sem palete ficam numa lista propria, separada dos paletes.
+    paletes = [p for p in todos if p.status != RECEBIDO]
     return render_template('entrada_nota.html', nota=nota, linhas=linhas, bipagem=bipagem,
                            classificacoes=CLASSIFICACOES_RETORNO if nota.tipo == 'Retorno' else CLASSIFICACOES,
                            retorno=nota.tipo == 'Retorno', lista_url=_lista_da(nota), aberta=aberta,
@@ -577,8 +580,8 @@ def nota(nid):
                            ultima_posicao=ultima_posicao_do_embarcador(nota.empresa) if aberta else None,
                            pergunta=_pergunta_de_reserva(nota) if aberta else None,
                            tem_xml=bool(nota.xml), danfe_oficial=bool(chave_meu_danfe()),
-                           paletes=paletes_da_nota(nota), riscado=rotulo_riscado,
-                           pendentes=[p for p in paletes_da_nota(nota) if p.status == 'Aguardando guarda'],
+                           paletes=paletes, recebidos=[p for p in todos if p.status == RECEBIDO], riscado=rotulo_riscado,
+                           pendentes=[p for p in paletes if p.status == 'Aguardando guarda'],
                            divergentes=[l for l in linhas if l['situacao'] != 'ok'],
                            motivos_divergencia=MOTIVOS_DIVERGENCIA, resumo_itens=resumo_itens,
                            bip=lambda e: codigo_bipagem(e.camara.codigo, e.rua, e.coluna, e.nivel))
@@ -693,8 +696,8 @@ def montar_palete(nid):
                   motivo=f'NF {nota.numero} · adicionado ao palete: {item.produto.sku} · {quantidade:g} {item.produto.unidade}'[:200])
         if nota.status == 'Aguardando':
             nota.status = 'Em conferência'
-        registrar_log('Adicionou item a palete existente', f'{palete.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}',
-                      modulo=_modulo(nota))
+        registrar_log('Adicionou item a palete de outra empresa' if outra_empresa else 'Adicionou item a palete existente',
+                      f'{palete.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}', modulo=_modulo(nota))
         db.session.commit()
         if aprendido:
             flash(aprendido, 'success')
@@ -778,6 +781,185 @@ def juntar_paletes(nid):
           + (f'. Guardar em {fica.sugerido.codigo}.' if fica.sugerido else ', mas não há endereço livre para indicar.')
           + ' Reimprima a etiqueta dele e descarte as outras.', 'success' if fica.sugerido else 'error')
     return redirect(url_for('entrada.nota', nid=nota.id) + f'#palete-{fica.id}')
+
+
+# ---------------------------------------------------------------- etiqueta de recebimento (produto antes do palete)
+
+@bp.route('/notas/<int:nid>/recebido', methods=['POST'])
+@perm('recebimento')
+def receber_produto(nid):
+    """Etiqueta de recebimento: registra o produto recebido (quantidade, lote, datas) sem montar palete ainda.
+    Vira uma unidade com status "Recebido" e codigo RC..., que depois entra num palete novo ou num palete ja guardado
+    (Recebidos sem palete, na tela da nota). Ate la nao conta no estoque: as telas de estoque, guarda e saida so olham
+    os status do armazem."""
+    nota = _nota_ou_404(nid)
+    if nota.status not in ABERTAS:
+        flash('Esta nota não está mais em conferência.', 'error')
+        return _voltar_nota(nota)
+    item = db.session.get(NotaItem, request.form.get('item_id', type=int) or 0)
+    quantidade = _quantidade(request.form.get('quantidade'))
+    classificacao = request.form.get('classificacao')
+    if not item or item.nota_id != nota.id:
+        flash('Escolha o item da nota (bipe o produto ou selecione na lista).', 'error')
+        return _voltar_nota(nota)
+    if quantidade is None:
+        flash('Informe a quantidade recebida (maior que zero).', 'error')
+        return _voltar_nota(nota)
+    if classificacao not in (CLASSIFICACOES_RETORNO if nota.tipo == 'Retorno' else CLASSIFICACOES):
+        abort(400)
+    fabricacao, validade = _data(request.form.get('fabricacao')), _data(request.form.get('validade'))
+    if fabricacao and validade and validade < fabricacao:
+        flash('A validade não pode ser anterior à fabricação.', 'error')
+        return _voltar_nota(nota)
+    unidade = Palete(etiqueta=gerar_etiqueta('RC'), nota=nota, classificacao=classificacao, status=RECEBIDO,
+                     up=(request.form.get('up') or '').strip()[:20] or None, criado_por=usuario_atual().username)
+    db.session.add(unidade)
+    unidade.itens.append(PaleteItem(produto=item.produto, nota_item_id=item.id, quantidade=quantidade,
+                                    lote=(request.form.get('lote') or '').strip()[:30] or None,
+                                    fabricacao=fabricacao, validade=validade))
+    if nota.status == 'Aguardando':
+        nota.status = 'Em conferência'
+    db.session.flush()
+    registrar_log('Gerou etiqueta de recebimento',
+                  f'{unidade.etiqueta} · NF {nota.numero} · {item.produto.sku} · {quantidade:g}', modulo=_modulo(nota))
+    db.session.commit()
+    flash(f'Etiqueta de recebimento {unidade.etiqueta}: {quantidade:g} {item.produto.unidade} de {item.produto.sku}. '
+          'Depois marque os recebidos e monte o palete.', 'success')
+    return redirect(url_for('entrada.etiqueta_recebimento', pid=unidade.id, novo=1))
+
+
+def _recebidos_marcados(nota):
+    """Unidades 'Recebido' desta nota marcadas na lista. Devolve (unidades, erro)."""
+    ids = {int(v) for v in request.form.getlist('recebido') if v.isdigit()}
+    unidades = [p for p in paletes_da_nota(nota) if p.id in ids and p.status == RECEBIDO]
+    if not unidades:
+        return [], 'Marque pelo menos um produto recebido.'
+    if len({u.classificacao for u in unidades}) > 1:
+        return [], 'Os produtos marcados têm classificações diferentes (ex.: Bom e Avaria). Use só os de mesma classificação.'
+    if len({embarcador_de(d).id for d in (empresa_do_palete(u) for u in unidades) if d}) > 1:
+        return [], 'Os produtos marcados são de embarcadores diferentes. Não dá para misturar.'
+    return unidades, None
+
+
+def _passar_itens(unidades, palete):
+    """Passa os itens das unidades recebidas para o palete (soma quando e o mesmo item, lote e datas) e apaga as unidades."""
+    for unidade in unidades:
+        for i in list(unidade.itens):
+            igual = next((x for x in palete.itens if x.nota_item_id == i.nota_item_id and x.produto_id == i.produto_id
+                          and x.lote == i.lote and x.fabricacao == i.fabricacao and x.validade == i.validade), None)
+            if igual:
+                igual.quantidade = round(igual.quantidade + i.quantidade, 3)
+            else:
+                palete.itens.append(PaleteItem(produto_id=i.produto_id, nota_item_id=i.nota_item_id, lote=i.lote,
+                                               fabricacao=i.fabricacao, validade=i.validade, quantidade=i.quantidade))
+    for unidade in unidades:
+        db.session.delete(unidade)
+
+
+@bp.route('/notas/<int:nid>/recebidos/montar', methods=['POST'])
+@perm('recebimento')
+def montar_com_recebidos(nid):
+    """Monta um palete novo com os produtos recebidos marcados; a etiqueta do palete (Guardar em) abre para imprimir."""
+    nota = _nota_ou_404(nid)
+    if nota.status not in ABERTAS:
+        flash('Esta nota não está mais em conferência.', 'error')
+        return _voltar_nota(nota)
+    unidades, erro = _recebidos_marcados(nota)
+    if erro:
+        flash(erro, 'error')
+        return _voltar_nota(nota)
+    codigos = ', '.join(u.etiqueta for u in unidades)
+    palete = Palete(etiqueta=gerar_etiqueta(), nota=nota, classificacao=unidades[0].classificacao,
+                    up=(request.form.get('up') or '').strip()[:20] or next((u.up for u in unidades if u.up), None),
+                    criado_por=usuario_atual().username)
+    db.session.add(palete)
+    _passar_itens(unidades, palete)
+    db.session.flush()
+    if nota.tipo == 'Retorno':
+        registrar(palete, 'Retorno', motivo=(f'NF {nota.numero}' + (f' · {nota.motivo_retorno}' if nota.motivo_retorno else '')
+                                              + f' · {len(unidades)} etiqueta(s) de recebimento')[:200])
+    else:
+        registrar(palete, 'Entrada', motivo=f'NF {nota.numero} · {len(unidades)} etiqueta(s) de recebimento'[:200])
+    motivos = []
+    palete.sugerido = sugerir_endereco(palete, motivos)
+    registrar_log('Montou palete com recebidos', f'{palete.etiqueta} · NF {nota.numero} · {codigos}'[:300], modulo=_modulo(nota))
+    db.session.commit()
+    if palete.sugerido:
+        # a ultima posicao em que o embarcador guardou, quando e outra: ajuda a deixar a carga do mesmo dono junta
+        ultima = ultima_posicao_do_embarcador(nota.empresa, menos_palete_id=palete.id)
+        flash(f'Palete {palete.etiqueta} montado com {len(unidades)} produto(s) recebido(s). Guardar em {palete.sugerido.codigo}'
+              + (f' ({"; ".join(motivos)})' if motivos else '') + '.'
+              + (f' O último palete deste embarcador foi guardado em {ultima.codigo}.'
+                 if ultima and ultima.id != palete.sugerido_id else ''), 'success')
+    else:
+        flash(f'Palete {palete.etiqueta} montado com {len(unidades)} produto(s) recebido(s), mas não há endereço livre para '
+              'indicar. Cadastre ou libere endereços e use "Indicar endereço".', 'error')
+    return redirect(url_for('entrada.etiqueta_palete', pid=palete.id, novo=1))
+
+
+@bp.route('/notas/<int:nid>/recebidos/adicionar', methods=['POST'])
+@perm('recebimento')
+def adicionar_recebidos(nid):
+    """Coloca os produtos recebidos marcados num palete que ja existe (aguardando guarda ou ja guardado).
+    O palete continua com a mesma etiqueta e no mesmo endereco; so as quantidades mudam."""
+    nota = _nota_ou_404(nid)
+    if nota.status not in ABERTAS:
+        flash('Esta nota não está mais em conferência.', 'error')
+        return _voltar_nota(nota)
+    unidades, erro = _recebidos_marcados(nota)
+    palete = None
+    if not erro:
+        palete, erro = localizar_palete(request.form.get('palete_existente'))
+    if not erro and (palete.status == RECEBIDO or (palete.status != 'Aguardando guarda' and palete.status not in NO_ARMAZEM)):
+        erro = f'O palete {palete.etiqueta} está "{palete.status}": só dá para adicionar a palete aguardando guarda ou guardado.'
+    if not erro and palete.carga_id:
+        erro = f'O palete {palete.etiqueta} já está separado para uma carga.'
+    if not erro and palete.classificacao != unidades[0].classificacao:
+        erro = (f'O palete {palete.etiqueta} é "{palete.classificacao}" e os produtos marcados são '
+                f'"{unidades[0].classificacao}". Monte um palete novo para eles.')
+    # Palete de outro embarcador: entra so com a confirmacao que a tela pede; confirmando, o sistema aprende.
+    outra_empresa = None if erro else _mesmo_dono(palete, nota)
+    if outra_empresa and request.form.get('confirmar_empresa') != '1':
+        erro = outra_empresa
+    if erro:
+        flash(erro, 'error')
+        return _voltar_nota(nota)
+    aprendido = _aprender_embarcador(nota.empresa, empresa_do_palete(palete), _modulo(nota)) if outra_empresa else None
+    codigos = ', '.join(u.etiqueta for u in unidades)
+    _passar_itens(unidades, palete)
+    registrar(palete, 'Entrada', destino=palete.endereco,
+              motivo=f'NF {nota.numero} · adicionado ao palete: {len(unidades)} etiqueta(s) de recebimento'[:200])
+    registrar_log('Adicionou recebidos a palete existente', f'{palete.etiqueta} · NF {nota.numero} · {codigos}'[:300],
+                  modulo=_modulo(nota))
+    db.session.commit()
+    if aprendido:
+        flash(aprendido, 'success')
+    onde = (f'no endereço {palete.endereco.codigo}' if palete.endereco else
+            f'guardar em {palete.sugerido.codigo}' if palete.sugerido else 'aguardando guarda')
+    flash(f'{len(unidades)} produto(s) recebido(s) adicionado(s) ao palete {palete.etiqueta} ({onde}).', 'success')
+    return redirect(url_for('entrada.etiqueta_palete', pid=palete.id, adicionado=1, nota=nota.id))
+
+
+@bp.route('/recebidos/<int:pid>/etiqueta')
+@perm('recebimento')
+def etiqueta_recebimento(pid):
+    """Etiqueta de recebimento do produto (mesmo padrao Zebra 102x73 mm das etiquetas de palete)."""
+    unidade = _palete_ou_404(pid)
+    item = unidade.itens[0] if unidade.itens else None
+    nota = unidade.nota
+
+    def br(data):
+        return data.strftime('%d/%m/%Y') if data else None
+
+    novo = request.args.get('novo') == '1'
+    return render_template('etiquetas/recebimento.html', etiqueta=unidade.etiqueta, auto_print=novo,
+                           voltar=url_for('entrada.nota', nid=nota.id) + '#recebidos' if (novo and nota) else None,
+                           nf=nota.numero if nota else None,
+                           sku=item.produto.sku if item else None, lote=item.lote if item else None,
+                           data_producao=br(item.fabricacao) if item else None,
+                           data_validade=br(item.validade) if item else None,
+                           quantidade=f'{item.quantidade:g} {item.produto.unidade}'.replace('.', ',') if item else None,
+                           descricao=item.produto.descricao if item else None, **ctx_etiqueta_zebra())
 
 
 @bp.route('/paletes/buscar')
@@ -946,14 +1128,15 @@ def guardar(pid):
 def palete_excluir(pid):
     palete = _palete_ou_404(pid)
     nota = palete.nota
-    if palete.status != 'Aguardando guarda':
+    if palete.status not in ('Aguardando guarda', RECEBIDO):
         flash('Palete já guardado não pode ser excluído por aqui. Use Movimentação › Remover do estoque.', 'error')
     else:
-        registrar_log('Excluiu palete da conferência', f'{palete.etiqueta} · NF {nota.numero if nota else "—"}',
-                      modulo='recebimento')
+        recebido = palete.status == RECEBIDO
+        registrar_log('Excluiu etiqueta de recebimento' if recebido else 'Excluiu palete da conferência',
+                      f'{palete.etiqueta} · NF {nota.numero if nota else "—"}', modulo='recebimento')
         db.session.delete(palete)
         db.session.commit()
-        flash('Palete excluído.', 'success')
+        flash('Etiqueta de recebimento excluída.' if recebido else 'Palete excluído.', 'success')
     return _voltar_nota(nota) if nota else redirect(url_for('entrada.conferencia'))
 
 
@@ -993,6 +1176,10 @@ def finalizar(nid):
     nota = _nota_ou_404(nid)
     if nota.status != 'Em conferência':
         flash('Só é possível finalizar uma nota em conferência (com ao menos um palete montado).', 'error')
+        return _voltar_nota(nota)
+    if any(p.status == RECEBIDO for p in paletes_da_nota(nota)):
+        flash('Ainda há produto recebido sem palete. Monte o palete ou adicione a um palete guardado antes de finalizar.',
+              'error')
         return _voltar_nota(nota)
     if any(p.status == 'Aguardando guarda' for p in paletes_da_nota(nota)):
         flash('Ainda há palete aguardando guarda. Guarde todos antes de finalizar.', 'error')
@@ -1048,7 +1235,7 @@ def cancelar(nid):
     if any(p.status in NO_ARMAZEM for p in nota.paletes):
         flash('Há paletes desta nota guardados no armazém. Remova-os do estoque em Movimentação antes de cancelar.', 'error')
         return _voltar_nota(nota)
-    for palete in [p for p in nota.paletes if p.status == 'Aguardando guarda']:
+    for palete in [p for p in nota.paletes if p.status in ('Aguardando guarda', RECEBIDO)]:
         db.session.delete(palete)
     nota.status, nota.motivo_cancelamento, nota.finalizado_em = 'Cancelada', motivo, agora()
     registrar_log('Cancelou retorno' if nota.tipo == 'Retorno' else 'Cancelou entrada', f'NF {nota.numero} — {motivo}',

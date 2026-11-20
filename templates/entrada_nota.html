@@ -142,6 +142,8 @@
                         <div class="col-12 d-flex flex-wrap align-items-center gap-2">
                             <input type="hidden" name="palete_existente" id="pExistente" value="">
                             <input type="hidden" name="confirmar_empresa" id="pConfirmarEmpresa" value="">
+                            <button type="submit" class="btn btn-primary" id="pReceber" formaction="{{ url_for('entrada.receber_produto', nid=nota.id) }}"
+                                    title="Imprime a etiqueta deste produto. Depois marque os recebidos e monte o palete"><i class="fas fa-tag"></i>Etiqueta de recebimento</button>
                             <button type="submit" class="btn btn-verde-claro" id="pMontar"><i class="fas fa-plus"></i>Montar palete</button>
                             <button type="button" class="btn btn-laranja" id="pAdicionar" title="Coloca este item num palete que já está endereçado"><i class="fas fa-layer-group"></i>Adicionar ao palete</button>
                             <button type="button" class="btn btn-amarelo" data-bs-toggle="modal" data-bs-target="#modalJuntar"><i class="fas fa-object-group"></i>Juntar paletes</button>
@@ -161,6 +163,56 @@
         </div>
     </div>
 </div>
+
+{# Produtos com etiqueta de recebimento ainda sem palete: marca e monta um palete novo ou põe num palete já guardado #}
+{% if recebidos %}
+<div class="card" id="recebidos">
+    <div class="card-header"><i class="fas fa-tags me-2"></i>Recebidos sem palete <span class="text-muted fw-normal">({{ recebidos|length }})</span></div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('entrada.montar_com_recebidos', nid=nota.id) }}" id="formRecebidos" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="palete_existente" id="rExistente" value="">
+            <input type="hidden" name="confirmar_empresa" id="rConfirmarEmpresa" value="">
+            <div class="tabela-scroll">
+                <table class="table mb-0">
+                    <thead><tr>
+                        <th>{% if editar and aberta %}<input class="form-check-input" type="checkbox" id="rTodos" aria-label="Marcar todos os recebidos">{% endif %}</th>
+                        <th>Etiqueta</th><th>Produto</th><th>Lote / validade</th><th>Classificação</th><th></th>
+                    </tr></thead>
+                    <tbody>
+                        {% for r in recebidos %}
+                        {% set it = r.itens[0] if r.itens else none %}
+                        <tr>
+                            <td>{% if editar and aberta %}<input class="form-check-input" type="checkbox" name="recebido" value="{{ r.id }}" id="rc{{ r.id }}" data-classificacao="{{ r.classificacao }}" aria-label="Marcar {{ r.etiqueta }}">{% endif %}</td>
+                            <td><label class="codigo-mono mb-0" for="rc{{ r.id }}">{{ r.etiqueta }}</label></td>
+                            <td>{{ resumo_itens(r) }}</td>
+                            <td>{{ it.lote or '—' if it else '—' }}{% if it and it.validade %}<br><small>val. {{ it.validade.strftime('%d/%m/%Y') }}</small>{% endif %}</td>
+                            <td>{{ selo(r.classificacao) }}</td>
+                            <td class="text-end">
+                                <div class="d-flex flex-wrap justify-content-end align-items-center gap-2">
+                                    <a href="{{ url_for('entrada.etiqueta_recebimento', pid=r.id) }}" target="_blank" rel="noopener" class="btn btn-sm btn-secondary" title="Etiqueta de recebimento" aria-label="Etiqueta de recebimento"><i class="fas fa-tag"></i></a>
+                                    {% if editar and aberta %}
+                                    <button type="submit" class="btn btn-sm btn-danger" formaction="{{ url_for('entrada.palete_excluir', pid=r.id) }}" formtarget="_self"
+                                            data-excluir-recebido title="Excluir esta etiqueta de recebimento" aria-label="Excluir etiqueta de recebimento"><i class="fas fa-trash"></i></button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if editar and aberta %}
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                <button type="submit" class="btn btn-verde-claro" id="rMontar"><i class="fas fa-plus"></i>Montar palete com os selecionados</button>
+                <button type="button" class="btn btn-laranja" id="rAdicionar" title="Coloca os produtos marcados num palete que já existe (guardado ou aguardando guarda)"><i class="fas fa-layer-group"></i>Adicionar a palete armazenado</button>
+                <span class="text-muted small" id="rAviso" aria-live="polite"></span>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endif %}
 
 {# Paletes da nota #}
 <div class="card">
@@ -336,7 +388,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                {% if pendentes %}
+                {% if recebidos %}
+                <div class="alert alert-warning mb-0">Ainda há {{ recebidos|length }} produto(s) recebido(s) sem palete. Monte o palete ou adicione a um palete guardado antes de finalizar.</div>
+                {% elif pendentes %}
                 <div class="alert alert-warning mb-0">Ainda há {{ pendentes|length }} palete(s) aguardando guarda. Guarde todos antes de finalizar.</div>
                 {% elif divergentes %}
                 <p>Há {{ divergentes|length }} item(ns) com quantidade diferente da nota. Informe o motivo de cada um:</p>
@@ -354,7 +408,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
-                {% if not pendentes %}<button type="submit" class="btn btn-primary"><i class="fas fa-flag-checkered"></i>Finalizar</button>{% endif %}
+                {% if not pendentes and not recebidos %}<button type="submit" class="btn btn-primary"><i class="fas fa-flag-checkered"></i>Finalizar</button>{% endif %}
             </div>
         </form>
     </div>
@@ -494,18 +548,28 @@
             ' — ' + document.getElementById('pQtd').value;
     }
     function enviarPara(p, confirmado) {
-        existente.value = p.etiqueta;
-        confirmarEmpresa.value = confirmado ? '1' : '';
         var aberta = bootstrap.Modal.getInstance(janela);
         if (aberta) aberta.hide();
+        if (alvo === 'recebidos' && formRec) {
+            // os produtos recebidos marcados (etiquetas de recebimento) vão para o palete escolhido
+            document.getElementById('rExistente').value = p.etiqueta;
+            document.getElementById('rConfirmarEmpresa').value = confirmado ? '1' : '';
+            formRec.action = urlAdicionarRec;
+            if (formRec.requestSubmit) formRec.requestSubmit(); else formRec.submit();
+            return;
+        }
+        existente.value = p.etiqueta;
+        confirmarEmpresa.value = confirmado ? '1' : '';
         if (form.requestSubmit) form.requestSubmit(); else form.submit();
     }
     // Palete escolhido (na janela ou no aviso "quer juntar?"): confere antes de enviar e avisa o que o servidor recusaria.
     function escolher(p) {
-        var classe = document.getElementById('pClass').value, html = null, pergunta = false;
-        if (p.classificacao !== classe) {
+        var classe = alvo === 'recebidos' ? classeDosRecebidos() : document.getElementById('pClass').value, html = null, pergunta = false;
+        if (classe && p.classificacao !== classe) {
             html = 'O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é <strong>' + escapar(p.classificacao) +
-                '</strong> e este item está classificado como <strong>' + escapar(classe) + '</strong>. Troque a classificação do item ou escolha outro palete.';
+                '</strong> e ' + (alvo === 'recebidos' ? 'os produtos marcados estão classificados' : 'este item está classificado') +
+                ' como <strong>' + escapar(classe) + '</strong>. ' +
+                (alvo === 'recebidos' ? 'Escolha outro palete.' : 'Troque a classificação do item ou escolha outro palete.');
         } else if (outraEmpresa(p)) {
             pergunta = true;
             html = '<strong>Empresas diferentes.</strong> O palete <strong class="codigo-mono">' + escapar(p.etiqueta) + '</strong> é de <strong>' +
@@ -542,13 +606,27 @@
             })
             .catch(function () { if (meu === pedido) lista.innerHTML = '<p class="text-danger small mb-0">Não foi possível buscar os paletes. Tente de novo.</p>'; });
     }
+    // Quem vai para o palete escolhido na janela: o item do formulário ('palete') ou os recebidos marcados ('recebidos')
+    var alvo = 'palete';
+    var formRec = document.getElementById('formRecebidos'), urlMontarRec = formRec ? formRec.getAttribute('action') : null;
+    var urlAdicionarRec = {{ url_for('entrada.adicionar_recebidos', nid=nota.id)|tojson }};
+    function marcadosRec() { return formRec ? formRec.querySelectorAll('input[name="recebido"]:checked').length : 0; }
+    // Classificação dos recebidos marcados (null quando há mais de uma: o servidor explica a recusa)
+    function classeDosRecebidos() {
+        var classes = {};
+        formRec.querySelectorAll('input[name="recebido"]:checked').forEach(function (c) { classes[c.getAttribute('data-classificacao') || ''] = true; });
+        var nomes = Object.keys(classes);
+        return nomes.length === 1 && nomes[0] ? nomes[0] : null;
+    }
     if (form && busca) {
-        // Montar palete (verde) sempre cria palete novo
+        // Montar palete (verde) sempre cria palete novo; a etiqueta de recebimento também ignora o palete existente
         document.getElementById('pMontar').addEventListener('click', function () { existente.value = ''; confirmarEmpresa.value = ''; });
+        document.getElementById('pReceber').addEventListener('click', function () { existente.value = ''; confirmarEmpresa.value = ''; });
         // Adicionar ao palete (laranja): primeiro o item e a quantidade, depois escolhe o palete
         document.getElementById('pAdicionar').addEventListener('click', function () {
             existente.value = '';
             if (!form.reportValidity()) return;
+            alvo = 'palete';
             avisoPendente = null;
             descreverItem();
             bootstrap.Modal.getOrCreateInstance(janela).show();
@@ -593,9 +671,39 @@
         listaJuntar.addEventListener('click', function (ev) {
             var b = ev.target.closest('[data-juntar]');
             if (!b) return;
+            alvo = 'palete';
             existente.value = '';
             if (!form.reportValidity()) return;
             escolher((sugestoes[b.getAttribute('data-item')] || [])[Number(b.getAttribute('data-juntar'))]);
+        });
+    }
+
+    // ---- Recebidos sem palete: marcar todos, montar palete novo ou adicionar a palete armazenado
+    if (formRec && document.getElementById('rMontar')) {
+        var avisoRec = document.getElementById('rAviso');
+        function contarRec() { avisoRec.textContent = marcadosRec() ? marcadosRec() + ' marcado(s)' : ''; }
+        document.getElementById('rTodos').addEventListener('change', function (ev) {
+            formRec.querySelectorAll('input[name="recebido"]').forEach(function (c) { c.checked = ev.target.checked; });
+            contarRec();
+        });
+        formRec.addEventListener('change', contarRec);
+        document.getElementById('rMontar').addEventListener('click', function (ev) {
+            formRec.action = urlMontarRec;
+            document.getElementById('rExistente').value = '';
+            document.getElementById('rConfirmarEmpresa').value = '';
+            if (!marcadosRec()) { ev.preventDefault(); avisoRec.textContent = 'Marque os produtos recebidos que vão no palete.'; }
+        });
+        document.getElementById('rAdicionar').addEventListener('click', function () {
+            if (!marcadosRec()) { avisoRec.textContent = 'Marque os produtos recebidos que vão para o palete.'; return; }
+            alvo = 'recebidos';
+            avisoPendente = null;
+            document.getElementById('adItem').textContent = marcadosRec() + ' produto(s) recebido(s) marcado(s)';
+            bootstrap.Modal.getOrCreateInstance(janela).show();
+        });
+        formRec.querySelectorAll('[data-excluir-recebido]').forEach(function (b) {
+            b.addEventListener('click', function (ev) {
+                if (!confirm('Excluir esta etiqueta de recebimento? O produto volta a ficar pendente na nota.')) ev.preventDefault();
+            });
         });
     }
 })();
@@ -662,9 +770,11 @@
         window.name = '';                             // sem aba de origem: vira aba comum, com o aviso no topo
         if (devolvido) window.close();
     }
-    [document.getElementById('formPalete')].forEach(function (form) {
+    [document.getElementById('formPalete'), document.getElementById('formRecebidos')].forEach(function (form) {
         if (!form) return;
-        form.addEventListener('submit', function () {
+        form.addEventListener('submit', function (ev) {
+            // excluir uma etiqueta de recebimento fica nesta aba
+            if (ev.submitter && ev.submitter.hasAttribute('data-excluir-recebido')) { form.target = ''; return; }
             var aba = null;
             try { aba = window.open('', ABA); } catch (e) {}
             form.target = aba ? ABA : '';              // navegador bloqueou a aba nova: segue na mesma aba, como antes
