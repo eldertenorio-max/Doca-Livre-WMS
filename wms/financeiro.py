@@ -3,8 +3,10 @@
 Cinco partes (sub-abas): Tabela de cobranca, Contrato, Clientes, Movimentacao (controle de permanencia) e Logica de
 cobranca. Nao emite fatura nem boleto: calcula o valor de cada nota e gera a planilha detalhada.
 
-O cliente e a empresa emitente da nota de entrada (Cadastros > Empresas). As contas ficam em financeiro_calculo.py;
-aqui os dados de cada nota sao montados a partir dos paletes dela:
+O cliente e a empresa emitente da nota de entrada (Cadastros > Empresas). Quando o embarcador remete por mais de um
+CNPJ (empresas ligadas em Cadastros > Empresas, "Agrupa enderecos"), o cliente e o embarcador inteiro: escolher uma das
+empresas mostra e soma as notas de todas, e a empresa sem contrato proprio usa o contrato do embarcador.
+As contas ficam em financeiro_calculo.py; aqui os dados de cada nota sao montados a partir dos paletes dela:
 - em estoque  = paletes aguardando guarda, guardados ou no stage;
 - saida       = paletes expedidos numa carga (ou tirados do armazem pela tela de Controle de palete);
 - baixados    = nao contam (foram erro de lancamento).
@@ -23,8 +25,9 @@ from . import financeiro_calculo as calc
 from .core import perm, pode_editar, registrar_log
 from .estoque import _excel
 from .nfe import XmlInvalido, ler_nfe
-from .models import (Carga, ContratoCobranca, Empresa, Movimentacao, NotaFiscal, Palete, PaleteItem, TabelaCobranca,
-                     agora, db)
+from .models import (Carga, ContratoCobranca, Empresa, Movimentacao, NotaFiscal, NotaItem, Palete, PaleteItem,
+                     TabelaCobranca, agora, db)
+from .paletes import embarcador_de, empresas_do_embarcador, raizes_dos_embarcadores
 
 bp = Blueprint('financeiro', __name__, url_prefix='/financeiro')
 
@@ -158,8 +161,42 @@ def contratos_ativos():
     return ativos
 
 
-def linhas_do_financeiro(empresa_id=None, hoje=None):
-    """Uma linha por nota de entrada que ja recebeu palete: resumo, cobranca da estadia e cobranca do periodo."""
+def contrato_da_empresa(empresa, ativos):
+    """Contrato que vale para a empresa: o dela; sem contrato proprio, o do embarcador a que ela esta ligada; sem esse, o
+    mais recente de outra empresa do mesmo embarcador. None quando ninguem do grupo tem contrato ativo."""
+    if empresa is None:
+        return None
+    if empresa.id in ativos:
+        return ativos[empresa.id]
+    raiz = embarcador_de(empresa)
+    if raiz.id in ativos:
+        return ativos[raiz.id]
+    do_grupo = [ativos[i] for i in empresas_do_embarcador(empresa) if i in ativos]
+    return max(do_grupo, key=lambda c: c.id) if do_grupo else None
+
+
+def _pesos_com_itens_de_fora(nota, paletes, cache):
+    """Pesos por item da nota, mais os dos itens de OUTRA nota guardados nos paletes desta (o mesmo embarcador pode
+    juntar, num palete, produto de notas de CNPJs diferentes). cache = nota_id -> pesos, para nao recalcular."""
+    if nota.id not in cache:
+        cache[nota.id] = pesos_por_item(nota)
+    pesos = dict(cache[nota.id])
+    de_fora = {c.nota_item_id for p in paletes for c in p.itens if c.nota_item_id and c.nota_item_id not in pesos}
+    if de_fora:
+        outras = (NotaFiscal.query.join(NotaItem, NotaItem.nota_id == NotaFiscal.id).filter(NotaItem.id.in_(de_fora))
+                  .options(selectinload(NotaFiscal.itens)).distinct().all())
+        for outra in outras:
+            if outra.id not in cache:
+                cache[outra.id] = pesos_por_item(outra)
+            pesos.update({item: peso for item, peso in cache[outra.id].items() if item in de_fora})
+    return pesos
+
+
+def linhas_do_financeiro(empresa_id=None, hoje=None, empresas=None):
+    """Uma linha por nota de entrada que ja recebeu palete: resumo, cobranca da estadia e cobranca do periodo.
+
+    empresa_id = so as notas do embarcador dessa empresa (ela e as outras do mesmo embarcador);
+    empresas   = so as notas dessas empresas, exatamente (quem chama ja ampliou para o grupo)."""
     hoje = hoje or agora().date()
     completar_pesos()
     consulta = (NotaFiscal.query.filter(NotaFiscal.tipo == 'Entrada', NotaFiscal.status != 'Cancelada')
@@ -167,7 +204,10 @@ def linhas_do_financeiro(empresa_id=None, hoje=None):
                          selectinload(NotaFiscal.paletes).selectinload(Palete.itens).selectinload(PaleteItem.produto),
                          selectinload(NotaFiscal.paletes).selectinload(Palete.endereco)))
     if empresa_id:
-        consulta = consulta.filter(NotaFiscal.empresa_id == empresa_id)
+        empresa = db.session.get(Empresa, empresa_id)
+        empresas = empresas_do_embarcador(empresa) if empresa else {empresa_id}
+    if empresas is not None:
+        consulta = consulta.filter(NotaFiscal.empresa_id.in_(set(empresas) or {0}))
     notas = consulta.order_by(NotaFiscal.id.desc()).all()
 
     movimentos = defaultdict(dict)          # palete_id -> {'Entrada': data, 'Saída': data}
@@ -178,6 +218,7 @@ def linhas_do_financeiro(empresa_id=None, hoje=None):
     cargas = dict(db.session.query(Carga.id, Carga.codigo))
     ativos = contratos_ativos()
     padrao = calc.periodo_padrao(hoje)
+    contratos, pesos_das_notas = {}, {}          # empresa_id -> contrato que vale; nota_id -> pesos por item
 
     linhas = []
     for nota in notas:
@@ -187,7 +228,7 @@ def linhas_do_financeiro(empresa_id=None, hoje=None):
         if not estoque and not saidos:
             continue                         # nota que ainda nao recebeu nada
         entrada = nota.data_armazenagem or min(p.criado_em for p in vivos).date()
-        pesos = pesos_por_item(nota)
+        pesos = _pesos_com_itens_de_fora(nota, vivos, pesos_das_notas)
         grupos = {}
         for p in saidos:
             quando = movimentos[p.id].get('Saída') or p.criado_em
@@ -206,7 +247,9 @@ def linhas_do_financeiro(empresa_id=None, hoje=None):
             paletes_entrada=sum(1 for p in vivos if 'Entrada' in movimentos[p.id]) or len(vivos),
             paletes_atuais=len(estoque), posicoes=len({p.endereco_id for p in estoque if p.endereco_id}),
             caixas=sum(_caixas(i) for p in estoque for i in p.itens), hoje=hoje)
-        contrato = ativos.get(nota.empresa_id)
+        if nota.empresa_id not in contratos:
+            contratos[nota.empresa_id] = contrato_da_empresa(nota.empresa, ativos)
+        contrato = contratos[nota.empresa_id]
         tabela = contrato.tabela if contrato else None
         cobranca = calc.calcular(resumo, _contrato_dict(contrato), _tabela_dict(tabela))
         inicio, fim = nota.cobranca_inicio or padrao[0], nota.cobranca_fim or padrao[1]
@@ -267,15 +310,22 @@ def _planilha(linhas):
 # ---------------------------------------------------------------- tela
 
 def _clientes(linhas_todas):
-    """Empresas que aparecem no Financeiro: emitentes de nota recebida, quem tem contrato e os depositantes/clientes."""
-    com_nota = defaultdict(int)
+    """Empresas que aparecem no Financeiro: emitentes de nota recebida, quem tem contrato e os depositantes/clientes.
+    A contagem de notas de cada uma e a do embarcador inteiro (ela e as outras empresas do mesmo embarcador)."""
+    por_empresa = defaultdict(int)
     for l in linhas_todas:
         if l['empresa']:
-            com_nota[l['empresa'].id] += 1
+            por_empresa[l['empresa'].id] += 1
     com_contrato = {c.empresa_id for c in ContratoCobranca.query}
-    empresas = Empresa.query.filter(db.or_(Empresa.id.in_(set(com_nota) | com_contrato),
+    empresas = Empresa.query.filter(db.or_(Empresa.id.in_(set(por_empresa) | com_contrato),
                                            db.and_(Empresa.tipo.in_(('Cliente', 'Depositante')), Empresa.ativo.is_(True)))) \
         .order_by(Empresa.nome).all()
+    raizes = raizes_dos_embarcadores()
+    por_embarcador = defaultdict(int)
+    for empresa_id, quantas in por_empresa.items():
+        por_embarcador[raizes.get(empresa_id, empresa_id)] += quantas
+    com_nota = defaultdict(int, {e.id: por_embarcador[raizes.get(e.id, e.id)] for e in empresas
+                                 if por_embarcador[raizes.get(e.id, e.id)]})
     return empresas, com_nota
 
 
@@ -298,7 +348,10 @@ def _pagina(aba=None, form=None, editando=None):
 
     todas = linhas_do_financeiro(hoje=hoje)
     empresas, com_nota = _clientes(todas)
-    contexto.update(empresas=empresas, com_nota=com_nota, ativos=contratos_ativos())
+    ativos = contratos_ativos()
+    # contrato que vale para cada empresa (o dela ou o do embarcador a que ela esta ligada)
+    contexto.update(empresas=empresas, com_nota=com_nota, ativos=ativos,
+                    contrato_de={e.id: contrato_da_empresa(e, ativos) for e in empresas}, grupo_cliente=[])
 
     if aba == 'contratos':
         contexto['contratos'] = ContratoCobranca.query.order_by(ContratoCobranca.id.desc()).all()
@@ -308,16 +361,22 @@ def _pagina(aba=None, form=None, editando=None):
 
     cliente = db.session.get(Empresa, request.args.get('cliente', type=int) or 0)
     contexto['cliente'] = cliente
+    # o cliente e o embarcador inteiro: a empresa escolhida e as outras do mesmo embarcador
+    grupo = empresas_do_embarcador(cliente) if cliente else set()
+    if cliente:
+        contexto['contrato_de'][cliente.id] = contrato_da_empresa(cliente, ativos)
+        contexto['grupo_cliente'] = [e.fantasia or e.nome for e in Empresa.query.filter(Empresa.id.in_(grupo - {cliente.id}))
+                                     .order_by(Empresa.nome)]
 
     if aba == 'clientes':
         if cliente:
-            dele = [l for l in todas if l['empresa'] and l['empresa'].id == cliente.id]
+            dele = [l for l in todas if l['empresa'] and l['empresa'].id in grupo]
             contexto.update(armazenadas=[l for l in dele if l['resumo']['armazenada']],
                             finalizadas=[l for l in dele if not l['resumo']['armazenada']],
                             total_cliente=sum(l['cobranca']['total'] for l in dele))
         return render_template('financeiro.html', **contexto)
 
-    linhas = [l for l in todas if not cliente or (l['empresa'] and l['empresa'].id == cliente.id)]
+    linhas = [l for l in todas if not cliente or (l['empresa'] and l['empresa'].id in grupo)]
     if aba == 'logica':
         linhas.sort(key=lambda l: (not l['resumo']['armazenada'], -l['resumo']['entrada'].toordinal()))
         contexto['totais'] = {

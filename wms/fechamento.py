@@ -18,8 +18,10 @@ from fpdf.enums import XPos, YPos
 from . import financeiro_calculo as calc
 from .core import perm, pode_editar, registrar_log, usuario_atual
 from .danfe import _Espelho, _cnpj, _data, _t
-from .financeiro import ABAS, _contrato_dict, _o_que_cobra, _tabela_dict, contratos_ativos, linhas_do_financeiro, moeda
+from .financeiro import (ABAS, _contrato_dict, _o_que_cobra, _tabela_dict, contrato_da_empresa, contratos_ativos,
+                         linhas_do_financeiro, moeda)
 from .models import Empresa, FechamentoMensal, agora, db
+from .paletes import empresas_do_embarcador
 
 bp = Blueprint('fechamento', __name__, url_prefix='/financeiro/fechamentos')
 
@@ -31,7 +33,8 @@ def nome_do_mes(ano, mes):
 
 
 def calcular_fechamento(empresa, ano, mes):
-    """Linhas (uma por nota com valor no mes) e totais do mes do cliente, com o que vale agora."""
+    """Linhas (uma por nota com valor no mes) e totais do mes do cliente, com o que vale agora.
+    O cliente e o embarcador inteiro: entram as notas da empresa e das outras do mesmo embarcador."""
     inicio, fim = date(ano, mes, 1), date(ano, mes, calendar.monthrange(ano, mes)[1])
     hoje = agora().date()
     linhas = []
@@ -42,6 +45,8 @@ def calcular_fechamento(empresa, ano, mes):
             continue                       # nota que nao esteve no armazem neste mes
         r = l['resumo']
         linhas.append({
+            'empresa_id': l['empresa'].id if l['empresa'] else None,
+            'cliente': (l['empresa'].fantasia or l['empresa'].nome) if l['empresa'] else None,
             'nf': l['nota'].numero, 'entrada': r['entrada'].isoformat(), 'saida': r['data_saida'].isoformat() if r['data_saida'] else None,
             'status': r['status'], 'dias': p['dias'], 'diaria': p['valor_diaria'], 'armazenagem': p['armazenagem'],
             'debitos_entrada': p['debitos_entrada'], 'paletes_entrada': p['paletes_entrada'],
@@ -73,6 +78,8 @@ def pdf_do_fechamento(f):
 
     campos = [('Cliente', f.empresa.nome), ('CNPJ', _cnpj(f.empresa.cnpj)), ('Período', f'{_data(f.inicio)} a {_data(f.fim)}'),
               ('Tabela de cobrança', dados.get('tabela') or '-'), ('Contrato', dados.get('contrato') or '-'), ('O que cobra', dados.get('cobra') or '-')]
+    if dados.get('inclui'):                # embarcador com mais de um CNPJ: as outras empresas cujas notas entraram
+        campos.append(('Inclui as notas de', ', '.join(dados['inclui'])))
     w = largura / 3
     for n in range(0, len(campos), 3):
         y = pdf.get_y()
@@ -196,22 +203,30 @@ def fechar():
         erro = 'Escolha o mês.'
     elif periodo > (hoje.year, hoje.month):
         erro = 'Não dá para fechar um mês que ainda não começou.'
-    elif empresa.id not in contratos_ativos():
+    elif not contrato_da_empresa(empresa, contratos_ativos()):
         erro = f'{empresa.nome} não tem contrato ativo. Cadastre o contrato antes de fechar o mês.'
-    elif FechamentoMensal.query.filter_by(empresa_id=empresa.id, ano=periodo[0], mes=periodo[1]).first():
-        erro = f'{nome_do_mes(*periodo).capitalize()} de {empresa.nome} já está fechado. Para refazer, reabra o fechamento.'
+    else:
+        # o fechamento vale para o embarcador inteiro: o mes nao pode ser fechado duas vezes por CNPJs diferentes dele
+        fechado = (FechamentoMensal.query.filter(FechamentoMensal.empresa_id.in_(empresas_do_embarcador(empresa)),
+                                                 FechamentoMensal.ano == periodo[0], FechamentoMensal.mes == periodo[1]).first())
+        if fechado and fechado.empresa_id == empresa.id:
+            erro = f'{nome_do_mes(*periodo).capitalize()} de {empresa.nome} já está fechado. Para refazer, reabra o fechamento.'
+        elif fechado:
+            erro = (f'{nome_do_mes(*periodo).capitalize()} já está fechado em {fechado.empresa.nome}, que é do mesmo embarcador de '
+                    f'{empresa.nome}: as notas das duas entram no mesmo fechamento. Para refazer, reabra aquele fechamento.')
     if erro:
         flash(erro, 'error')
         return _tela(form=request.form)
     ano, mes = periodo
     inicio, fim, linhas, totais = calcular_fechamento(empresa, ano, mes)
-    contrato = contratos_ativos()[empresa.id]
+    contrato = contrato_da_empresa(empresa, contratos_ativos())
+    inclui = sorted({x['cliente'] for x in linhas if x.get('cliente') and x.get('empresa_id') != empresa.id})
     if request.form.get('acao') != 'fechar':
         return _tela(form=request.form, previa={'empresa': empresa, 'ano': ano, 'mes': mes, 'inicio': inicio, 'fim': fim, 'linhas': linhas,
-                                                'totais': totais, 'em_andamento': fim >= hoje})
+                                                'totais': totais, 'em_andamento': fim >= hoje, 'inclui': inclui})
     f = FechamentoMensal(empresa=empresa, ano=ano, mes=mes, inicio=inicio, fim=fim, notas=len(linhas), criado_por=usuario_atual().username,
                          observacao=(request.form.get('observacao') or '').strip()[:300] or None, **totais,
-                         dados=json.dumps({'linhas': linhas, 'tabela': contrato.tabela.nome, 'cobra': _o_que_cobra(contrato),
+                         dados=json.dumps({'linhas': linhas, 'inclui': inclui, 'tabela': contrato.tabela.nome, 'cobra': _o_que_cobra(contrato),
                                            'contrato': f'{calc.ROTULO_CICLO[contrato.ciclo]} · {calc.ROTULO_REGRA[contrato.regra_tempo]}'},
                                           ensure_ascii=False))
     db.session.add(f)

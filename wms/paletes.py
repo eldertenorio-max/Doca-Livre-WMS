@@ -84,6 +84,31 @@ def empresas_do_embarcador(empresa):
     return ids
 
 
+def raizes_dos_embarcadores():
+    """empresa_id -> id do embarcador dela (a principal do grupo; ela mesma quando nao esta ligada a ninguem), para
+    todas as empresas, numa consulta so. Serve para somar por embarcador sem ir ao banco empresa por empresa."""
+    pai = dict(db.session.query(Empresa.id, Empresa.embarcador_id))
+    raizes = {}
+    for inicio in pai:
+        atual, vistos = inicio, set()
+        while pai.get(atual) in pai and atual not in vistos:
+            vistos.add(atual)
+            atual = pai[atual]
+        raizes[inicio] = atual
+    return raizes
+
+
+def grupos_de(ids):
+    """Amplia um conjunto de ids de empresas para todas as do mesmo embarcador de cada uma. O dono da mercadoria e o
+    embarcador, mesmo quando ele remete por mais de um CNPJ: Financeiro, Portal e Estoque somam o grupo inteiro."""
+    ids = {i for i in ids if i}
+    if not ids:
+        return set()
+    raizes = raizes_dos_embarcadores()
+    alvos = {raizes.get(i, i) for i in ids}
+    return ids | {empresa for empresa, raiz in raizes.items() if raiz in alvos}
+
+
 def vincular_embarcador(empresa, outra):
     """Aprende que as duas empresas sao do mesmo embarcador e devolve a principal.
 

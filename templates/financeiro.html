@@ -193,7 +193,7 @@
                 <li class="{% if cliente and cliente.id == e.id %}ativo{% endif %}">
                     <a class="fin-cliente" href="{{ url_for('financeiro.painel', aba='clientes', cliente=(none if cliente and cliente.id == e.id else e.id)) }}" {% if cliente and cliente.id == e.id %}aria-current="true"{% endif %}>
                         <strong>{{ e.nome }}</strong>
-                        <small class="d-block text-muted">{{ e.cnpj|cnpj or 'Sem CNPJ' }} · {{ com_nota.get(e.id, 0) }} NF(s){% if not ativos.get(e.id) %} · <span class="text-danger">sem contrato</span>{% endif %}</small></a>
+                        <small class="d-block text-muted">{{ e.cnpj|cnpj or 'Sem CNPJ' }} · {{ com_nota.get(e.id, 0) }} NF(s){% if not contrato_de.get(e.id) %} · <span class="text-danger">sem contrato</span>{% elif not ativos.get(e.id) %} · contrato do embarcador{% endif %}</small></a>
                     <i class="fas fa-chevron-right text-muted"></i>
                 </li>
                 {% endfor %}
@@ -209,9 +209,10 @@
             <div class="bloco-dados-altura"><p class="text-muted mb-0">Escolha um cliente na lista para ver as notas e o total a cobrar.</p></div>
             {% else %}
             <h5 class="mb-1">{{ cliente.nome }}</h5>
-            {% if ativos.get(cliente.id) %}
-            {% set c = ativos[cliente.id] %}
-            <p class="text-muted small">{{ rotulo_ciclo[c.ciclo] }} · {{ rotulo_regra[c.regra_tempo] }} · {{ c.tabela.nome }} · {{ o_que_cobra(c) }}</p>
+            {% if grupo_cliente %}<p class="text-muted small mb-1"><i class="fas fa-layer-group me-1"></i>Mesmo embarcador: soma também as notas de {{ grupo_cliente|join(', ') }}.</p>{% endif %}
+            {% if contrato_de.get(cliente.id) %}
+            {% set c = contrato_de[cliente.id] %}
+            <p class="text-muted small">{{ rotulo_ciclo[c.ciclo] }} · {{ rotulo_regra[c.regra_tempo] }} · {{ c.tabela.nome }} · {{ o_que_cobra(c) }}{% if c.empresa_id != cliente.id %} · contrato de {{ c.empresa.fantasia or c.empresa.nome }}{% endif %}</p>
             {% else %}
             <div class="alert alert-warning py-2">Sem contrato ativo — <a href="{{ url_for('financeiro.painel', aba='contratos') }}">cadastre um contrato</a> para calcular cobranças.</div>
             {% endif %}
