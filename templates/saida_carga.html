@@ -42,18 +42,64 @@
     </div>
 </div>
 
+{% if pedidos %}
+{% set faltam = pedidos|selectattr('sem_nota')|list %}
+<div class="card" id="pedidos">
+    <div class="card-header"><i class="fas fa-clipboard-list me-2"></i>Pedidos da carga <span class="text-muted fw-normal">({{ pedidos|length }}{% if faltam %} · {{ faltam|length }} sem nota{% endif %})</span></div>
+    <div class="card-body">
+        {% if faltam and aberta %}
+        <div class="alert alert-warning">Dá para separar e conferir pelo pedido, mas a carga <strong>só é expedida com a nota fiscal de cada pedido</strong>. Quando o cliente faturar, envie o XML aqui.</div>
+        {% endif %}
+        <div class="tabela-scroll">
+            <table class="table table-striped mb-0">
+                <thead><tr><th>Pedido</th><th>Cliente</th><th>Itens</th><th>Quantidade</th><th>Nota fiscal</th></tr></thead>
+                <tbody>
+                    {% for p in pedidos %}
+                    <tr>
+                        <td><strong>{{ p.numero }}</strong></td>
+                        <td>{{ p.cliente or '—' }}</td>
+                        <td>{{ p.itens }}</td>
+                        <td>{{ p.quantidade|numero }}</td>
+                        <td>{% for n in p.notas %}<span class="badge bg-success me-1">NF {{ n }}</span>{% endfor %}{% if p.sem_nota %}<span class="badge bg-warning">Sem nota</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if editar and faltam %}
+        <form method="POST" action="{{ url_for('saida.vincular_nf', cid=carga.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end mt-2" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <div class="col-12 col-md-5"><label class="form-label" for="vXml">Vincular nota fiscal: XML da NF-e do pedido</label><input type="file" class="form-control" id="vXml" name="arquivos" accept=".xml,text/xml,application/xml" multiple required></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="vPedido">Pedido</label>
+                <select class="form-select" id="vPedido" name="pedido">
+                    <option value="">Descobrir pelo XML</option>
+                    {% for p in faltam %}<option value="{{ p.numero }}">{{ p.numero }}{% if p.cliente %} · {{ p.cliente }}{% endif %}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-auto"><button type="submit" class="btn btn-primary"><i class="fas fa-link"></i>Vincular nota fiscal</button></div>
+            <div class="col-12">
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="vUsar" name="usar_quantidades" value="1"><label class="form-check-label" for="vUsar">Usar as quantidades da nota quando forem diferentes das do pedido</label></div>
+                <small class="text-muted">A nota entra nos itens do pedido que já estão na carga (nada é duplicado). Vários XML de uma vez: deixe "Descobrir pelo XML".</small>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <div class="card">
     <div class="card-header"><i class="fas fa-list-ol me-2"></i>Romaneio da carga <span class="text-muted fw-normal">({{ linhas|length }} itens)</span></div>
     <div class="card-body">
         {% if linhas %}
         <div class="tabela-scroll">
             <table class="table table-striped mb-0">
-                <thead><tr><th>NF</th><th>Cliente</th><th>SKU</th><th>Descrição</th><th>Un.</th><th>Qtd NF</th><th>A separar</th><th>Separado</th><th>Conferido</th><th>Situação</th>{% if editar %}<th></th>{% endif %}</tr></thead>
+                <thead><tr><th>Pedido</th><th>NF</th><th>Cliente</th><th>SKU</th><th>Descrição</th><th>Un.</th><th>Qtd NF</th><th>A separar</th><th>Separado</th><th>Conferido</th><th>Situação</th>{% if editar %}<th></th>{% endif %}</tr></thead>
                 <tbody>
                     {% for l in linhas %}
                     {% set i = l.item %}
                     <tr>
-                        <td class="text-nowrap">{{ i.nf_numero or '—' }}{% if pdfs.get(i.nf_numero) %} <a href="{{ url_for('saida.nf_pdf', nfid=pdfs[i.nf_numero]) }}" target="_blank" rel="noopener" class="ms-1" title="Abrir a NF {{ i.nf_numero }} em PDF (DANFE)" aria-label="Abrir a NF {{ i.nf_numero }} em PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}</td>
+                        <td class="text-nowrap">{{ i.pedido or '—' }}</td>
+                        <td class="text-nowrap">{% if i.nf_numero %}{{ i.nf_numero }}{% elif i.pedido %}<span class="badge bg-warning">Sem nota</span>{% else %}—{% endif %}{% if pdfs.get(i.nf_numero) %} <a href="{{ url_for('saida.nf_pdf', nfid=pdfs[i.nf_numero]) }}" target="_blank" rel="noopener" class="ms-1" title="Abrir a NF {{ i.nf_numero }} em PDF (DANFE)" aria-label="Abrir a NF {{ i.nf_numero }} em PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}</td>
                         <td>{{ i.cliente or '—' }}{% if i.cidade %}<br><small>{{ i.cidade }}</small>{% endif %}</td>
                         <td><strong>{{ i.produto.sku }}</strong></td>
                         <td>{{ i.produto.descricao }}</td>
@@ -93,9 +139,19 @@
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
             <div class="col-12 col-md-3"><label class="form-label" for="iCodigo">Incluir item: SKU ou EAN</label><input type="text" class="form-control codigo-mono" id="iCodigo" name="codigo" required style="text-transform: uppercase;"></div>
             <div class="col-6 col-md-2"><label class="form-label" for="iQtd">Quantidade</label><input type="text" inputmode="decimal" class="form-control" id="iQtd" name="quantidade" required></div>
-            <div class="col-6 col-md-2"><label class="form-label" for="iNf">NF</label><input type="text" class="form-control" id="iNf" name="nf" maxlength="15"></div>
-            <div class="col-12 col-md-3"><label class="form-label" for="iCliente">Cliente</label><input type="text" class="form-control" id="iCliente" name="cliente" maxlength="150"></div>
+            <div class="col-6 col-md-2"><label class="form-label" for="iPedido">Pedido</label><input type="text" class="form-control" id="iPedido" name="pedido" maxlength="30"></div>
+            <div class="col-6 col-md-1"><label class="form-label" for="iNf">NF</label><input type="text" class="form-control" id="iNf" name="nf" maxlength="15"></div>
+            <div class="col-12 col-md-2"><label class="form-label" for="iCliente">Cliente</label><input type="text" class="form-control" id="iCliente" name="cliente" maxlength="150"></div>
             <div class="col-auto"><button type="submit" class="btn btn-outline-primary"><i class="fas fa-plus"></i>Incluir</button></div>
+        </form>
+        {# Pedido do cliente (planilha anexada ao e-mail): entra nesta carga sem nota; a NF é vinculada depois, pelo XML. #}
+        <form method="POST" action="{{ url_for('saida.importar_planilha') }}" enctype="multipart/form-data" class="row g-2 align-items-end mt-2" autocomplete="off">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="hidden" name="carga" value="{{ carga.codigo }}">
+            <div class="col-12 col-md-5"><label class="form-label" for="pedPlanilha">Incluir pedido por planilha (.xlsx)</label><input type="file" class="form-control" id="pedPlanilha" name="arquivo" accept=".xlsx" required></div>
+            <div class="col-6 col-md-3"><label class="form-label" for="pedNumero">Nº do pedido</label><input type="text" class="form-control" id="pedNumero" name="pedido" maxlength="30" placeholder="se a planilha não trouxer"></div>
+            <div class="col-auto"><button type="submit" class="btn btn-outline-primary"><i class="fas fa-file-excel"></i>Incluir pedido</button></div>
+            <div class="col-12"><small class="text-muted">Precisa das colunas Código (ou SKU) e Quantidade; Pedido, Cliente e Cidade são aproveitados quando existem. <a href="{{ url_for('saida.modelo_planilha') }}">Baixar o modelo</a>.</small></div>
         </form>
         {# Nota que ficou de fora: acrescenta o XML a esta mesma carga. #}
         <form method="POST" action="{{ url_for('saida.importar_xml') }}" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">

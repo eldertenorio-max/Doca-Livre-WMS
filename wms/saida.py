@@ -22,7 +22,23 @@ MOTIVOS = ['Venda', 'Transferência', 'Descarte', 'Devolução de remessa', 'Ace
 ABERTAS = ('Aberta', 'Em separação', 'Em conferência')
 MOTIVOS_DIVERGENCIA = ['Avaria durante o carregamento', 'Produto em falta no estoque', 'Produtos inseridos a mais que o pedido',
                        'Erro de separação', 'Outro']
-COLUNAS_PLANILHA = ['Carga', 'NF', 'Série', 'Cliente', 'Cidade', 'Código', 'Descrição', 'EAN', 'Unidade', 'Quantidade']
+COLUNAS_PLANILHA = ['Carga', 'Pedido', 'NF', 'Série', 'Cliente', 'Cidade', 'Código', 'Descrição', 'EAN', 'Unidade', 'Quantidade']
+# A planilha do pedido vem do cliente, cada um com o seu cabecalho: alem do nome do modelo, estes tambem valem.
+APELIDOS_PLANILHA = {
+    'Carga': ('viagem', 'roteiro', 'romaneio'),
+    'Pedido': ('nº pedido', 'no pedido', 'n pedido', 'num pedido', 'numero pedido', 'numero do pedido', 'pedido de compra',
+               'ordem', 'ordem de compra', 'oc'),
+    'NF': ('nota', 'nota fiscal', 'numero nf', 'numero da nf', 'nº nf'),
+    'Série': ('serie nf', 'serie da nf'),
+    'Cliente': ('destinatario', 'razao social', 'loja'),
+    'Cidade': ('municipio',),
+    'Código': ('cod', 'cod.', 'sku', 'produto', 'cod produto', 'cod. produto', 'codigo produto', 'codigo do produto', 'item',
+               'referencia'),
+    'Descrição': ('descricao do produto', 'descricao produto', 'nome do produto'),
+    'EAN': ('codigo de barras', 'cod barras', 'gtin'),
+    'Unidade': ('un', 'und', 'unid', 'um'),
+    'Quantidade': ('qtd', 'qtde', 'qtd.', 'qte', 'quant', 'quant.', 'qtd pedida', 'quantidade pedida', 'caixas', 'volumes'),
+}
 POR_PAGINA = 50
 
 
@@ -127,6 +143,7 @@ def cargas():
     if busca:
         like = f'%{busca.upper()}%'
         com_nf = db.select(CargaItem.carga_id).where(db.or_(CargaItem.nf_numero.like(like),
+                                                            db.func.upper(CargaItem.pedido).like(like),
                                                             db.func.upper(CargaItem.cliente).like(like)))
         consulta = consulta.filter(db.or_(Carga.codigo.like(like), Carga.placa.like(like), Carga.id.in_(com_nf)))
     total = consulta.count()
@@ -136,6 +153,135 @@ def cargas():
     return render_template('saida_cargas.html', cargas=[(c, resumo_carga(c)) for c in lista], situacao=situacao,
                            busca=busca, total=total, pagina=pagina, contagem=contagem, motivos=MOTIVOS,
                            paginas=max((total + POR_PAGINA - 1) // POR_PAGINA, 1))
+
+
+def pedidos_da_carga(carga):
+    """Pedidos da carga (saida por pedido, sem XML), na ordem em que entraram: numero, cliente, itens, quantidade,
+    as notas ja vinculadas e quantos itens ainda estao sem nota."""
+    pedidos = {}
+    for item in carga.itens:
+        if not item.pedido:
+            continue
+        p = pedidos.setdefault(item.pedido, {'numero': item.pedido, 'cliente': None, 'itens': 0, 'quantidade': 0,
+                                             'notas': [], 'sem_nota': 0})
+        p['cliente'] = p['cliente'] or item.cliente
+        p['itens'] += 1
+        p['quantidade'] = round(p['quantidade'] + item.quantidade, 3)
+        if not item.nf_numero:
+            p['sem_nota'] += 1
+        elif item.nf_numero not in p['notas']:
+            p['notas'].append(item.nf_numero)
+    return list(pedidos.values())
+
+
+def pedidos_sem_nota(carga):
+    """Numeros dos pedidos da carga que ainda tem item sem nota fiscal: enquanto houver, a carga nao e expedida."""
+    return [p['numero'] for p in pedidos_da_carga(carga) if p['sem_nota']]
+
+
+def _chave_pedido(numero):
+    """'PED-00123 ' e 'ped 123' sao o mesmo pedido: so letras e numeros, sem zeros a esquerda."""
+    return re.sub(r'[^A-Z0-9]', '', str(numero or '').upper()).lstrip('0')
+
+
+def _produto_do_item(item):
+    """Produto de um item da NF pelo EAN/DUN ou pelo codigo, sem cadastrar nada (para comparar com o pedido)."""
+    ean, codigo = item.get('ean'), (item.get('codigo') or '').strip().upper()[:40]
+    produto = Produto.query.filter(db.or_(Produto.ean == ean, Produto.dun == ean)).first() if ean else None
+    if not produto and codigo:
+        produto = Produto.query.filter(db.func.upper(Produto.sku) == codigo).first()
+    return produto
+
+
+def _nota_no_pedido(carga, dados, escolhido=None, automatico=False):
+    """Descobre qual pedido sem nota desta carga a NF fatura e compara produto a produto.
+
+    Devolve dict(pedido, itens, diferencas, da_nota, soma_iguais) ou dict(erro). "escolhido" e o pedido indicado na
+    tela; sem ele vale o pedido que a propria nota cita (xPed) e, na falta, o unico pedido com o mesmo conteudo.
+    "automatico" (XML acrescentado pelo caminho antigo): so aceita quando nao ha duvida nenhuma; senao devolve None.
+    """
+    pendentes = {}
+    for item in carga.itens:
+        if item.pedido and not item.nf_numero:
+            pendentes.setdefault(item.pedido, []).append(item)
+    if not pendentes:
+        return None if automatico else {'erro': 'Esta carga não tem pedido aguardando nota.'}
+    da_nota, desconhecidos = {}, []
+    for item in dados['itens']:
+        produto = _produto_do_item(item)
+        if produto:
+            da_nota[produto.id] = round(da_nota.get(produto.id, 0) + item['quantidade'], 3)
+        else:
+            desconhecidos.append(item.get('codigo') or item.get('descricao') or '?')
+
+    def conteudo(itens):
+        soma = {}
+        for i in itens:
+            soma[i.produto_id] = round(soma.get(i.produto_id, 0) + i.quantidade, 3)
+        return soma
+
+    iguais = [n for n, itens in pendentes.items() if not desconhecidos and conteudo(itens) == da_nota]
+    citados = [n for n in pendentes if _chave_pedido(n) and _chave_pedido(n) in {_chave_pedido(x) for x in dados.get('pedidos') or []}]
+    if escolhido:
+        alvo = next((n for n in pendentes if _chave_pedido(n) == _chave_pedido(escolhido)), None)
+        if not alvo:
+            return {'erro': f'O pedido {escolhido} não está nesta carga ou já tem nota.'}
+    elif len(citados) == 1:
+        alvo = citados[0]
+    elif len(iguais) == 1:
+        alvo = iguais[0]
+    elif automatico:
+        return None
+    elif len(pendentes) == 1:
+        alvo = next(iter(pendentes))
+    else:
+        return {'erro': f'Não deu para saber de qual pedido é a NF {dados["numero"]}: escolha o pedido no campo "Pedido" e envie de novo.'}
+    do_pedido = conteudo(pendentes[alvo])
+    diferencas = []
+    for produto_id in sorted(set(do_pedido) | set(da_nota)):
+        a, b = do_pedido.get(produto_id, 0), da_nota.get(produto_id, 0)
+        if a != b:
+            sku = db.session.get(Produto, produto_id).sku
+            diferencas.append(f'{sku}: pedido {a:g}, nota {b:g}' if a and b else f'{sku}: só no pedido ({a:g})' if a
+                              else f'{sku}: só na nota ({b:g})')
+    diferencas += [f'{codigo}: produto da nota não cadastrado' for codigo in desconhecidos[:6]]
+    if automatico and diferencas:
+        return None
+    return {'pedido': alvo, 'itens': pendentes[alvo], 'diferencas': diferencas, 'da_nota': da_nota,
+            # mesmos produtos dos dois lados (so a quantidade muda): da para usar as quantidades da nota
+            'mesmos_produtos': not desconhecidos and set(do_pedido) == set(da_nota)}
+
+
+def _vincular(dados, achado, conteudo_xml):
+    """Grava a NF nos itens do pedido (numero, serie, chave e o destinatario quando o pedido nao tinha) e guarda o XML
+    para o PDF da nota. Devolve a NfSaida nova (ou None quando ja estava guardada)."""
+    for item in achado['itens']:
+        item.nf_numero, item.nf_serie = str(dados['numero'])[:15], dados.get('serie') or None
+        item.nf_chave = dados.get('chave')
+        item.cliente = item.cliente or (dados.get('destinatario_nome') or '')[:150] or None
+        item.cidade = item.cidade or (dados.get('destinatario_cidade') or '')[:80] or None
+    if dados.get('chave') and not NfSaida.query.filter_by(chave=dados['chave']).first():
+        nf = NfSaida(chave=dados['chave'], numero=str(dados['numero'])[:15], xml=texto_do_xml(conteudo_xml))
+        db.session.add(nf)
+        return nf
+    return None
+
+
+def _nf_repetida(dados):
+    """Aviso quando a NF ja esta em outra carga (a nao ser na reentrega: saiu, voltou e tem retorno aberto)."""
+    if not dados['chave']:
+        return None
+    repetida = CargaItem.query.join(Carga).filter(CargaItem.nf_chave == dados['chave'], Carga.status != 'Cancelada').first()
+    if not repetida:
+        return None
+    em_aberto = CargaItem.query.join(Carga).filter(CargaItem.nf_chave == dados['chave'],
+                                                   Carga.status.notin_(('Cancelada', 'Expedida'))).first()
+    voltou = NotaFiscal.query.filter(NotaFiscal.tipo == 'Retorno', NotaFiscal.numero == str(dados['numero']),
+                                     NotaFiscal.status != 'Cancelada').first()
+    if em_aberto or not voltou:
+        return (f'a NF {dados["numero"]} já está na carga {(em_aberto or repetida).carga.codigo}.'
+                + ('' if em_aberto else ' Se ela voltou da rua, abra o retorno em Retornos antes de colocá-la em outra carga.'))
+    return None
 
 
 def _incluir_nota(carga, dados):
@@ -163,7 +309,7 @@ def importar_xml():
     if erro:
         flash(erro, 'error')
         return voltar
-    incluidas, erros, novos, guardadas = [], [], 0, []
+    incluidas, erros, novos, guardadas, vinculadas = [], [], 0, [], []
     for arquivo in arquivos:
         conteudo = arquivo.read()
         try:
@@ -171,18 +317,21 @@ def importar_xml():
         except XmlInvalido as problema:
             erros.append(f'{arquivo.filename}: {problema}')
             continue
-        repetida = CargaItem.query.join(Carga).filter(CargaItem.nf_chave == dados['chave'], Carga.status != 'Cancelada').first() \
-            if dados['chave'] else None
+        # Reentrega: a NF que ja saiu e voltou (tem retorno aberto ou finalizado) pode entrar em outra carga.
+        repetida = _nf_repetida(dados)
         if repetida:
-            # Reentrega: a NF que ja saiu e voltou (tem retorno aberto ou finalizado) pode entrar em outra carga.
-            em_aberto = CargaItem.query.join(Carga).filter(CargaItem.nf_chave == dados['chave'],
-                                                           Carga.status.notin_(('Cancelada', 'Expedida'))).first()
-            voltou = NotaFiscal.query.filter(NotaFiscal.tipo == 'Retorno', NotaFiscal.numero == str(dados['numero']),
-                                             NotaFiscal.status != 'Cancelada').first()
-            if em_aberto or not voltou:
-                erros.append(f'{arquivo.filename}: a NF {dados["numero"]} já está na carga {(em_aberto or repetida).carga.codigo}.'
-                             + ('' if em_aberto else ' Se ela voltou da rua, abra o retorno em Retornos antes de colocá-la em outra carga.'))
-                continue
+            erros.append(f'{arquivo.filename}: {repetida}')
+            continue
+        # A nota de um pedido que ja esta nesta carga (mesmo numero de pedido ou mesmo conteudo) nao vira item novo:
+        # e vinculada ao pedido, para nao duplicar o que ja foi separado.
+        achado = _nota_no_pedido(carga, dados, automatico=True)
+        if achado:
+            nf = _vincular(dados, achado, conteudo)
+            if nf:
+                guardadas.append(nf)
+            vinculadas.append(f'{dados["numero"]} (pedido {achado["pedido"]})')
+            incluidas.append(dados['numero'])
+            continue
         novos += _incluir_nota(carga, dados)
         incluidas.append(dados['numero'])
         if dados['chave']:
@@ -198,6 +347,8 @@ def importar_xml():
         registrar_log('Importou XML de saída', f'Carga {carga.codigo}: NF ' + ', '.join(incluidas), modulo='expedicao')
         db.session.commit()
         mensagem = f'{len(incluidas)} nota(s) incluída(s) na carga {carga.codigo}: ' + ', '.join(incluidas) + '.'
+        if vinculadas:
+            mensagem += ' Vinculada(s) ao pedido que já estava na carga, sem criar itens novos: ' + ', '.join(vinculadas) + '.'
         if preparar_danfes(guardadas):
             mensagem += ' O XML já foi enviado ao Meu Danfe; o PDF da nota fica pronto em instantes.'
         if novos:
@@ -237,12 +388,16 @@ def modelo_planilha():
     livro = Workbook()
     aba = livro.active
     aba.title = 'Romaneio'
-    _titulo_planilha(aba, COLUNAS_PLANILHA, (14, 12, 8, 34, 20, 14, 40, 16, 10, 12))
-    aba.append(['V1001', '5501', '1', 'Supermercado Exemplo', 'Guarulhos', 'P0001', 'Pão de queijo 1kg', '7891234567890', 'CX', 24])
+    _titulo_planilha(aba, COLUNAS_PLANILHA, (14, 16, 12, 8, 34, 20, 14, 40, 16, 10, 12))
+    aba.append(['V1001', 'PED-4501', '', '', 'Supermercado Exemplo', 'Guarulhos', 'P0001', 'Pão de queijo 1kg', '7891234567890', 'CX', 24])
+    aba.append(['V1001', '', '5501', '1', 'Mercado Modelo', 'Osasco', 'P0002', 'Pão de batata 1kg', '7891234567891', 'CX', 10])
     ajuda = livro.create_sheet('Como preencher')
-    for linha in (['Uma linha por item de cada nota de saída. Linhas com a mesma Carga vão no mesmo veículo.'],
+    for linha in (['Uma linha por item de cada pedido ou nota de saída. Linhas com a mesma Carga vão no mesmo veículo.'],
                   ['Obrigatórios: Código e Quantidade. Carga em branco: o sistema cria uma carga nova para a planilha.'],
-                  ['Produto que ainda não existe é cadastrado automaticamente. Apague a linha de exemplo antes de enviar.']):
+                  ['Pedido sem nota: preencha Pedido e deixe NF em branco. O armazém separa e confere pelo pedido; a nota é '
+                   'vinculada depois, pelo XML, na tela da carga. A carga só é expedida com a nota de cada pedido.'],
+                  ['Saída já faturada: preencha NF (e Série); Pedido é opcional.'],
+                  ['Produto que ainda não existe é cadastrado automaticamente. Apague as linhas de exemplo antes de enviar.']):
         ajuda.append(linha)
     ajuda.column_dimensions['A'].width = 110
     return _enviar_planilha(livro, 'modelo_romaneio_saida.xlsx')
@@ -251,7 +406,14 @@ def modelo_planilha():
 @bp.route('/cargas/planilha', methods=['POST'])
 @perm('expedicao')
 def importar_planilha():
-    voltar = redirect(url_for('saida.cargas'))
+    # Vindo da tela de uma carga: a planilha (o pedido que o cliente mandou) entra nessa carga, e o numero do pedido
+    # digitado ali vale para as linhas que nao trazem a coluna Pedido.
+    carga_da_tela, erro_carga = _carga_para(request.form.get('carga'), criar=False) if request.form.get('carga') else (None, None)
+    pedido_da_tela = (request.form.get('pedido') or '').strip()[:30]
+    voltar = redirect(url_for('saida.carga', cid=carga_da_tela.id) if carga_da_tela else url_for('saida.cargas'))
+    if erro_carga:
+        flash(erro_carga, 'error')
+        return voltar
     arquivo = request.files.get('arquivo')
     if not arquivo or not arquivo.filename.lower().endswith('.xlsx'):
         flash('Envie uma planilha no formato .xlsx (use o modelo).', 'error')
@@ -261,7 +423,14 @@ def importar_planilha():
     except Exception:
         flash('Não foi possível ler a planilha. Confira se o arquivo é um .xlsx válido.', 'error')
         return voltar
-    posicao = {_normalizar(t): i for i, t in enumerate(linhas[0])} if linhas else {}
+    cabecalho = {_normalizar(t): i for i, t in enumerate(linhas[0])} if linhas else {}
+    # nome do modelo primeiro; depois os nomes que os clientes costumam usar na planilha deles
+    posicao = {}
+    for coluna in COLUNAS_PLANILHA:
+        for nome in (coluna,) + APELIDOS_PLANILHA.get(coluna, ()):
+            if _normalizar(nome) in cabecalho:
+                posicao[_normalizar(coluna)] = cabecalho[_normalizar(nome)]
+                break
     faltando = [c for c in ('Código', 'Quantidade') if _normalizar(c) not in posicao]
     if faltando:
         flash('A planilha precisa ter as colunas: ' + ', '.join(faltando) + '. Baixe o modelo e preencha nele.', 'error')
@@ -271,7 +440,7 @@ def importar_planilha():
         indice = posicao.get(_normalizar(coluna))
         return _texto_celula(linha[indice]) if indice is not None and indice < len(linha) else ''
 
-    padrao, cargas_usadas, erros, itens, novos = None, {}, [], 0, 0
+    padrao, cargas_usadas, erros, itens, novos, pedidos = carga_da_tela, {}, [], 0, 0, []
     for numero, linha in enumerate(linhas[1:], start=2):
         if not any(_texto_celula(v) for v in linha):
             continue
@@ -279,7 +448,8 @@ def importar_planilha():
         if not codigo or quantidade is None:
             erros.append(f'Linha {numero}: falta ' + ('Código' if not codigo else 'Quantidade (número maior que zero)') + '.')
             continue
-        codigo_carga = celula(linha, 'Carga').upper()[:20]
+        # na tela de uma carga tudo entra nela, mesmo que a planilha do cliente tenha uma coluna de carga/romaneio
+        codigo_carga = '' if carga_da_tela else celula(linha, 'Carga').upper()[:20]
         if codigo_carga in cargas_usadas:
             carga = cargas_usadas[codigo_carga]
         elif not codigo_carga and padrao:
@@ -296,16 +466,24 @@ def importar_planilha():
         produto, criado = _produto_para(codigo, re.sub(r'\D', '', celula(linha, 'EAN')) or None,
                                         celula(linha, 'Descrição') or None, celula(linha, 'Unidade').upper()[:6] or None)
         novos += criado
-        carga.itens.append(CargaItem(nf_numero=celula(linha, 'NF')[:15] or None, nf_serie=celula(linha, 'Série')[:5] or None,
+        pedido = (celula(linha, 'Pedido') or pedido_da_tela)[:30] or None
+        if pedido and pedido not in pedidos:
+            pedidos.append(pedido)
+        carga.itens.append(CargaItem(pedido=pedido, nf_numero=celula(linha, 'NF')[:15] or None,
+                                     nf_serie=celula(linha, 'Série')[:5] or None,
                                      cliente=celula(linha, 'Cliente')[:150] or None, cidade=celula(linha, 'Cidade')[:80] or None,
                                      produto=produto, unidade=(celula(linha, 'Unidade').upper() or produto.unidade)[:6],
                                      quantidade=quantidade))
         itens += 1
     if itens:
-        usadas = list(cargas_usadas.values()) + ([padrao] if padrao else [])
-        registrar_log('Importou planilha de saída', f'{itens} item(ns) em ' + ', '.join(c.codigo for c in usadas), modulo='expedicao')
+        usadas = list(cargas_usadas.values()) + ([padrao] if padrao and padrao not in cargas_usadas.values() else [])
+        registrar_log('Importou planilha de saída', (f'{itens} item(ns) em ' + ', '.join(c.codigo for c in usadas)
+                                                      + (' · pedido(s) ' + ', '.join(pedidos) if pedidos else ''))[:300], modulo='expedicao')
         db.session.commit()
         mensagem = f'{itens} item(ns) incluído(s) em {len(usadas)} carga(s): ' + ', '.join(c.codigo for c in usadas) + '.'
+        if pedidos:
+            mensagem += (f' Pedido(s): {", ".join(pedidos[:8])}{"…" if len(pedidos) > 8 else ""}. Já dá para separar e conferir; '
+                         'a nota de cada pedido é vinculada depois, pelo XML, na tela da carga.')
         if novos:
             mensagem += f' {novos} produto(s) novo(s) foram cadastrados — revise em Cadastros › Produtos.'
         flash(mensagem, 'success')
@@ -339,7 +517,7 @@ def carga_nova():
 def carga(cid):
     carga = _carga_ou_404(cid)
     return render_template('saida_carga.html', carga=carga, aberta=carga.status in ABERTAS, motivos=MOTIVOS,
-                           pdfs=pdfs_da_carga(carga), **resumo_carga(carga))
+                           pdfs=pdfs_da_carga(carga), pedidos=pedidos_da_carga(carga), **resumo_carga(carga))
 
 
 @bp.route('/cargas/<int:cid>/dados', methods=['POST'])
@@ -379,11 +557,86 @@ def item_novo(cid):
     elif quantidade is None:
         flash('Informe uma quantidade maior que zero.', 'error')
     else:
-        carga.itens.append(CargaItem(nf_numero=(request.form.get('nf') or '').strip()[:15] or None,
+        carga.itens.append(CargaItem(pedido=(request.form.get('pedido') or '').strip()[:30] or None,
+                                     nf_numero=(request.form.get('nf') or '').strip()[:15] or None,
                                      cliente=(request.form.get('cliente') or '').strip()[:150] or None,
                                      produto=produto, unidade=produto.unidade, quantidade=quantidade))
         db.session.commit()
         flash(f'Item {produto.sku} incluído.', 'success')
+    return voltar
+
+
+@bp.route('/cargas/<int:cid>/vincular-nf', methods=['POST'])
+@perm('expedicao')
+def vincular_nf(cid):
+    """Saida por pedido: o cliente faturou depois da separacao e mandou o XML. A nota e gravada nos itens do pedido
+    que ja estao na carga (nada e duplicado). Com diferenca entre a nota e o pedido, nada e vinculado sem a pessoa
+    mandar usar as quantidades da nota."""
+    carga = _carga_ou_404(cid)
+    voltar = redirect(url_for('saida.carga', cid=cid) + '#pedidos')
+    if carga.status not in ABERTAS:
+        flash('Esta carga não aceita mais notas.', 'error')
+        return voltar
+    arquivos = [a for a in request.files.getlist('arquivos') if a and a.filename]
+    if not arquivos:
+        flash('Escolha o XML da nota fiscal do pedido.', 'error')
+        return voltar
+    escolhido = (request.form.get('pedido') or '').strip()
+    if escolhido and len(arquivos) > 1:
+        flash('Com o pedido escolhido, envie um XML por vez (o pedido escolhido vale para uma nota só).', 'error')
+        return voltar
+    usar_da_nota = request.form.get('usar_quantidades') == '1'
+    vinculadas, erros, guardadas = [], [], []
+    for arquivo in arquivos:
+        conteudo = arquivo.read()
+        try:
+            dados = ler_nfe(conteudo)
+        except XmlInvalido as problema:
+            erros.append(f'{arquivo.filename}: {problema}')
+            continue
+        repetida = _nf_repetida(dados)
+        if repetida:
+            erros.append(f'{arquivo.filename}: {repetida}')
+            continue
+        achado = _nota_no_pedido(carga, dados, escolhido=escolhido)
+        if achado.get('erro'):
+            erros.append(f'{arquivo.filename}: {achado["erro"]}')
+            continue
+        ajuste = ''
+        if achado['diferencas']:
+            por_produto = {}
+            for item in achado['itens']:
+                por_produto.setdefault(item.produto_id, []).append(item)
+            pode_ajustar = achado['mesmos_produtos'] and all(len(itens) == 1 for itens in por_produto.values())
+            if not (usar_da_nota and pode_ajustar):
+                erros.append(f'{arquivo.filename}: a NF {dados["numero"]} não bate com o pedido {achado["pedido"]} — '
+                             + '; '.join(achado['diferencas'][:8]) + ('…' if len(achado['diferencas']) > 8 else '') + '. '
+                             + ('Se a nota é a certa, marque "Usar as quantidades da nota" e envie de novo.' if pode_ajustar
+                                else 'Acerte os itens do pedido (incluir ou excluir) e envie o XML de novo.'))
+                continue
+            for produto_id, itens in por_produto.items():
+                itens[0].quantidade = achado['da_nota'][produto_id]
+            ajuste = ' As quantidades do pedido passaram a ser as da nota: ' + '; '.join(achado['diferencas'][:8]) + '.'
+        nf = _vincular(dados, achado, conteudo)
+        if nf:
+            guardadas.append(nf)
+        vinculadas.append(f'NF {dados["numero"]} ao pedido {achado["pedido"]}')
+        registrar_log('Vinculou NF ao pedido', (f'Carga {carga.codigo}: NF {dados["numero"]} · pedido {achado["pedido"]}' + ajuste)[:300],
+                      modulo='expedicao')
+        db.session.flush()
+    if vinculadas:
+        db.session.commit()
+        mensagem = 'Nota vinculada: ' + '; '.join(vinculadas) + '.'
+        faltam = pedidos_sem_nota(carga)
+        mensagem += (f' Ainda sem nota: pedido(s) {", ".join(faltam[:8])}{"…" if len(faltam) > 8 else ""}.' if faltam
+                     else ' Todos os pedidos desta carga já têm nota: ela pode ser expedida depois da conferência.')
+        if preparar_danfes(guardadas):
+            mensagem += ' O XML já foi enviado ao Meu Danfe; o PDF da nota fica pronto em instantes.'
+        flash(mensagem, 'success')
+    else:
+        db.session.rollback()
+    for erro in erros[:8]:
+        flash(erro, 'error')
     return voltar
 
 
@@ -598,7 +851,7 @@ def conferencia_carga(cid):
     dados = resumo_carga(carga)
     no_stage = [p for p in carga.paletes if p.status == 'Stage']
     return render_template('saida_conferencia.html', carga=carga, aberta=carga.status in ABERTAS, no_stage=no_stage,
-                           pdfs=pdfs_da_carga(carga),
+                           pdfs=pdfs_da_carga(carga), sem_nota=pedidos_sem_nota(carga),
                            sem_separacao=[l for l in dados['linhas'] if l['item'].conferido > l['separado']],
                            motivos_divergencia=MOTIVOS_DIVERGENCIA, **dados)
 
@@ -710,6 +963,12 @@ def finalizar(cid):
         return voltar
     if not any(i.conferido for i in carga.itens):
         flash('Nenhum item foi conferido ainda.', 'error')
+        return voltar
+    # Saida por pedido: separa e confere sem nota, mas o veiculo so sai com a nota fiscal de cada pedido.
+    sem_nota = pedidos_sem_nota(carga)
+    if sem_nota:
+        flash('A carga só é expedida com a nota fiscal de cada pedido. Falta vincular a NF (XML) do(s) pedido(s): '
+              + ', '.join(sem_nota[:12]) + ('…' if len(sem_nota) > 12 else '') + '. Use "Vincular nota fiscal" na tela da carga.', 'error')
         return voltar
     faltou = False
     for item in carga.itens:

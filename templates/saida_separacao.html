@@ -42,7 +42,7 @@
                     <tr>
                         <td><strong class="codigo-mono">{{ t.origem }}</strong></td>
                         <td class="codigo-mono">{{ t.palete.etiqueta }}</td>
-                        <td><strong>{{ t.item.produto.sku }}</strong> · {{ t.item.produto.descricao }}{% if t.item.nf_numero %}<br><small>NF {{ t.item.nf_numero }}</small>{% endif %}</td>
+                        <td><strong>{{ t.item.produto.sku }}</strong> · {{ t.item.produto.descricao }}{% if t.item.pedido %}<br><small>Pedido {{ t.item.pedido }}</small>{% endif %}{% if t.item.nf_numero %}<br><small>NF {{ t.item.nf_numero }}</small>{% endif %}</td>
                         <td>{{ pi.lote or '—' }}{% if pi.validade %}<br><small>val. {{ pi.validade.strftime('%d/%m/%Y') }}</small>{% endif %}</td>
                         <td><strong>{{ t.quantidade|numero }}</strong> {{ t.item.unidade }}{% if t.status == 'Pendente' and t.quantidade < pi.quantidade %}<br><small>de {{ pi.quantidade|numero }} no palete</small>{% endif %}</td>
                         <td>{% if t.status == 'Separado' %}<span class="badge bg-success">Separado</span><br><small>{{ t.usuario }} · {{ t.separado_em|datahora }}</small>{% else %}<span class="badge bg-warning">Pendente</span>{% endif %}</td>

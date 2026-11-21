@@ -90,7 +90,7 @@
     <tbody>
       {% for l in linhas %}
       <tr class="{{ 'diverge' if l.diferenca != 0 and carga.status == 'Expedida' }}">
-        <td>{{ l.item.nf_numero or '—' }}</td>
+        <td>{{ l.item.nf_numero or '—' }}{% if l.item.pedido %}<br>ped. {{ l.item.pedido }}{% endif %}</td>
         <td>{{ l.item.produto.sku }}</td>
         <td>{{ l.item.produto.descricao }}{% if l.item.cliente %}<br>{{ l.item.cliente }}{% endif %}{% if l.item.motivo_divergencia %}<br>Motivo: {{ l.item.motivo_divergencia }}{% endif %}</td>
         <td>{{ l.item.unidade }}</td>

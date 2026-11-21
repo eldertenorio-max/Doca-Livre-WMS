@@ -54,6 +54,11 @@
                     </div>
                     <strong>{{ conferido|numero }} de {{ total|numero }} · {{ pct }}%</strong>
                 </div>
+                {% if sem_nota %}
+                <div class="alert alert-warning mt-3 mb-0"><i class="fas fa-file-circle-exclamation me-1"></i>A carga só é expedida com a nota fiscal de cada pedido.
+                    Falta vincular a NF (XML) de: <strong>{{ sem_nota|join(', ') }}</strong>.
+                    <a href="{{ url_for('saida.carga', cid=carga.id) }}#pedidos">Vincular nota fiscal</a></div>
+                {% endif %}
                 {% if editar %}
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalFinalizar"><i class="fas fa-flag-checkered"></i>Gerar comprovante</button>
@@ -85,7 +90,7 @@
                         <td class="text-nowrap">{{ barras_conf(i.produto) }}</td>
                         <td class="text-nowrap"><strong class="conf-sku">{{ i.produto.sku }}</strong></td>
                         <td class="conf-produto">{{ i.produto.descricao }}</td>
-                        <td class="text-nowrap">{{ i.nf_numero or '—' }}{% if pdfs.get(i.nf_numero) %} <a href="{{ url_for('saida.nf_pdf', nfid=pdfs[i.nf_numero]) }}" target="_blank" rel="noopener" class="ms-1" title="Abrir a NF {{ i.nf_numero }} em PDF (DANFE)" aria-label="Abrir a NF {{ i.nf_numero }} em PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}</td>
+                        <td class="text-nowrap">{{ i.nf_numero or ('sem nota' if i.pedido else '—') }}{% if i.pedido %}<small class="d-block text-muted">ped. {{ i.pedido }}</small>{% endif %}{% if pdfs.get(i.nf_numero) %} <a href="{{ url_for('saida.nf_pdf', nfid=pdfs[i.nf_numero]) }}" target="_blank" rel="noopener" class="ms-1" title="Abrir a NF {{ i.nf_numero }} em PDF (DANFE)" aria-label="Abrir a NF {{ i.nf_numero }} em PDF"><i class="fas fa-file-pdf"></i></a>{% endif %}</td>
                         <td class="conf-num">{{ i.quantidade|numero }}</td>
                         <td class="conf-num conf-num--bipado">{{ i.conferido|numero }}</td>
                         <td>{{ i.unidade or i.produto.unidade }}</td>
@@ -129,6 +134,9 @@
                 {% if not carga.doca or not carga.placa %}
                 <div class="alert alert-warning">Informe a <strong>doca</strong> e a <strong>placa</strong> antes de gerar o comprovante.</div>
                 {% endif %}
+                {% if sem_nota %}
+                <div class="alert alert-warning">Falta a nota fiscal do(s) pedido(s) <strong>{{ sem_nota|join(', ') }}</strong>. Vincule o XML de cada um na tela da carga para liberar a expedição.</div>
+                {% endif %}
                 <p><strong>{{ no_stage|length }}</strong> palete(s) separados no stage vão sair do estoque.</p>
                 {% if sem_separacao %}
                 <div class="alert alert-warning">
@@ -159,7 +167,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>
-                <button type="submit" class="btn btn-primary" {% if not carga.doca or not carga.placa %}disabled{% endif %}><i class="fas fa-flag-checkered"></i>Gerar comprovante e expedir</button>
+                <button type="submit" class="btn btn-primary" {% if not carga.doca or not carga.placa or sem_nota %}disabled{% endif %}><i class="fas fa-flag-checkered"></i>Gerar comprovante e expedir</button>
             </div>
         </form>
     </div>

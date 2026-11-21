@@ -484,6 +484,9 @@ class CargaItem(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     carga_id = db.Column(db.Integer, db.ForeignKey('carga.id'), nullable=False, index=True)
+    # Numero do pedido do cliente. Na saida por pedido o item entra sem nota (o cliente so fatura depois da separacao)
+    # e a NF e vinculada ao pedido quando o XML chega; a carga so e expedida com a nota de cada pedido.
+    pedido = db.Column(db.String(30), index=True)
     nf_numero = db.Column(db.String(15), index=True)
     nf_serie = db.Column(db.String(5))
     nf_chave = db.Column(db.String(44), index=True)

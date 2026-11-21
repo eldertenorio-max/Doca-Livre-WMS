@@ -28,7 +28,7 @@
     <span class="coletor-rotulo">Separar</span>
     <p class="coletor-codigo">{{ tarefa.quantidade|numero }} {{ tarefa.item.unidade }}</p>
     <p class="coletor-detalhe"><strong>{{ tarefa.item.produto.sku }}</strong> · {{ tarefa.item.produto.descricao }}</p>
-    <p class="coletor-detalhe">{% if tarefa.palete_item.lote %}Lote {{ tarefa.palete_item.lote }}{% endif %}{% if tarefa.palete_item.validade %} · val. {{ tarefa.palete_item.validade.strftime('%d/%m/%Y') }}{% endif %}{% if tarefa.item.nf_numero %} · NF {{ tarefa.item.nf_numero }}{% endif %}</p>
+    <p class="coletor-detalhe">{% if tarefa.palete_item.lote %}Lote {{ tarefa.palete_item.lote }}{% endif %}{% if tarefa.palete_item.validade %} · val. {{ tarefa.palete_item.validade.strftime('%d/%m/%Y') }}{% endif %}{% if tarefa.item.pedido %} · Pedido {{ tarefa.item.pedido }}{% endif %}{% if tarefa.item.nf_numero %} · NF {{ tarefa.item.nf_numero }}{% endif %}</p>
 </section>
 {% if editar and aberta %}
 <form method="POST" action="{{ url_for('saida.confirmar_tarefa', tid=tarefa.id) }}" autocomplete="off" class="coletor-form">
