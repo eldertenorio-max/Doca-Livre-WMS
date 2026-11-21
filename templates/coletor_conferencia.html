@@ -44,10 +44,47 @@
     </div>
     <label for="ccClasse">Classificação</label>
     <select id="ccClasse" name="classificacao" class="coletor-campo">{% for c in classificacoes %}<option value="{{ c }}" {% if c == 'Bom' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-    <button type="submit" class="coletor-acao"><i class="fas fa-pallet"></i>Montar palete</button>
+    {# As mesmas duas ações da tela da nota, nas mesmas cores: a etiqueta do produto (azul) e o palete (verde-claro) #}
+    <button type="submit" class="coletor-acao" formaction="{{ url_for('entrada.receber_produto', nid=nota.id) }}"><i class="fas fa-tag"></i>Etiqueta de recebimento</button>
+    <button type="submit" class="coletor-acao coletor-acao--verde"><i class="fas fa-pallet"></i>Montar palete</button>
 </form>
 {% elif not aberta %}
 <div class="coletor-aviso coletor-aviso--ok"><i class="fas fa-circle-check"></i><span>Esta nota não está mais em conferência ({{ nota.status }}).</span></div>
+{% endif %}
+
+{% if recebidos %}
+{# Produtos que já têm etiqueta de recebimento e ainda não estão em palete: marcar e montar o palete (ou pôr num já guardado) #}
+<h2 class="coletor-subtitulo" id="recebidos">Recebidos sem palete ({{ recebidos|length }})</h2>
+<form method="POST" action="{{ url_for('entrada.montar_com_recebidos', nid=nota.id) }}" autocomplete="off" class="coletor-recebidos" id="formRecebidos">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="voltar_coletor" value="{{ aqui }}">
+    <div class="coletor-lista coletor-lista--parada">
+        {% for r in recebidos %}
+        {% set it = r.itens[0] if r.itens else none %}
+        <label for="crc{{ r.id }}">
+            {% if aberta and editar %}<input type="checkbox" name="recebido" value="{{ r.id }}" id="crc{{ r.id }}" aria-label="Marcar {{ r.etiqueta }}">{% endif %}
+            <span><strong>{{ resumo_itens(r) }}</strong>
+                <small>{{ r.etiqueta }}{% if it and it.lote %} · lote {{ it.lote }}{% endif %}{% if it and it.validade %} · val. {{ it.validade.strftime('%d/%m/%Y') }}{% endif %}{% if r.classificacao != 'Bom' %} · {{ r.classificacao }}{% endif %}</small></span>
+            <a href="{{ url_for('entrada.etiqueta_recebimento', pid=r.id) }}" target="_blank" rel="noopener" class="coletor-etiqueta" title="Abrir a etiqueta de recebimento" aria-label="Abrir a etiqueta de recebimento {{ r.etiqueta }}"><i class="fas fa-tag"></i></a>
+        </label>
+        {% endfor %}
+    </div>
+    {% if aberta and editar %}
+    {# O bloco de "adicionar" vem antes no código para o Enter do leitor, no campo do palete, valer para ele (o primeiro
+       botão do formulário); na tela ele aparece depois do "Montar palete" (ordem trocada no estilo). #}
+    <details class="coletor-extra">
+        <summary>Adicionar a um palete já guardado</summary>
+        <div class="coletor-form">
+            <label for="crPalete">Palete (bipe a etiqueta)</label>
+            <input type="text" id="crPalete" name="palete_existente" class="coletor-campo" data-camera="enter" autocapitalize="characters" enterkeyhint="go" placeholder="Etiqueta do palete">
+            <label class="coletor-confirma"><input type="checkbox" name="confirmar_empresa" value="1"><span>O palete é de outro CNPJ do mesmo embarcador</span></label>
+            <button type="submit" class="coletor-acao coletor-acao--laranja" id="crAdicionar" formaction="{{ url_for('entrada.adicionar_recebidos', nid=nota.id) }}"><i class="fas fa-layer-group"></i>Adicionar ao palete</button>
+        </div>
+    </details>
+    <button type="submit" class="coletor-acao coletor-acao--verde" id="crMontar"><i class="fas fa-plus"></i>Montar palete com os selecionados</button>
+    <button type="button" class="coletor-marcar-todos" id="crTodos">Marcar todos</button>
+    {% endif %}
+</form>
+<p class="coletor-detalhe">Toque na etiqueta <i class="fas fa-tag"></i> para abrir e imprimir a etiqueta de recebimento do produto.</p>
 {% endif %}
 
 <h2 class="coletor-subtitulo">Itens da nota</h2>
@@ -101,6 +138,23 @@
     bip.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); escolher(); } });
     bip.addEventListener('input', function () { bip.classList.remove('is-invalid'); });
     if (sel.value) preencher();
+})();
+// Recebidos sem palete: "Marcar todos" e o leitor no campo do palete (Enter = Adicionar ao palete, nunca "Montar")
+(function () {
+    var form = document.getElementById('formRecebidos');
+    if (!form) return;
+    var caixas = function () { return form.querySelectorAll('input[name="recebido"]'); };
+    var todos = document.getElementById('crTodos'), palete = document.getElementById('crPalete'), adicionar = document.getElementById('crAdicionar');
+    if (todos) todos.addEventListener('click', function () {
+        var marcar = Array.prototype.some.call(caixas(), function (c) { return !c.checked; });
+        Array.prototype.forEach.call(caixas(), function (c) { c.checked = marcar; });
+        todos.textContent = marcar ? 'Desmarcar todos' : 'Marcar todos';
+    });
+    if (palete && adicionar) palete.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        if (palete.value.trim()) adicionar.click();
+    });
 })();
 </script>
 {% endblock %}
