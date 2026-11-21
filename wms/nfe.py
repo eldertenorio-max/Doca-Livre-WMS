@@ -78,6 +78,8 @@ def ler_nfe(conteudo):
         'peso_bruto': _peso_dos_volumes(inf, 'pesoB'),
         'peso_liquido': _peso_dos_volumes(inf, 'pesoL'),
         'itens': [],
+        # numeros de pedido que a nota cita (xPed da compra e de cada item): ligam a NF de saida ao pedido ja separado
+        'pedidos': [],
     }
     if not nota['numero']:
         raise XmlInvalido('A NF-e não tem número.')
@@ -94,6 +96,12 @@ def ler_nfe(conteudo):
             'lote': _texto(rastro, 'nLote')[:30] or None,
             'fabricacao': _data(_texto(rastro, 'dFab')), 'validade': _data(_texto(rastro, 'dVal')),
         })
+        pedido = _texto(prod, 'xPed').strip()
+        if pedido and pedido not in nota['pedidos']:
+            nota['pedidos'].append(pedido)
+    pedido = _texto(inf, 'compra', 'xPed').strip()
+    if pedido and pedido not in nota['pedidos']:
+        nota['pedidos'].append(pedido)
     if not nota['itens']:
         raise XmlInvalido('A NF-e não tem itens com quantidade.')
     return nota

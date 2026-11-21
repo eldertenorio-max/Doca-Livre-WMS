@@ -225,9 +225,9 @@ def rel_saidas():
                   .order_by(Carga.fim_conferencia)):
         for item in carga.itens:
             linhas.append([_hora(carga.fim_conferencia), carga.codigo, carga.motivo, carga.doca, carga.placa, carga.motorista, carga.conferente,
-                           item.nf_numero, item.cliente, item.cidade, item.produto.sku, item.produto.descricao, item.unidade, item.quantidade,
+                           item.pedido, item.nf_numero, item.cliente, item.cidade, item.produto.sku, item.produto.descricao, item.unidade, item.quantidade,
                            item.conferido, round((item.conferido or 0) - item.quantidade, 3), item.motivo_divergencia])
-    return (['Saiu em', 'Carga', 'Motivo', 'Doca', 'Placa', 'Motorista', 'Conferente', 'NF', 'Cliente', 'Cidade', 'SKU', 'Descrição', 'Unidade',
+    return (['Saiu em', 'Carga', 'Motivo', 'Doca', 'Placa', 'Motorista', 'Conferente', 'Pedido', 'NF', 'Cliente', 'Cidade', 'SKU', 'Descrição', 'Unidade',
              'Qtd. da nota', 'Qtd. carregada', 'Diferença', 'Motivo da divergência'], linhas,
             (17, 12, 14, 7, 10, 22, 22, 10, 34, 18, 14, 40, 9, 13, 14, 11, 34))
 

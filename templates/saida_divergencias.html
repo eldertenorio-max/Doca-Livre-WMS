@@ -34,7 +34,7 @@
                     {% set dif = (i.conferido - i.quantidade)|round(3) %}
                     <tr>
                         <td><a href="{{ url_for('saida.carga', cid=i.carga_id) }}"><strong>{{ i.carga.codigo }}</strong></a><br>{{ selo(i.carga.status) }}</td>
-                        <td>{{ i.nf_numero or '—' }}</td>
+                        <td>{{ i.nf_numero or '—' }}{% if i.pedido %}<small class="d-block text-muted">ped. {{ i.pedido }}</small>{% endif %}</td>
                         <td><strong>{{ i.produto.sku }}</strong></td>
                         <td>{{ i.produto.descricao }}</td>
                         <td>{{ i.quantidade|numero }}</td>
