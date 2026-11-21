@@ -37,6 +37,7 @@
             <div class="fin-bloco">
                 <h4>{{ previa.empresa.nome }} · {{ nome_do_mes(previa.ano, previa.mes) }} ({{ previa.inicio.strftime('%d/%m/%Y') }} a {{ previa.fim.strftime('%d/%m/%Y') }})</h4>
                 {% if previa.em_andamento %}<div class="alert alert-warning py-2">Este mês ainda não terminou: o valor abaixo vai só até hoje.</div>{% endif %}
+                {% if previa.inclui %}<p class="text-muted small"><i class="fas fa-layer-group me-1"></i>Mesmo embarcador: inclui as notas de {{ previa.inclui|join(', ') }}.</p>{% endif %}
                 {% if previa.linhas %}
                 <div class="tabela-scroll">
                     <table class="table table-striped mb-0 align-middle">

@@ -2,7 +2,9 @@
 
 De quem e a mercadoria: da empresa que emitiu a nota de entrada (a mesma regra do Financeiro e do mapa).
 Quais empresas o usuario ve: a organizacao dele na Hierarquia e as que estao abaixo dela (as ligadas a uma empresa de
-Cadastros). Administrador e Super Usuario escolhem qualquer cliente, para ver o portal como ele ve.
+Cadastros), mais as outras empresas do mesmo embarcador de cada uma (Cadastros > Empresas, "Agrupa enderecos"): quem
+remete por mais de um CNPJ ve tudo junto. Administrador e Super Usuario escolhem qualquer cliente, para ver o portal
+como ele ve.
 
 O perfil "Cliente (portal)" so tem acesso a este modulo: nenhuma outra tela do WMS abre para ele.
 """
@@ -14,6 +16,7 @@ from .fechamento import nome_do_mes, resposta_pdf
 from .financeiro import linhas_do_financeiro
 from .hierarquia import descendentes
 from .models import Empresa, FechamentoMensal, NotaFiscal, Palete, PaleteItem, Produto, db
+from .paletes import grupos_de
 
 bp = Blueprint('portal', __name__, url_prefix='/portal')
 
@@ -29,7 +32,7 @@ def empresas_do_portal():
             .order_by(Empresa.nome).all(), True
     if not user.organizacao_id:
         return [], False
-    ids = {o.empresa_id for o in descendentes(user.organizacao) if o.empresa_id}
+    ids = grupos_de(o.empresa_id for o in descendentes(user.organizacao) if o.empresa_id)
     return (Empresa.query.filter(Empresa.id.in_(ids)).order_by(Empresa.nome).all() if ids else []), False
 
 
@@ -40,7 +43,9 @@ def _empresas_escolhidas():
     if escolhida:
         if escolhida not in {e.id for e in todas}:
             abort(404)                     # cliente de outro: para este usuario nao existe
-        return todas, [e for e in todas if e.id == escolhida], gestao
+        # o cliente e o embarcador inteiro: a escolhida e as outras empresas do mesmo embarcador
+        grupo = grupos_de([escolhida])
+        return todas, Empresa.query.filter(Empresa.id.in_(grupo)).order_by(Empresa.nome).all(), gestao
     # a gestao comeca sem cliente escolhido (para nao somar todos os clientes num portal so)
     return todas, ([] if gestao else todas), gestao
 
@@ -65,10 +70,10 @@ def estoque_do_cliente(ids):
 @perm('portal')
 def inicio():
     todas, escolhidas, gestao = _empresas_escolhidas()
-    ids = [e.id for e in escolhidas]
+    ids = sorted(grupos_de(e.id for e in escolhidas))
     aba = request.args.get('aba') if request.args.get('aba') in {chave for chave, _, _ in ABAS} else 'estoque'
     filtros = {'empresa': request.args.get('empresa', type=int)}
-    linhas_fin = [l for empresa_id in ids for l in linhas_do_financeiro(empresa_id=empresa_id)]
+    linhas_fin = linhas_do_financeiro(empresas=ids) if ids else []
     estoque = estoque_do_cliente(ids)
 
     if aba == 'estoque' and request.args.get('formato') == 'xlsx':
@@ -97,7 +102,7 @@ def inicio():
 
 
 def _permitidas():
-    return {e.id for e in empresas_do_portal()[0]}
+    return grupos_de(e.id for e in empresas_do_portal()[0])
 
 
 @bp.route('/notas/<int:nid>/pdf')

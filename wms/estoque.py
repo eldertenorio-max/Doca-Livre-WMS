@@ -19,7 +19,7 @@ from openpyxl.styles import Font, PatternFill
 from .core import perm
 from .models import (Camara, Carga, CargaItem, Empresa, Endereco, Movimentacao, NotaFiscal, Palete, PaleteItem,
                      Produto, agora, db)
-from .paletes import CLASSIFICACOES_RETORNO, NO_ARMAZEM, resumo_itens
+from .paletes import CLASSIFICACOES_RETORNO, NO_ARMAZEM, grupos_de, resumo_itens
 
 bp = Blueprint('estoque', __name__, url_prefix='/estoque')
 
@@ -105,7 +105,8 @@ def _consulta_estoque():
     if f['classificacao'] in CLASSIFICACOES_RETORNO:
         consulta = consulta.filter(Palete.classificacao == f['classificacao'])
     if f['empresa']:
-        consulta = consulta.filter(NotaFiscal.empresa_id == f['empresa'])
+        # o dono e o embarcador inteiro: a empresa escolhida e as outras do mesmo embarcador (varios CNPJs)
+        consulta = consulta.filter(NotaFiscal.empresa_id.in_(grupos_de([f['empresa']])))
     if f['q']:
         like = f'%{f["q"].upper()}%'
         consulta = consulta.filter(db.or_(db.func.upper(Produto.sku).like(like), db.func.upper(Produto.descricao).like(like),
