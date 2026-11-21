@@ -2,7 +2,8 @@
 coletor de dados — uma coisa por vez, letra e botoes grandes, o campo de bipar sempre em foco.
 
 Nao ha regra nova aqui: cada tela do coletor envia para a MESMA acao das telas normais (entrada.guardar,
-saida.confirmar_tarefa, inventario.bipar, entrada.montar_palete), entao as validacoes e o historico sao os mesmos.
+saida.confirmar_tarefa, inventario.bipar, entrada.montar_palete, entrada.receber_produto, entrada.montar_com_recebidos,
+entrada.adicionar_recebidos), entao as validacoes e o historico sao os mesmos.
 A unica diferenca e para onde a pessoa volta depois: o formulario manda "voltar_coletor" e a resposta e desviada de
 volta para a tela do coletor (ver _voltar_para_o_coletor).
 """
@@ -13,7 +14,7 @@ from .enderecamento import localizar_endereco
 from .entrada import ABERTAS as NOTAS_ABERTAS, conferido_por_item, rotulo_riscado
 from .inventario import ABERTOS as INVENTARIOS_ABERTOS
 from .models import Carga, CargaItem, Inventario, InventarioLinha, NotaFiscal, Palete, Separacao, db
-from .paletes import CLASSIFICACOES, CLASSIFICACOES_RETORNO, localizar_palete, resumo_itens
+from .paletes import CLASSIFICACOES, CLASSIFICACOES_RETORNO, RECEBIDO, localizar_palete, resumo_itens
 from .saida import ABERTAS as CARGAS_ABERTAS
 
 bp = Blueprint('coletor', __name__, url_prefix='/coletor')
@@ -157,8 +158,11 @@ def conferencia_nota(nid):
         abort(404)
     conferido = conferido_por_item(nota)
     itens = [{'item': i, 'conferido': conferido.get(i.id, 0), 'falta': round(i.quantidade - conferido.get(i.id, 0), 3)} for i in nota.itens]
-    paletes = [p for p in nota.paletes if p.status != 'Baixado'][-6:][::-1]
+    # Produtos com etiqueta de recebimento ainda sem palete ficam numa lista propria, como na tela da nota.
+    recebidos = [p for p in nota.paletes if p.status == RECEBIDO]
+    paletes = [p for p in nota.paletes if p.status not in ('Baixado', RECEBIDO)][-6:][::-1]
     return render_template('coletor_conferencia.html', titulo=f'NF {nota.numero}', nota=nota, itens=itens, paletes=paletes,
+                           recebidos=recebidos,
                            aberta=nota.status in NOTAS_ABERTAS, editar=pode_editar('recebimento'), resumo_itens=resumo_itens,
                            classificacoes=CLASSIFICACOES_RETORNO if nota.tipo == 'Retorno' else CLASSIFICACOES,
                            item_escolhido=request.args.get('item', type=int), riscado=rotulo_riscado)
